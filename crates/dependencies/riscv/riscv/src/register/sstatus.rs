@@ -96,6 +96,30 @@ impl Sstatus {
     pub fn sd(&self) -> bool {
         self.bits & (1 << (usize::BITS as usize - 1)) != 0
     }
+
+    #[inline]
+    pub fn set_spie(&mut self, val: bool) {
+        set_bit(&mut self.bits, 5, val);
+    }
+
+    #[inline]
+    pub fn set_sie(&mut self, val: bool) {
+        set_bit(&mut self.bits, 1, val);
+    }
+
+    #[inline]
+    pub fn set_spp(&mut self, val: SPP) {
+        set_bit(&mut self.bits, 8, val == SPP::Supervisor);
+    }
+}
+
+#[inline]
+fn set_bit(bits: &mut usize, bit: usize, value: bool) {
+    if value {
+        *bits |= 1 << bit;
+    } else {
+        *bits &= !(1 << bit);
+    }
 }
 
 read_csr_as!(Sstatus, 0x100);
