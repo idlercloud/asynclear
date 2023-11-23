@@ -4,6 +4,7 @@ pub use super::misa::XLEN;
 pub use super::mstatus::FS;
 
 /// Supervisor Status Register
+#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Sstatus {
     bits: usize,
