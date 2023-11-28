@@ -1,0 +1,10 @@
+[package]
+name = "user"
+version = "0.1.0"
+authors = ["cxz888 <idlercloud@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+buddy_system_allocator = { path = "../crates/dependencies/buddy_system_allocator" }
+bitflags = "2.4"
+spin = "0.9"

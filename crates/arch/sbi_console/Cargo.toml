@@ -1,0 +1,13 @@
+[package]
+name = "sbi_console"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+spin.workspace = true
+sbi-rt.workspace = true
+defines = { path = "../../utils/defines" }
+sbi-spec = "0.0.6"

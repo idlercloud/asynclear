@@ -1,0 +1,55 @@
+[workspace]
+members = [
+  "crates/executor",
+  "crates/kernel",
+  "crates/memory",
+  "crates/drivers",
+  "crates/arch/*",
+  "crates/utils/*",
+  "xtask",
+  "user",
+]
+exclude = ["crates/dependencies"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["cxz888 <idlercloud@gmail.com>"]
+edition = "2021"
+
+[workspace.dependencies]
+riscv = { path = "crates/dependencies/riscv/riscv" }
+buddy_system_allocator = { path = "crates/dependencies/buddy_system_allocator" }
+fatfs = { path = "crates/dependencies/rust-fatfs" }
+# fatfs = { path = "crates/dependencies/rust-fatfs", default-features = false, features = [
+#   "alloc",
+#   "lfn",
+# ] }
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "smallvec",
+  "alloc",
+] }
+log = "0.4"
+spin = "0.9"
+bitflags = "2.4"
+tap = "1"
+compact_str = { version = "0.8.0-beta", default-features = false }
+goblin = { version = "0.7", default-features = false, features = [
+  "elf32",
+  "elf64",
+  "endian_fd",
+] }
+sbi-rt = { version = "0.0.3-rc.2", features = ["legacy"] }
+
+[profile.release]
+debug = 2
+opt-level = 0
+
+[profile.release.package.user]
+debug = 2
+opt-level = 3
+
+[profile.release.package.xtask]
+debug = false
+opt-level = 3

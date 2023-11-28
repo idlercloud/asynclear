@@ -1,0 +1,13 @@
+[package]
+name = "simple_logger"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log.workspace = true
+spin.workspace = true
+drivers = { path = "../../drivers" }
+sbi_console = { path = "../../arch/sbi_console" }

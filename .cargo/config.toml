@@ -1,0 +1,8 @@
+[alias]
+xtask = "run --package xtask --release --quiet --target-dir xtask/target --"
+xbuild = "xtask build"
+xclean = "xtask clean"
+asm = "xtask asm"
+qemu = "xtask qemu"
+env = "xtask env"
+lint = "xtask lint"
