@@ -30,7 +30,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "smallvec",
   "alloc",
 ] }
-log = "0.4"
 spin = "0.9"
 bitflags = "2.4"
 tap = "1"

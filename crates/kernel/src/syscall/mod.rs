@@ -21,19 +21,19 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         && curr_pid != 1
         && curr_pid != 2
     {
-        log::debug!(
+        info!(
             "Process {:<10}(pid={curr_pid:>2}) enters syscall {}",
             curr_process().lock_inner(|inner| inner.name.clone()),
             name(id)
         );
-        log::debug!("  Syscall {:<16} starts with args {:x?}", name(id), args);
+        info!("  Syscall {:<16} starts with args {:x?}", name(id), args);
     } else {
-        log::trace!(
+        trace!(
             "Process {:<10}(pid={curr_pid:>2}) enters syscall {}",
             curr_process().lock_inner(|inner| inner.name.clone()),
             name(id)
         );
-        log::trace!("  Syscall {:<16} starts with args {:x?}", name(id), args);
+        trace!("  Syscall {:<16} starts with args {:x?}", name(id), args);
     }
     let ret = match id {
         // GETCWD => sys_getcwd(args[0] as _, args[1]),
@@ -97,7 +97,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         ),
         SPAWN => sys_spawn(args[0] as _),
         _ => {
-            log::error!("Unsupported syscall id: {id}");
+            error!("Unsupported syscall id: {id}");
             exit_process(curr_process(), -10);
             Ok(0)
         }
@@ -111,7 +111,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
                 && curr_pid != 1
                 && curr_pid != 2
             {
-                log::debug!(
+                info!(
                     "Process {:<10}(pid={curr_pid:>2}) exits syscall {}, return {ret} = {ret:#x}",
                     curr_process().lock_inner(|inner| inner.name.clone()),
                     name(id),
@@ -122,7 +122,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         Err(err) => {
             // 等待进程的 EAGAIN 可以忽视
             if !(id == WAIT4 && err == errno::EAGAIN) {
-                log::info!(
+                info!(
                     "Process {:<10}(pid={curr_pid:>2}) exits syscall {}, return {err:?}, {}",
                     curr_process().lock_inner(|inner| inner.name.clone()),
                     name(id),

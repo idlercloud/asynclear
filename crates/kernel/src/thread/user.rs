@@ -31,14 +31,14 @@ async fn user_thread_loop(thread: Arc<Thread>) {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
-        log::trace!(
+        trace!(
             "[Pid {}] thread {} enter user mode",
             thread.process.upgrade().unwrap().pid(),
             thread.tid
         );
         trap::trap_return(unsafe { (*local_hart()).trap_context() });
 
-        log::trace!(
+        trace!(
             "[Pid {}] thread {} enter kernel mode",
             thread.process.upgrade().unwrap().pid(),
             thread.tid
@@ -64,7 +64,7 @@ async fn user_thread_loop(thread: Arc<Thread>) {
 fn exit_thread(thread: Arc<Thread>) {
     let process = thread.process.upgrade().unwrap();
 
-    log::info!("[Pid {}] thread {} exits", process.pid(), thread.tid);
+    info!("[Pid {}] thread {} exits", process.pid(), thread.tid);
     let children = process.lock_inner(|process_inner| {
         process_inner.threads[thread.tid].take();
         process_inner.tid_allocator.dealloc(thread.tid);
@@ -79,7 +79,7 @@ fn exit_thread(thread: Arc<Thread>) {
         // 但主要的资源是会释放的，比如地址空间、线程控制块等
         // FIXME: 目前是遍历一遍，可能导致锁太久
         if !process_inner.threads.iter().any(|t| t.is_some()) {
-            log::info!("[Pid {}] all threads exit", process.pid());
+            info!("[Pid {}] all threads exit", process.pid());
             // 如果进程尚未被标记为僵尸，则将线程的退出码赋予给它
             if process_inner.zombie_exit_code.is_none() {
                 process_inner.zombie_exit_code = Some(exit_code);
@@ -138,7 +138,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         process.lock_inner(|inner| inner.memory_set.activate());
         let pid = process.pid();
         let tid = self.thread.tid;
-        log::trace!("[Pid {pid}] thread {tid} running");
+        trace!("[Pid {pid}] thread {tid} running");
         self.thread.lock_inner(|inner| {
             inner.thread_status = ThreadStatus::Running;
         });
@@ -147,7 +147,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
 
         // 该进程退出运行态。不过页表不会切换
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成
-        log::trace!("[Pid {pid}] thread {tid} deactivate");
+        trace!("[Pid {pid}] thread {tid} deactivate");
         let hart = local_hart_mut();
         unsafe {
             (*hart).replace_thread(None);

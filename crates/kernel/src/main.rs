@@ -15,17 +15,19 @@ mod trap;
 
 #[macro_use]
 extern crate sbi_console;
+#[macro_use]
+extern crate kernel_tracer;
 extern crate alloc;
 
 pub fn kernel_loop() -> ! {
     let hart_id = unsafe { (*local_hart()).hart_id() };
-    log::info!("Hart {hart_id} enter kernel loop");
+    info!("Hart {hart_id} enter kernel loop");
 
     thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
     let completed_task_num = executor::run_utils_idle();
 
-    log::info!("Hart {hart_id} executed {completed_task_num} tasks");
-    log::info!("Hart {hart_id} exit kernel loop");
+    info!("Hart {hart_id} executed {completed_task_num} tasks");
+    info!("Hart {hart_id} exit kernel loop");
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }

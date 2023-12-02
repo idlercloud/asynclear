@@ -67,21 +67,21 @@ pub fn sys_clone(
     _ctid: usize,
 ) -> Result {
     if u32::try_from(flags).is_err() {
-        log::error!("flags 超过 u32：{flags:#b}");
+        error!("flags 超过 u32：{flags:#b}");
         return Err(errno::UNSUPPORTED);
     }
     // 参考 https://man7.org/linux/man-pages/man2/clone.2.html，低 8 位是 exit_signal，其余是 clone flags
     let Some(clone_flags) = CloneFlags::from_bits((flags as u32) & !0xff) else {
-        log::error!("未定义的 Clone Flags：{:#b}", flags & !0xff);
+        error!("未定义的 Clone Flags：{:#b}", flags & !0xff);
         return Err(errno::UNSUPPORTED);
     };
     // TODO: 完成 exit_signal
     // let Ok(_exit_signal) = Signal::try_from(flags as u8) else {
-    //     log::error!("未定义的信号：{:#b}", flags as u8);
+    //     error!("未定义的信号：{:#b}", flags as u8);
     //     return Err(errno::UNSUPPORTED);
     // };
     if !clone_flags.is_empty() {
-        log::error!("Clone Flags 包含暂未实现的内容：{clone_flags:?}");
+        error!("Clone Flags 包含暂未实现的内容：{clone_flags:?}");
         return Err(errno::UNSUPPORTED);
     }
     let current_process = curr_process();
@@ -103,9 +103,9 @@ pub fn sys_clone(
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
 pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> Result {
     assert!(envp.is_null(), "envp 暂时尚未支持");
-    log::trace!("  Syscall EXECVE starts");
+    trace!("  Syscall EXECVE starts");
     let pathname = check_cstr(pathname)?;
-    log::trace!("  Syscall EXECVE pathname: {}", unsafe {
+    trace!("  Syscall EXECVE pathname: {}", unsafe {
         &*pathname.as_raw()
     });
     // 收集参数列表
@@ -148,7 +148,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
     assert_eq!(rusage, 0, "目前 rusage 尚不支持，所以必须为 nullptr");
     let options = WaitFlags::from_bits(options as u32).ok_or(errno::EINVAL)?;
     if options.contains(WaitFlags::WIMTRACED) || options.contains(WaitFlags::WCONTINUED) {
-        log::error!("暂时仅支持 WNOHANG");
+        error!("暂时仅支持 WNOHANG");
         return Err(errno::UNSUPPORTED);
     }
 
@@ -188,7 +188,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
                 if options.contains(WaitFlags::WNOHANG) {
                     return Ok(0);
                 } else {
-                    log::trace!("  Syscall WAIT4 no proper child exited");
+                    trace!("  Syscall WAIT4 no proper child exited");
                     drop(inner);
                     drop(process);
                     unsafe {
@@ -296,37 +296,37 @@ pub fn sys_times(tms: *mut Tms) -> Result {
 /// - `fd` 被映射的文件描述符
 /// - `offset` 映射的起始偏移，必须是 `PAGE_SIZE` 的整数倍
 pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset: usize) -> Result {
-    log::debug!("addr: {addr}");
-    log::debug!("len: {len}");
+    info!("addr: {addr}");
+    info!("len: {len}");
 
     if VirtAddr(addr).page_offset() != 0 || len == 0 {
         return Err(errno::EINVAL);
     }
     let Some(prot) = MmapProt::from_bits(prot) else {
         // prot 出现了意料之外的标志位
-        log::error!("prot: {prot:#b}");
+        error!("prot: {prot:#b}");
         return Err(errno::UNSUPPORTED);
     };
     let Some(flags) = MmapFlags::from_bits(flags) else {
         // flags 出现了意料之外的标志位
-        log::error!("flags: {flags:#b}");
+        error!("flags: {flags:#b}");
         return Err(errno::UNSUPPORTED);
     };
-    log::debug!("prot: {prot:?}");
-    log::debug!("flags: {flags:?}");
-    log::debug!("fd: {fd}");
-    log::debug!("offset: {offset}");
+    info!("prot: {prot:?}");
+    info!("flags: {flags:?}");
+    info!("fd: {fd}");
+    info!("offset: {offset}");
     if flags.contains(MmapFlags::MAP_ANONYMOUS | MmapFlags::MAP_SHARED) {
-        log::error!("anonymous shared mapping is not supported!");
+        error!("anonymous shared mapping is not supported!");
         return Err(errno::EPERM);
     }
     if flags.contains(MmapFlags::MAP_ANONYMOUS) {
         if fd != -1 || offset != 0 {
-            log::error!("fd must be -1 and offset must be 0 for anonyous mapping");
+            error!("fd must be -1 and offset must be 0 for anonyous mapping");
             return Err(errno::EPERM);
         }
         let process = curr_process();
-        log::debug!("pid: {}", process.pid());
+        info!("pid: {}", process.pid());
         // TODO: 还没有处理 MmapFlags::MAP_FIXED 的情况？
         return process.lock_inner(|inner| {
             inner.memory_set.try_map(

@@ -17,7 +17,7 @@ static mut HARTS: [Hart; HART_NUM] = [const { Hart::new() }; HART_NUM];
 /// 可以认为代表一个处理器。存放一些 per-hart 的数据
 ///
 /// 因此，一般可以假定不会被并行访问
-#[repr(align(64))]
+#[repr(align(32))]
 pub struct Hart {
     hart_id: usize,
     //TODO: 内核线程是不是会不太一样？
@@ -81,12 +81,10 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 
             memory::init();
             KERNEL_SPACE.activate();
-            // NOTE: logger 里面会初始化 virtio，因此需要先映射好 MMIO
-            simple_logger::init();
             set_local_hart(hart_id);
         }
 
-        log::info!("Init hart {hart_id} started");
+        info!("Init hart {hart_id} started");
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
         // 将下面的代码取消注释即可启动多核
@@ -104,7 +102,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
             set_local_hart(hart_id);
         }
         KERNEL_SPACE.activate();
-        log::info!("Hart {hart_id} started");
+        info!("Hart {hart_id} started");
     }
 
     // 允许在内核态下访问用户数据

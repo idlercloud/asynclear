@@ -46,9 +46,9 @@ impl Thread {
     pub fn alloc_user_stack(tid: usize, memory_set: &mut MemorySet) -> usize {
         // 分配用户栈
         let ustack_low_addr = Self::user_stack_low_addr(tid);
-        log::debug!("stack low addr: {:#x}", ustack_low_addr);
+        info!("stack low addr: {:#x}", ustack_low_addr);
         let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
-        log::debug!("stack high addr: {:#x}", ustack_high_addr);
+        info!("stack high addr: {:#x}", ustack_high_addr);
         memory_set.insert_framed_area(
             VirtAddr(ustack_low_addr).vpn_floor(),
             VirtAddr(ustack_high_addr).vpn_ceil(),

@@ -227,6 +227,6 @@ static PID_ALLOCATOR: Mutex<RecycleAllocator> = Mutex::new(RecycleAllocator::beg
 ///
 /// 其他线程在进入内核时会检查对应的进程是否为 zombie 从而决定是否退出
 pub fn exit_process(process: Arc<Process>, exit_code: i8) {
-    log::info!("[Pid {}] Process exits with code {exit_code}", process.pid);
+    info!("[Pid {}] Process exits with code {exit_code}", process.pid);
     process.lock_inner(|inner| inner.mark_exit(exit_code));
 }

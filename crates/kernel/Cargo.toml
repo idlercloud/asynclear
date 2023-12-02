@@ -7,7 +7,6 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log.workspace = true
 spin.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
@@ -21,9 +20,9 @@ sbi_console = { path = "../arch/sbi_console" }
 executor = { path = "../executor" }
 memory = { path = "../memory" }
 idallocator = { path = "../utils/idallocator" }
-simple_logger = { path = "../utils/simple_logger" }
 defines = { path = "../utils/defines" }
 drivers = { path = "../drivers" }
+kernel_tracer = { path = "../utils/kernel_tracer" }
 unwinding = { version = "0.2", default_features = false, features = [
   "unwinder",
   "fde-static",

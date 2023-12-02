@@ -1,5 +1,5 @@
 [package]
-name = "simple_logger"
+name = "kernel_tracer"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,7 +7,8 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log.workspace = true
 spin.workspace = true
+compact_str.workspace = true
+slab = { version = "0.4", default-features = false }
 drivers = { path = "../../drivers" }
 sbi_console = { path = "../../arch/sbi_console" }

@@ -18,7 +18,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
     set_kernel_trap_entry();
 
     let scause = scause::read();
-    log::trace!("Trap happened {:?}", scause.cause());
+    trace!("Trap happened {:?}", scause.cause());
     let stval = stval::read();
     // check_timer();
     match scause.cause() {
@@ -57,8 +57,8 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => unsafe {
             let cx = (*local_hart()).trap_context();
-            log::debug!("regs: {:x?}", (*cx).user_regs);
-            log::error!(
+            info!("regs: {:x?}", (*cx).user_regs);
+            error!(
                 "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
                 scause.cause(),
                 stval,
@@ -69,8 +69,8 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
         },
         Trap::Exception(Exception::IllegalInstruction) => unsafe {
             let cx = (*local_hart()).trap_context();
-            log::debug!("regs: {:x?}", (*cx).user_regs);
-            log::error!(
+            info!("regs: {:x?}", (*cx).user_regs);
+            error!(
                 "IllegalInstruction(pc={:#x}) in application, core dumped.",
                 (*cx).sepc,
             );

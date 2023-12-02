@@ -205,7 +205,7 @@ impl MemorySet {
                 let dst_ppn = memory_set.translate(vpn).unwrap();
                 // let physical_memory_begin_frame: usize =
                 //     kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
-                // log::debug!(
+                // info!(
                 //     "Copy from {} to {}",
                 //     src_ppn.0 - physical_memory_begin_frame,
                 //     dst_ppn.0 - physical_memory_begin_frame

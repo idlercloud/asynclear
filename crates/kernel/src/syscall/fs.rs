@@ -15,7 +15,7 @@ use crate::{
 // /// 参考：<https://man7.org/linux/man-pages/man2/ioctl.2.html>
 // pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> Result {
 //     // // FIXME: 完善 sys_ioctl 的语义
-//     // log::debug!("sys_ioctl: fd: {fd}, request: {request}, argp: {argp:#x}");
+//     // info!("sys_ioctl: fd: {fd}, request: {request}, argp: {argp:#x}");
 //     // if !matches!(curr_process().inner().fd_table.get(fd), Some(Some(_))) {
 //     //     return Err(errno::EBADF);
 //     // }
@@ -30,7 +30,7 @@ use crate::{
 // pub fn sys_mkdirat(dirfd: usize, path: *const u8, mode: usize) -> Result {
 //     // let path = unsafe { check_cstr(path)? };
 
-//     // log::info!("mkdir {dirfd}, {path}, {mode:#o}");
+//     // info!("mkdir {dirfd}, {path}, {mode:#o}");
 
 //     // let absolute_path = path_with_fd(dirfd, path)?;
 //     // // FIXME: 目前这个语义是错误的，创建目录要抽象出另一个函数来
@@ -218,7 +218,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //     log::error!("open flags: {:#b}", OpenFlags::O_DIRECTORY.bits());
 //     //     return Err(errno::UNSUPPORTED);
 //     // };
-//     // log::info!("oepnat {dir_fd}, {file_name}, {flags:?}");
+//     // info!("oepnat {dir_fd}, {file_name}, {flags:?}");
 //     // // 不是创建文件（以及临时文件）时，mode 被忽略
 //     // if !flags.contains(OpenFlags::O_CREAT) {
 //     //     // TODO: 暂时在测试中忽略
@@ -271,7 +271,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // inner.fd_table[read_fd] = Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));
 //     // let write_fd = inner.alloc_fd();
 //     // inner.fd_table[write_fd] = Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));
-//     // log::debug!("read_fd {read_fd}, write_fd {write_fd}");
+//     // info!("read_fd {read_fd}, write_fd {write_fd}");
 //     // filedes[0] = read_fd as i32;
 //     // filedes[1] = write_fd as i32;
 //     // Ok(0)
@@ -336,7 +336,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //     F_DUPFD | F_DUPFD_CLOEXEC => {
 //     //         let file = Arc::clone(file);
 //     //         let new_fd = inner.alloc_fd_from(arg);
-//     //         log::debug!(
+//     //         info!(
 //     //             "sys_fcntl64: dup fd {fd}({}) to {new_fd}, with set_close_on_exec = {}",
 //     //             file.debug_name(),
 //     //             cmd == F_DUPFD_CLOEXEC
@@ -348,7 +348,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //         Ok(new_fd as isize)
 //     //     }
 //     //     F_GETFD => {
-//     //         log::debug!(
+//     //         info!(
 //     //             "sys_fcntl64: get the flag of fd {fd}({})",
 //     //             file.debug_name()
 //     //         );
@@ -359,7 +359,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //         }
 //     //     }
 //     //     F_SETFD => {
-//     //         log::debug!(
+//     //         info!(
 //     //             "sys_fcntl64: set the flag of fd {fd}({}) to {}",
 //     //             file.debug_name(),
 //     //             arg & 1 != 0
@@ -415,9 +415,9 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // TODO: 暂时先不考虑 fstatat 的 flags
 //     assert_eq!(flag, 0);
 //     let file_name = unsafe { check_cstr(file_name)? };
-//     log::info!("fstatat {dir_fd}, {file_name}");
+//     info!("fstatat {dir_fd}, {file_name}");
 //     let absolute_path = path_with_fd(dir_fd, file_name)?;
-//     log::info!("absolute path: {absolute_path}");
+//     info!("absolute path: {absolute_path}");
 
 //     // TODO: 注意，可以尝试用 OpenFlags::O_PATH 打开试试
 //     let file = open_file(absolute_path, OpenFlags::empty())?;

@@ -2,6 +2,9 @@
 
 mod yield_now;
 
+#[macro_use]
+extern crate kernel_tracer;
+
 use core::future::Future;
 
 use async_task::{Runnable, Task};
@@ -47,10 +50,10 @@ where
 pub fn run_utils_idle() -> usize {
     let mut completed = 0;
     while let Some(task) = TASK_QUEUE.fetch_task() {
-        log::trace!("调度新任务");
+        trace!("调度新任务");
         task.run();
         completed += 1;
-        log::trace!("完成任务");
+        trace!("完成任务");
     }
     completed
 }
