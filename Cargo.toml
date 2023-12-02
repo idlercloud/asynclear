@@ -42,9 +42,13 @@ goblin = { version = "0.7", default-features = false, features = [
 ] }
 sbi-rt = { version = "0.0.3-rc.2", features = ["legacy"] }
 
-[profile.release]
+[profile.dev]
 debug = 2
 opt-level = 0
+
+[profile.release]
+debug = 2
+opt-level = 3
 
 [profile.release.package.user]
 debug = 2
