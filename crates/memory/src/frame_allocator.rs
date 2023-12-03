@@ -19,7 +19,7 @@ pub struct FrameTracker {
 impl FrameTracker {
     // 分配一个新的物理帧，同时会将该物理帧清空
     pub fn new(ppn: PhysPageNum, num: usize) -> Self {
-        assert!(num >= 1);
+        debug_assert!(num >= 1);
         let mut frame = Self { ppn, num };
         frame.fill(0);
         frame
@@ -77,7 +77,7 @@ impl FrameAllocator for BuddySystemFrameAllocator {
             kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
         self.allocator.dealloc(
             range.start.0 - physical_memory_begin_frame,
-            range.end.0 - physical_memory_begin_frame,
+            range.end.0 - range.start.0,
         );
     }
 }
