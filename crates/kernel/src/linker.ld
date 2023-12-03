@@ -34,12 +34,6 @@ SECTIONS
         ebss = .;
     }
 
-    .eh_frame : ALIGN(4K) {
-        __eh_frame = .;
-        KEEP(*(.eh_frame .eh_frame.*))
-        eeh_frame = .;
-    }
-
     . = ALIGN(4K);
     ekernel = .;
     PROVIDE(end = .);

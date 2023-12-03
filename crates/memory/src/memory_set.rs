@@ -27,8 +27,6 @@ extern "C" {
     // fn sbss();
     fn ebss();
     fn ekernel();
-    fn __eh_frame();
-    fn eeh_frame();
 }
 
 pub static KERNEL_SPACE: Lazy<MemorySet> = Lazy::new(MemorySet::new_kernel);
@@ -96,16 +94,6 @@ impl MemorySet {
                 kernel_va_to_pa(VirtAddr(sdata as usize)),
                 kernel_va_to_pa(VirtAddr(ebss as usize)),
                 MapPermission::R | MapPermission::W | MapPermission::G,
-            ),
-            0,
-            None,
-        );
-
-        memory_set.push(
-            MapArea::kernel_map(
-                kernel_va_to_pa(VirtAddr(__eh_frame as usize)),
-                kernel_va_to_pa(VirtAddr(eeh_frame as usize)),
-                MapPermission::R | MapPermission::G,
             ),
             0,
             None,
