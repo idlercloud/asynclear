@@ -1,5 +1,5 @@
 [alias]
-xtask = "run --package xtask --release --quiet --target-dir xtask/target --"
+xtask = "run --package xtask --release --target-dir xtask/target --"
 xbuild = "xtask build"
 xclean = "xtask clean"
 asm = "xtask asm"
