@@ -12,3 +12,4 @@ compact_str.workspace = true
 slab = { version = "0.4", default-features = false }
 drivers = { path = "../../drivers" }
 sbi_console = { path = "../../arch/sbi_console" }
+anstyle = { version = "1.0", default-features = false }

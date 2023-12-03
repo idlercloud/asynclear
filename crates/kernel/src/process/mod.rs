@@ -46,6 +46,7 @@ pub struct Process {
 
 impl Process {
     pub fn from_path(path: CompactString, args: Vec<CompactString>) -> Result<Arc<Self>> {
+        let _enter = info_span!("Process from_path", path = path, args = args).entered();
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
             process_name.push(' ');

@@ -379,6 +379,7 @@ dependencies = [
 name = "kernel_tracer"
 version = "0.1.0"
 dependencies = [
+ "anstyle",
  "compact_str",
  "drivers",
  "sbi_console",

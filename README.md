@@ -19,8 +19,7 @@
 
 按优先级排列：
 
-- [ ] 修复 Frame allocate 的问题
-- [ ] kernel_tracer
+- [ ] kernel_tracer（异步可用；span 单独的环境变量过滤器；Profiling）
 - [ ] rCore-Tutorial I/O 设备管理（中断）
 - [ ] 统一的睡眠锁和唤醒方式
 - [ ] 内核线程

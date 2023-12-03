@@ -102,6 +102,7 @@ pub fn sys_clone(
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
 pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> Result {
+    let _enter = info_span!("sys_execve").entered();
     assert!(envp.is_null(), "envp 暂时尚未支持");
     trace!("  Syscall EXECVE starts");
     let pathname = check_cstr(pathname)?;
