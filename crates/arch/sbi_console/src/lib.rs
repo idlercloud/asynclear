@@ -15,7 +15,7 @@ fn putchar_raw(c: usize) {
 }
 
 /// 标准输出
-struct Stdout;
+pub struct Stdout(());
 
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> Result {
@@ -26,7 +26,7 @@ impl Write for Stdout {
     }
 }
 
-static STDOUT: Mutex<Stdout> = Mutex::new(Stdout);
+pub static STDOUT: Mutex<Stdout> = Mutex::new(Stdout(()));
 
 /// 输出到 stdout
 #[inline]
