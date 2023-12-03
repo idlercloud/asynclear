@@ -11,11 +11,9 @@ use clap::{Parser, Subcommand};
 use const_format::formatcp;
 use qemu::QemuArgs;
 use tool::{AsmArgs, FatProbeArgs};
+use variables::TARGET_ARCH;
 
-use crate::variables::TARGET_ARCH;
-
-const BINARY_DIR: &str = formatcp!("target/{TARGET_ARCH}/release");
-const KERNEL_ELF_PATH: &str = formatcp!("{BINARY_DIR}/kernel");
+const KERNEL_ELF_PATH: &str = formatcp!("target/{TARGET_ARCH}/kernel");
 const KERNEL_BIN_PATH: &str = formatcp!("{KERNEL_ELF_PATH}.bin");
 
 #[derive(Parser)]

@@ -45,6 +45,14 @@ impl Cmd {
         self
     }
 
+    pub fn envs(
+        &mut self,
+        vars: impl IntoIterator<Item = (impl AsRef<OsStr>, impl AsRef<OsStr>)>,
+    ) -> &mut Self {
+        self.0.envs(vars);
+        self
+    }
+
     #[allow(unused)]
     pub fn current_dir(&mut self, dir: impl AsRef<Path>) -> &mut Self {
         self.0.current_dir(dir);

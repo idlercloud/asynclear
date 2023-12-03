@@ -1,17 +1,19 @@
 use clap::Parser;
-use const_format::formatcp;
 use fatfs::{FileSystem, FsOptions};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use tap::Tap;
 
+use crate::build::BuildArgs;
 use crate::cmd_util::Cmd;
 use crate::variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH};
-use crate::BINARY_DIR;
+use crate::KERNEL_ELF_PATH;
 
 #[derive(Parser)]
 pub struct AsmArgs {
+    #[clap(flatten)]
+    build: BuildArgs,
     /// ELF path, if not specified, kernel's path will be selected
     #[clap(short, long)]
     path: Option<PathBuf>,
@@ -19,9 +21,8 @@ pub struct AsmArgs {
 
 impl AsmArgs {
     pub fn dump(self) {
-        let elf_path = self
-            .path
-            .unwrap_or_else(|| PathBuf::from(formatcp!("{BINARY_DIR}/kernel")));
+        self.build.build_kernel();
+        let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
         let output = Cmd::cmd("rust-objdump --arch-name=riscv64 -S")
             .args(&["--section", ".data"])
             .args(&["--section", ".bss"])
@@ -79,7 +80,7 @@ impl FatProbeArgs {
 }
 
 pub fn prepare_env() {
-    Cmd::cmd(formatcp!("rustup target add {TARGET_ARCH}")).invoke();
+    Cmd::cmd(&format!("rustup target add {TARGET_ARCH}")).invoke();
     Cmd::cmd("rustup component add llvm-tools-preview").invoke();
     Cmd::cmd("cargo install cargo-binutils").invoke();
 }
@@ -107,7 +108,10 @@ pub fn pack(elf_names: &[String]) {
         file.write_all(&elf).unwrap();
     };
     for elf_name in elf_names {
-        pack_into(&format!("user/{BINARY_DIR}/{elf_name}"), &elf_name);
+        pack_into(
+            &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
+            &elf_name,
+        );
     }
     pack_into("res/test_bin/clone", "clone");
     pack_into("res/test_bin/execve", "execve");

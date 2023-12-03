@@ -53,7 +53,7 @@ pub struct UserAppInfo {
 impl<'a> UserStackInit<'a> {
     pub fn new(user_sp: usize, user_pt: &'a PageTable) -> Self {
         // 用户 sp 最初应该是对齐到页边界的
-        assert!(user_sp % PAGE_SIZE == 0);
+        debug_assert!(user_sp % PAGE_SIZE == 0);
         Self {
             user_sp,
             user_sp_kernel_va: 0,

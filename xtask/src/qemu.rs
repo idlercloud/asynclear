@@ -35,7 +35,7 @@ impl QemuArgs {
 
         // Make kernel bin
         println!("Making kernel bin...");
-        make_bin(KERNEL_ELF_PATH);
+        make_bin(&KERNEL_ELF_PATH);
 
         // Pack filesystem
         println!("Packing filesystem...");
@@ -63,7 +63,7 @@ impl QemuArgs {
             .args(&["-bios", SBI_PATH])
             // .args(&[
             //     "-drive",
-            //     formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
+            //     &format!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
             // ])
             .args(&[
                 "-drive",
