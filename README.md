@@ -4,12 +4,29 @@
 
 ## Todo
 
+### 基础设施
+
+- [ ] Testing
+- [ ] Logging
+- [ ] Profiling
+
+### 比较独立的工作
+
+- [ ] buddy_system_allocator 增加调试信息，包括碎片率、分配耗时等等
+- [ ] frame_allocator 可以试着用别的测试测试性能
+
+### 具体任务
+
 按优先级排列：
 
+- [ ] 修复 Frame allocate 的问题
+- [ ] kernel_tracer
 - [ ] rCore-Tutorial I/O 设备管理（中断）
-- [ ] 内核线程
-- [ ] async-task 和 embassy 的原理
 - [ ] 统一的睡眠锁和唤醒方式
+- [ ] 内核线程
+- [ ] CoW、Lazy Page，顺便重构 memory 模块
+- [ ] async-task 和 embassy 的原理
+- [ ] 思考 Future 和 Send
 - [ ] 用户指针检查通过内核异常来做
 - [ ] 信号机制
 - [ ] trap 改为 vector 模式
