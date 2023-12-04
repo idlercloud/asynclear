@@ -27,7 +27,7 @@ impl PartialOrd<LevelFilter> for Level {
 
 impl fmt::Display for Level {
     #[inline]
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.pad(self.as_str())
     }
 }
@@ -64,7 +64,7 @@ impl PartialOrd<Level> for LevelFilter {
 }
 
 impl fmt::Display for LevelFilter {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.pad(self.as_str())
     }
 }

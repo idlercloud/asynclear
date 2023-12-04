@@ -61,7 +61,7 @@ impl<T: SpecDisplay> Loggable for [T] {
 
 impl<T: SpecDisplay> Loggable for Vec<T> {
     fn log(&self, writer: &mut CompactString) {
-        (&**self).log(writer)
+        self.as_slice().log(writer);
     }
 }
 

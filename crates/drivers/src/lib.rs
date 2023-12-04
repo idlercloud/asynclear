@@ -3,8 +3,6 @@
 #![feature(strict_provenance)]
 #![feature(generic_const_exprs)]
 
-extern crate alloc;
-
 mod block;
 
 pub use self::block::disk_driver::DiskDriver;

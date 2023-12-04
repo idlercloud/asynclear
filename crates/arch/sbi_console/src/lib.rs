@@ -30,12 +30,12 @@ pub static STDOUT: Mutex<Stdout> = Mutex::new(Stdout(()));
 
 /// 输出到 stdout
 #[inline]
-fn stdout_puts(fmt: Arguments) {
+fn stdout_puts(fmt: Arguments<'_>) {
     STDOUT.lock().write_fmt(fmt).unwrap();
 }
 
 #[inline]
-pub fn print(args: Arguments) {
+pub fn print(args: Arguments<'_>) {
     stdout_puts(args);
 }
 

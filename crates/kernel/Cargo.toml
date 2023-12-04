@@ -24,3 +24,6 @@ defines = { path = "../utils/defines" }
 drivers = { path = "../drivers" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 pin-project = "1.1"
+
+[lints]
+workspace = true

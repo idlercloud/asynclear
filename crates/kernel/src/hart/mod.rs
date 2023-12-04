@@ -96,7 +96,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // }
     } else {
         while !INIT_FINISHED.load(Ordering::SeqCst) {
-            core::hint::spin_loop()
+            core::hint::spin_loop();
         }
         unsafe {
             set_local_hart(hart_id);
@@ -118,10 +118,10 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 ///
 /// 需保证由不同 hart 调用
 unsafe fn set_local_hart(hart_id: usize) {
-    let hart = &mut HARTS[hart_id];
+    let hart = unsafe { &mut HARTS[hart_id] };
     hart.hart_id = hart_id;
     let hart_addr = hart as *const _ as usize;
-    asm!("mv tp, {}", in(reg) hart_addr);
+    unsafe { asm!("mv tp, {}", in(reg) hart_addr) };
 }
 
 pub fn local_hart() -> *const Hart {

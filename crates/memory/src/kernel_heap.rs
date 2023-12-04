@@ -14,7 +14,9 @@ static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
 
 /// 初始化内核堆，只应当调用一次
 pub unsafe fn init_heap() {
-    HEAP_ALLOCATOR
-        .lock()
-        .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+    unsafe {
+        HEAP_ALLOCATOR
+            .lock()
+            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+    }
 }

@@ -39,7 +39,7 @@ pub struct KernelTracer {
 
 impl KernelTracer {
     #[inline]
-    pub fn log_to_console(&self, record: &Record) {
+    pub fn log_to_console(&self, record: &Record<'_>) {
         if record.level() <= CLOG {
             let color = match record.level() {
                 Level::Error => AnsiColor::Red,         // Red
@@ -95,7 +95,7 @@ impl KernelTracer {
     }
 
     #[inline]
-    pub fn log_to_file(&self, record: &Record) {
+    pub fn log_to_file(&self, record: &Record<'_>) {
         if record.level() <= FLOG {
             static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
             writeln!(
@@ -111,7 +111,7 @@ impl KernelTracer {
 
 #[inline]
 #[doc(hidden)]
-pub fn log(level: Level, args: core::fmt::Arguments) {
+pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
     let record = Record::new(level, args);
     if level <= crate::CLOG {
         crate::KERNLE_TRACER.log_to_console(&record);

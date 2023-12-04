@@ -11,7 +11,7 @@ use crate::{hart::local_hart, process, syscall};
 
 core::arch::global_asm!(include_str!("trap.S"));
 
-/// 在某些情况下，如调用了 `sys_exit`，会返回 ControlFlow::Break
+/// 在某些情况下，如调用了 `sys_exit`，会返回 `ControlFlow::Break`
 ///
 /// 以通知结束用户线程循环
 pub async fn trap_handler() -> ControlFlow<(), ()> {
@@ -50,12 +50,15 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
                 ControlFlow::Continue(())
             }
         },
-        Trap::Exception(Exception::StoreFault)
-        | Trap::Exception(Exception::StorePageFault)
-        | Trap::Exception(Exception::InstructionFault)
-        | Trap::Exception(Exception::InstructionPageFault)
-        | Trap::Exception(Exception::LoadFault)
-        | Trap::Exception(Exception::LoadPageFault) => unsafe {
+
+        Trap::Exception(
+            Exception::StoreFault
+            | Exception::StorePageFault
+            | Exception::InstructionFault
+            | Exception::InstructionPageFault
+            | Exception::LoadFault
+            | Exception::LoadPageFault,
+        ) => unsafe {
             let cx = (*local_hart()).trap_context();
             info!("regs: {:x?}", (*cx).user_regs);
             error!(
@@ -110,6 +113,7 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     unsafe { __return_to_user(trap_context) }
 }
 
+#[allow(dead_code)]
 pub fn enable_timer_interrupt() {
     unsafe {
         sie::set_stimer();

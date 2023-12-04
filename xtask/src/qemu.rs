@@ -35,7 +35,7 @@ impl QemuArgs {
 
         // Make kernel bin
         println!("Making kernel bin...");
-        make_bin(&KERNEL_ELF_PATH);
+        make_bin(KERNEL_ELF_PATH);
 
         // Pack filesystem
         println!("Packing filesystem...");
@@ -55,21 +55,21 @@ impl QemuArgs {
             log_file.write_all(&placeholder).unwrap();
         }
         Cmd::new("qemu-system-riscv64")
-            .args(&["-machine", "virt"])
-            .args(&["-kernel", KERNEL_BIN_PATH])
-            .args(&["-m", "128M"])
-            .args(&["-nographic"])
-            .args(&["-smp", &self.smp.to_string()])
-            .args(&["-bios", SBI_PATH])
+            .args(["-machine", "virt"])
+            .args(["-kernel", KERNEL_BIN_PATH])
+            .args(["-m", "128M"])
+            .args(["-nographic"])
+            .args(["-smp", &self.smp.to_string()])
+            .args(["-bios", SBI_PATH])
             // .args(&[
             //     "-drive",
             //     &format!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
             // ])
-            .args(&[
+            .args([
                 "-drive",
                 &format!("file={log_file_name},if=none,format=raw,id=x0"),
             ])
-            .args(&[
+            .args([
                 "-device",
                 "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
             ])
@@ -83,6 +83,7 @@ impl QemuArgs {
             .open(&log_file_name)
             .unwrap();
         let mut log_bytes = Vec::with_capacity(LOG_PRESERVED_SIZE as usize);
+        #[allow(clippy::verbose_file_reads)]
         log_file.read_to_end(&mut log_bytes).unwrap();
         let mut len = LOG_PRESERVED_SIZE;
         for byte in log_bytes.into_iter().rev() {
@@ -99,7 +100,7 @@ fn make_bin(elf_path: impl AsRef<Path>) {
     let path = elf_path.as_ref();
     Cmd::new("rust-objcopy")
         .arg(path)
-        .args(&["-O", "binary"])
+        .args(["-O", "binary"])
         .arg(path.with_extension("bin"))
         .invoke();
 }

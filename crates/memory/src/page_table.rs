@@ -88,21 +88,21 @@ impl PageTable {
     ///
     /// 请自行保证 non-alias
     pub unsafe fn root_pte(&self, line: usize) -> &PageTableEntry {
-        &kernel_ppn_to_vpn(self.root_ppn).as_page_ptes()[line]
+        unsafe { &kernel_ppn_to_vpn(self.root_ppn).as_page_ptes()[line] }
     }
 
     /// # Safety
     ///
     /// 请自行保证 non-alias
     pub unsafe fn root_pte_mut(&mut self, line: usize) -> &mut PageTableEntry {
-        &mut kernel_ppn_to_vpn(self.root_ppn).as_page_ptes_mut()[line]
+        unsafe { &mut kernel_ppn_to_vpn(self.root_ppn).as_page_ptes_mut()[line] }
     }
 
     /// # Safety
     ///
     /// 请自行保证 non-alias
     pub unsafe fn root_page(&mut self) -> &mut [u8; PAGE_SIZE] {
-        kernel_ppn_to_vpn(self.root_ppn).as_page_bytes_mut()
+        unsafe { kernel_ppn_to_vpn(self.root_ppn).as_page_bytes_mut() }
     }
 
     /// 找到 `vpn` 对应的叶子页表项。注意，该页表项必须是 valid 的。
@@ -159,7 +159,7 @@ impl PageTable {
 
     pub fn unmap(&mut self, vpn: VirtPageNum) {
         let pte = self.find_pte_create(vpn).unwrap();
-        assert!(pte.is_valid(), "vpn {:?} is invalid before unmapping", vpn);
+        assert!(pte.is_valid(), "vpn {vpn:?} is invalid before unmapping");
         *pte = PageTableEntry::empty();
     }
 

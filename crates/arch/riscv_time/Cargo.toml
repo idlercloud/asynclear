@@ -10,3 +10,6 @@ edition.workspace = true
 riscv.workspace = true
 sbi-rt.workspace = true
 defines = { path = "../../utils/defines" }
+
+[lints]
+workspace = true

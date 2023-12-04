@@ -101,7 +101,7 @@ impl ProcessInner {
 
     /// 标记进程已退出。但是不会回收资源。
     ///
-    /// 一般而言，所有线程都退出后，会调用 become_zombie 真正变为僵尸进程
+    /// 一般而言，所有线程都退出后，会调用 `become_zombie` 真正变为僵尸进程
     pub fn mark_exit(&mut self, exit_code: i8) {
         assert_eq!(self.zombie_exit_code, None);
         self.zombie_exit_code = Some(exit_code);

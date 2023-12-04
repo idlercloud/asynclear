@@ -117,7 +117,7 @@ impl<'a> UserStackInit<'a> {
         argv_base
     }
 
-    /// sp 和 sp_kernel_va 向下移动，如果跨越页边界，则重新翻译 sp_kernel_va
+    /// `user_sp` 和 `user_sp_kernel_va` 向下移动，如果跨越页边界，则重新翻译 `user_sp_kernel_va`
     fn sp_down(&mut self, len: usize) {
         if self.user_sp % PAGE_SIZE == 0 {
             self.user_sp -= len;
@@ -139,7 +139,7 @@ impl<'a> UserStackInit<'a> {
 
     fn push_ptrs(&mut self, ptrs: &[usize]) {
         for &ptr in ptrs.iter().rev() {
-            self.push_usize(ptr)
+            self.push_usize(ptr);
         }
     }
 

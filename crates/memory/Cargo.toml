@@ -13,3 +13,6 @@ spin.workspace = true
 bitflags.workspace = true
 goblin.workspace = true
 defines = { path = "../utils/defines" }
+
+[lints]
+workspace = true

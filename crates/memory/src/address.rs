@@ -92,13 +92,13 @@ impl VirtAddr {
     ///
     /// 需要保证该地址转化为 T 后内容合法
     pub unsafe fn as_ref<T>(&self) -> &'static T {
-        (self.0 as *const T).as_ref().unwrap()
+        unsafe { (self.0 as *const T).as_ref().unwrap() }
     }
     /// # Safety
     ///
     /// 需要保证该地址转化为 T 后内容合法
     pub unsafe fn as_mut<T>(&mut self) -> &'static mut T {
-        (self.0 as *mut T).as_mut().unwrap()
+        unsafe { (self.0 as *mut T).as_mut().unwrap() }
     }
 }
 
@@ -136,25 +136,25 @@ impl VirtPageNum {
     ///
     /// 需要确保该页确实存放页表
     pub unsafe fn as_page_ptes(&self) -> &'static [PageTableEntry; PTE_PER_PAGE] {
-        self.page_start().as_ref()
+        unsafe { self.page_start().as_ref() }
     }
     /// # Safety
     ///
     /// 需要确保该页确实存放页表
     pub unsafe fn as_page_ptes_mut(&mut self) -> &'static mut [PageTableEntry; PTE_PER_PAGE] {
-        self.page_start().as_mut()
+        unsafe { self.page_start().as_mut() }
     }
     /// # Safety
     ///
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
     pub unsafe fn as_page_bytes(&self) -> &'static [u8; PAGE_SIZE] {
-        self.page_start().as_ref()
+        unsafe { self.page_start().as_ref() }
     }
     /// # Safety
     ///
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
     pub unsafe fn as_page_bytes_mut(&mut self) -> &'static mut [u8; PAGE_SIZE] {
-        self.page_start().as_mut()
+        unsafe { self.page_start().as_mut() }
     }
     /// 将 `src` 中的数据复制到该页中。
     ///
@@ -163,7 +163,8 @@ impl VirtPageNum {
     /// 需要保证 `src` 与该页不相交
     pub unsafe fn copy_from(&mut self, offset: usize, src: &[u8]) {
         let va = self.page_start();
-        let dst = core::slice::from_raw_parts_mut(va.add(offset).0 as *mut u8, src.len());
+        let dst =
+            unsafe { core::slice::from_raw_parts_mut(va.add(offset).0 as *mut u8, src.len()) };
         dst.copy_from_slice(src);
     }
 }

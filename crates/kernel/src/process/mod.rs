@@ -216,7 +216,7 @@ impl Process {
 
 impl Drop for Process {
     fn drop(&mut self) {
-        PID_ALLOCATOR.lock().dealloc(self.pid)
+        PID_ALLOCATOR.lock().dealloc(self.pid);
     }
 }
 

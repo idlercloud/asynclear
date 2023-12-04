@@ -132,7 +132,7 @@ impl MemorySet {
     /// 加载所有段，返回 ELF 数据的结束地址
     ///
     /// 记得调用前清理地址空间，否则可能 panic
-    pub fn load_sections(&mut self, elf: &Elf, elf_data: &[u8]) -> VirtAddr {
+    pub fn load_sections(&mut self, elf: &Elf<'_>, elf_data: &[u8]) -> VirtAddr {
         let mut elf_end = VirtAddr(0);
         for ph in &elf.program_headers {
             if ph.p_type == PT_LOAD {
@@ -176,7 +176,7 @@ impl MemorySet {
             for line in [508, 510, 511] {
                 let user_pte = self.page_table.root_pte_mut(line);
                 let kernel_pte = kernel_pt.root_pte(line);
-                user_pte.bits = kernel_pte.bits
+                user_pte.bits = kernel_pte.bits;
             }
         }
     }
@@ -214,7 +214,7 @@ impl MemorySet {
         self.page_table.token()
     }
 
-    /// 需保证 heap_start < new_vpn，且还有足够的虚地址和物理空间可以映射
+    /// 需保证 `heap_start` < `new_vpn`，且还有足够的虚地址和物理空间可以映射
     pub fn set_user_brk(&mut self, new_end: VirtPageNum, heap_start: VirtPageNum) {
         // 堆区已经映射过了，就扩张或者收缩。否则插入堆区
         if let Some(map_area) = self.areas.get_mut(&heap_start) {
@@ -259,7 +259,7 @@ impl MemorySet {
                         self.insert_framed_area(start, start + len, perm);
                         return Ok(start.page_start().0 as isize);
                     }
-                    start = area.vpn_range.end
+                    start = area.vpn_range.end;
                 }
             }
             Err(errno::ENOMEM)
@@ -311,11 +311,13 @@ impl MemorySet {
 
     /// 刷新 tlb，可选刷新一部分，或者全部刷新
     pub fn flush_tlb(&self, vaddr: Option<VirtAddr>) {
-        unsafe {
-            if let Some(vaddr) = vaddr {
+        if let Some(vaddr) = vaddr {
+            unsafe {
                 riscv::asm::sfence_vma(0, vaddr.0);
-            } else {
-                riscv::asm::sfence_vma_all()
+            }
+        } else {
+            unsafe {
+                riscv::asm::sfence_vma_all();
             }
         }
     }

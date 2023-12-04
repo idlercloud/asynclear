@@ -41,6 +41,6 @@ pub const fn kernel_ppn_to_vpn(ppn: PhysPageNum) -> VirtPageNum {
 ///
 /// 只应当调用一次
 pub unsafe fn init() {
-    kernel_heap::init_heap();
+    unsafe { kernel_heap::init_heap() };
     frame_allocator::init_frame_allocator();
 }

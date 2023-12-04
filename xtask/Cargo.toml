@@ -12,3 +12,6 @@ tap.workspace = true
 clap = { version = "4.3", features = ["derive"] }
 const_format = "0.2"
 chrono = "0.4"
+
+[lints]
+workspace = true

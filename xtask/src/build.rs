@@ -25,17 +25,17 @@ impl BuildArgs {
 
     pub fn build_user_apps() {
         println!("Building user apps...");
-        Cmd::cmd("cargo build --package user --release")
-            .args(&["--target", TARGET_ARCH])
-            .args(&["--target-dir", "user/target"])
+        Cmd::parse("cargo build --package user --release")
+            .args(["--target", TARGET_ARCH])
+            .args(["--target-dir", "user/target"])
             .env("RUSTFLAGS", "-Clink-arg=-Tuser/src/linker.ld")
             .invoke();
     }
 
     pub fn build_kernel(&self) {
         println!("Building kernel...");
-        Cmd::cmd("cargo build --package kernel")
-            .args(&["--target", TARGET_ARCH])
+        Cmd::parse("cargo build --package kernel")
+            .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .env(
                 "RUSTFLAGS",

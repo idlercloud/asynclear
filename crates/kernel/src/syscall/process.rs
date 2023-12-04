@@ -23,7 +23,7 @@ pub fn sys_exit(exit_code: i32) -> Result {
     unsafe {
         (*local_hart())
             .curr_thread()
-            .lock_inner(|inner| inner.exit_code = (exit_code & 0xff) as i8)
+            .lock_inner(|inner| inner.exit_code = (exit_code & 0xff) as i8);
     };
     Err(errno::BREAK)
 }
@@ -55,7 +55,7 @@ pub fn sys_getppid() -> Result {
 
 /// 创建子任务，通过 flags 进行精确控制。父进程返回子进程 pid，子进程返回 0。
 ///
-/// TODO: 完善 sys_clone() 及文档
+/// TODO: 完善 `sys_clone()` 及文档
 ///
 /// 参数：
 /// - `flags` 指定 clone 的方式。具体参看 [`CloneFlags`]
@@ -90,7 +90,7 @@ pub fn sys_clone(
     new_process.lock_inner(|inner| {
         inner.main_thread().lock_inner(|inner| {
             inner.trap_context.user_regs[9] = 0;
-        })
+        });
     });
     Ok(new_pid as isize)
 }
@@ -260,7 +260,7 @@ pub struct Tms {
     tms_cstime: usize,
 }
 
-/// FIXME: sys_times 暂时是非正确的实现
+// FIXME: `sys_times` 暂时是非正确的实现
 pub fn sys_times(tms: *mut Tms) -> Result {
     let ticks = riscv::register::time::read();
     let tms = check_ptr_mut(tms)?;

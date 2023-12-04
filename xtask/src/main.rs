@@ -36,6 +36,7 @@ enum Commands {
 }
 
 fn main() {
+    #[allow(clippy::enum_glob_use)]
     use Commands::*;
     match Cli::parse().command {
         Build(args) => args.build(),

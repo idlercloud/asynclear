@@ -13,6 +13,6 @@ pub struct ThreadInner {
 pub enum ThreadStatus {
     Ready,
     Running,
-    Sleeping,
+    // Sleeping,
     Terminated,
 }

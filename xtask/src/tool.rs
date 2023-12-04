@@ -23,11 +23,11 @@ impl AsmArgs {
     pub fn dump(self) {
         self.build.build_kernel();
         let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
-        let output = Cmd::cmd("rust-objdump --arch-name=riscv64 -S")
-            .args(&["--section", ".data"])
-            .args(&["--section", ".bss"])
-            .args(&["--section", ".text"])
-            .args(&[&elf_path])
+        let output = Cmd::parse("rust-objdump --arch-name=riscv64 -S")
+            .args(["--section", ".data"])
+            .args(["--section", ".bss"])
+            .args(["--section", ".text"])
+            .args([&elf_path])
             .tap(|cmd| println!("Invoking {:?}", cmd.info()))
             .output();
         fs::write(elf_path.with_extension("S"), output.stdout).unwrap();
@@ -80,9 +80,9 @@ impl FatProbeArgs {
 }
 
 pub fn prepare_env() {
-    Cmd::cmd(&format!("rustup target add {TARGET_ARCH}")).invoke();
-    Cmd::cmd("rustup component add llvm-tools-preview").invoke();
-    Cmd::cmd("cargo install cargo-binutils").invoke();
+    Cmd::parse(&format!("rustup target add {TARGET_ARCH}")).invoke();
+    Cmd::parse("rustup component add llvm-tools-preview").invoke();
+    Cmd::parse("cargo install cargo-binutils").invoke();
 }
 
 // 将一系列 elf 打包入 fat32 镜像中
@@ -110,7 +110,7 @@ pub fn pack(elf_names: &[String]) {
     for elf_name in elf_names {
         pack_into(
             &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-            &elf_name,
+            elf_name,
         );
     }
     pack_into("res/test_bin/clone", "clone");
@@ -119,14 +119,15 @@ pub fn pack(elf_names: &[String]) {
 }
 
 pub fn clean() {
-    Cmd::cmd("cargo clean")
+    Cmd::parse("cargo clean")
         .invoke()
-        .args(&["--target-dir", "user/target"])
+        .args(["--target-dir", "user/target"])
         .invoke();
 }
 
 pub fn lint() {
-    Cmd::cmd("cargo clippy --package kernel")
-        .args(&["--target", TARGET_ARCH])
+    Cmd::parse("cargo clippy --workspace --exclude xtask")
+        .args(["--target", TARGET_ARCH])
         .invoke();
+    Cmd::parse("cargo clippy --package xtask").invoke();
 }

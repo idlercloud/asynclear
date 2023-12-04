@@ -11,3 +11,6 @@ spin.workspace = true
 sbi-rt.workspace = true
 defines = { path = "../../utils/defines" }
 sbi-spec = "0.0.6"
+
+[lints]
+workspace = true

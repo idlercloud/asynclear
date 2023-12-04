@@ -11,7 +11,7 @@ impl Cmd {
         Self(process::Command::new(name))
     }
 
-    pub fn cmd(cmd_line: &str) -> Self {
+    pub fn parse(cmd_line: &str) -> Self {
         let mut component = cmd_line.split_whitespace();
         let name = component.next().unwrap();
         let mut cmd = Self(process::Command::new(name));

@@ -45,21 +45,21 @@ impl<T: ?Sized> UserMut<T> {
 
 unsafe impl<T: ?Sized> Send for UserMut<T> {}
 
-/// 检查一个用户指针的可读性以及是否有 U 标记
-///
-/// TODO: 目前只检查了一页的有效性，如果结构体跨多页，则可能有问题
-#[track_caller]
-pub fn check_ptr<T>(ptr: *const T) -> Result<UserConst<T>> {
-    curr_process().lock_inner(|inner| {
-        let va = VirtAddr::from(ptr);
-        if let Some(pte) = inner.memory_set.page_table().find_pte(va.vpn()) {
-            if pte.flags().contains(PTEFlags::R | PTEFlags::U) {
-                return Ok(UserConst { ptr });
-            }
-        }
-        Err(errno::EFAULT)
-    })
-}
+// /// 检查一个用户指针的可读性以及是否有 U 标记
+// ///
+// /// TODO: 目前只检查了一页的有效性，如果结构体跨多页，则可能有问题
+// #[track_caller]
+// pub fn check_ptr<T>(ptr: *const T) -> Result<UserConst<T>> {
+//     curr_process().lock_inner(|inner| {
+//         let va = VirtAddr::from(ptr);
+//         if let Some(pte) = inner.memory_set.page_table().find_pte(va.vpn()) {
+//             if pte.flags().contains(PTEFlags::R | PTEFlags::U) {
+//                 return Ok(UserConst { ptr });
+//             }
+//         }
+//         Err(errno::EFAULT)
+//     })
+// }
 
 /// 检查一个指向连续切片的指针（如字符串）的可读性以及是否有 U 标志
 /// 检查一个用户指针的读写性以及是否有 U 标记
@@ -143,7 +143,7 @@ pub fn check_cstr(ptr: *const u8) -> Result<UserConst<str>> {
             if pte.flags().contains(PTEFlags::R | PTEFlags::U) {
                 return Ok(UserConst {
                     ptr: unsafe {
-                        core::ffi::CStr::from_ptr(ptr as _).to_str().unwrap() as *const str
+                        core::ffi::CStr::from_ptr(ptr.cast()).to_str().unwrap() as *const str
                     },
                 });
             }

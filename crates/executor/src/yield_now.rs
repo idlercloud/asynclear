@@ -14,7 +14,7 @@ struct YieldFuture(bool);
 impl Future for YieldFuture {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.0 {
             return Poll::Ready(());
         }

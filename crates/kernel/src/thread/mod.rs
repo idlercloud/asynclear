@@ -79,6 +79,6 @@ impl Thread {
 
     pub async fn yield_now(&self) {
         self.inner.lock().thread_status = ThreadStatus::Ready;
-        executor::yield_now().await
+        executor::yield_now().await;
     }
 }
