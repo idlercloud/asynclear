@@ -14,14 +14,16 @@
 
 - [ ] buddy_system_allocator 增加调试信息，包括碎片率、分配耗时等等
 - [ ] frame_allocator 可以试着用别的测试测试性能
+- [ ] 某些堆分配可以用 Allocaotr API 试着优化
 
 ### 具体任务
 
 按优先级排列：
 
 - [ ] kernel_tracer（异步可用；span 单独的环境变量过滤器；Profiling）
-- [ ] rCore-Tutorial I/O 设备管理（中断）
+- [ ] 时间和定时器
 - [ ] 统一的睡眠锁和唤醒方式
+- [ ] rCore-Tutorial I/O 设备管理（中断）
 - [ ] 内核线程
 - [ ] CoW、Lazy Page，顺便重构 memory 模块
 - [ ] async-task 和 embassy 的原理
