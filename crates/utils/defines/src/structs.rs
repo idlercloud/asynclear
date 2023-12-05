@@ -45,3 +45,17 @@ impl Default for UtsName {
         Self::new()
     }
 }
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TimeSpec {
+    pub sec: usize,
+    pub nsec: usize,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct TimeVal {
+    pub sec: usize,
+    pub usec: usize,
+}

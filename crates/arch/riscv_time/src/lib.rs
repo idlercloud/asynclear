@@ -1,26 +1,10 @@
 #![no_std]
 
-use defines::config::CLOCK_FREQ;
+use defines::{
+    config::{CLOCK_FREQ, TICKS_PER_SEC},
+    constant::{MICRO_PER_SEC, MILLI_PER_SEC, NANO_PER_SEC},
+};
 use riscv::register::time;
-
-pub const TICKS_PER_SEC: usize = 20;
-pub const MILLI_PER_SEC: usize = 1_000;
-pub const MICRO_PER_SEC: usize = 1_000_000;
-pub const NANO_PER_SEC: usize = 1_000_000_000;
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TimeSpec {
-    pub sec: usize,
-    pub nsec: usize,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct TimeVal {
-    pub sec: usize,
-    pub usec: usize,
-}
 
 /// 应当是返回时钟次数。应该是从开机或者复位算起。
 #[inline]

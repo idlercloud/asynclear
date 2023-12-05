@@ -4,6 +4,7 @@
 
 #[macro_use]
 pub mod config;
+pub mod constant;
 pub mod error;
 pub mod structs;
 pub mod trap_context;

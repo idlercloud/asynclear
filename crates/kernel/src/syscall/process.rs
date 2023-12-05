@@ -3,11 +3,11 @@
 use alloc::{sync::Arc, vec::Vec};
 use compact_str::CompactString;
 use defines::{
+    constant::{MICRO_PER_SEC, NANO_PER_SEC},
     error::{errno, Result},
-    structs::UtsName,
+    structs::{TimeSpec, TimeVal, UtsName},
 };
 use memory::VirtAddr;
-use riscv_time::{TimeSpec, TimeVal, MICRO_PER_SEC, NANO_PER_SEC};
 
 use crate::{
     hart::{curr_process, local_hart},
