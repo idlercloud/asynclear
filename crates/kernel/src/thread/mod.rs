@@ -1,4 +1,5 @@
 mod inner;
+mod timer;
 mod user;
 
 use alloc::sync::Weak;
@@ -12,6 +13,7 @@ use crate::process::Process;
 use self::inner::ThreadInner;
 
 pub use self::inner::ThreadStatus;
+pub use self::timer::check_timer;
 pub use self::user::spawn_user_thread;
 
 /// 进程控制块
@@ -46,9 +48,9 @@ impl Thread {
     pub fn alloc_user_stack(tid: usize, memory_set: &mut MemorySet) -> usize {
         // 分配用户栈
         let ustack_low_addr = Self::user_stack_low_addr(tid);
-        info!("stack low addr is {:#x}", ustack_low_addr);
+        debug!("stack low addr is {:#x}", ustack_low_addr);
         let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
-        info!("stack high addr is {:#x}", ustack_high_addr);
+        debug!("stack high addr is {:#x}", ustack_high_addr);
         memory_set.insert_framed_area(
             VirtAddr(ustack_low_addr).vpn_floor(),
             VirtAddr(ustack_high_addr).vpn_ceil(),

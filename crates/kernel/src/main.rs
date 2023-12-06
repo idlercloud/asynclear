@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 #![feature(inline_const)]
 #![feature(format_args_nl)]
+#![feature(const_binary_heap_constructor)]
 
 use crate::{hart::local_hart, process::INITPROC};
 

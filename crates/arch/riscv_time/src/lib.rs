@@ -15,6 +15,11 @@ pub fn get_time() -> usize {
 }
 
 #[inline]
+pub fn get_time_ns() -> usize {
+    time::read() * NANO_PER_SEC / CLOCK_FREQ
+}
+
+#[inline]
 pub fn get_time_us() -> usize {
     time::read() * MICRO_PER_SEC / CLOCK_FREQ
 }
@@ -22,11 +27,6 @@ pub fn get_time_us() -> usize {
 #[inline]
 pub fn get_time_ms() -> usize {
     time::read() * MILLI_PER_SEC / CLOCK_FREQ
-}
-
-#[inline]
-pub fn get_time_ns() -> usize {
-    time::read() * NANO_PER_SEC / CLOCK_FREQ
 }
 
 /// set the next timer interrupt
