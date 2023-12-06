@@ -37,67 +37,63 @@ pub struct KernelTracer {
 
 impl KernelTracer {
     #[inline]
-    pub fn log_to_console(&self, record: &Record<'_>) {
-        if record.level() <= CLOG {
-            let color = match record.level() {
-                Level::Error => AnsiColor::Red,         // Red
-                Level::Warn => AnsiColor::BrightYellow, // BrightYellow
-                Level::Info => AnsiColor::Blue,         // Blue
-                Level::Debug => AnsiColor::Green,       // Green
-                Level::Trace => AnsiColor::BrightBlack, // BrightBlack
-            };
-            let mut stdout = sbi_console::STDOUT.lock();
+    fn log_to_console(&self, record: &Record<'_>) {
+        let color = match record.level() {
+            Level::Error => AnsiColor::Red,         // Red
+            Level::Warn => AnsiColor::BrightYellow, // BrightYellow
+            Level::Info => AnsiColor::Blue,         // Blue
+            Level::Debug => AnsiColor::Green,       // Green
+            Level::Trace => AnsiColor::BrightBlack, // BrightBlack
+        };
+        let mut stdout = sbi_console::STDOUT.lock();
 
+        write!(
+            stdout,
+            "{}[{:>5}]{} ",
+            color.render_fg(),
+            record.level(),
+            Reset.render()
+        )
+        .unwrap();
+
+        let slab = self.slab.lock();
+        let stack = self.span_stack.lock();
+
+        const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
+
+        for id in stack.iter() {
+            let id = id.as_slab_index();
+            let span_data = slab.get(id).unwrap();
+            if span_data.level() > CLOG {
+                continue;
+            }
             write!(
                 stdout,
-                "{}[{:>5}]{} ",
-                color.render_fg(),
-                record.level(),
+                "{}{}{}",
+                SPAN_NAME_COLOR.render(),
+                span_data.name(),
                 Reset.render()
             )
             .unwrap();
-
-            let slab = self.slab.lock();
-            let stack = self.span_stack.lock();
-
-            const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
-
-            for id in stack.iter() {
-                let id = id.as_slab_index();
-                let span_data = slab.get(id).unwrap();
-                if span_data.level() > CLOG {
-                    continue;
-                }
-                write!(
-                    stdout,
-                    "{}{}{}",
-                    SPAN_NAME_COLOR.render(),
-                    span_data.name(),
-                    Reset.render()
-                )
-                .unwrap();
-                if let Some(kvs) = span_data.kvs() {
-                    write!(stdout, "{{{kvs}}}").unwrap();
-                }
-                write!(stdout, ":").unwrap();
+            if let Some(kvs) = span_data.kvs() {
+                write!(stdout, "{{{kvs}}}").unwrap();
             }
-
-            writeln!(stdout, "{}", record.args()).unwrap();
+            write!(stdout, ":").unwrap();
         }
+
+        writeln!(stdout, "{}", record.args()).unwrap();
     }
 
     #[inline]
-    pub fn log_to_file(&self, record: &Record<'_>) {
-        if record.level() <= FLOG {
-            static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
-            writeln!(
-                &mut LOG_FS.lock(),
-                "[{:>5}] {}",
-                record.level(),
-                record.args()
-            )
-            .unwrap();
-        }
+    fn log_to_file(&self, record: &Record<'_>) {
+        static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
+        writeln!(
+            &mut LOG_FS.lock(),
+            "[{:>5}] {}",
+            record.level(),
+            record.args()
+        )
+        .unwrap();
     }
 }
 
