@@ -1,13 +1,14 @@
 use core::ops::ControlFlow;
 
 use defines::{error::errno, trap_context::TrapContext};
+use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
     sepc, sie, stval,
     stvec::{self, TrapMode},
 };
 
-use crate::{hart::local_hart, process, syscall};
+use crate::{hart::local_hart, process, syscall, thread};
 
 core::arch::global_asm!(include_str!("trap.S"));
 
@@ -20,15 +21,15 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
     let scause = scause::read();
     trace!("Trap happened {:?}", scause.cause());
     let stval = stval::read();
-    // check_timer();
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => unsafe {
             let mut cx = (*local_hart()).trap_context();
             // TODO: 异常的返回位置是下一条指令，不过一定是 +4 吗？
             (*cx).sepc += 4;
             // get system call return value
+            let syscall_id = (*cx).user_regs[16];
             let result = syscall::syscall(
-                (*cx).user_regs[16],
+                syscall_id,
                 [
                     (*cx).user_regs[9],
                     (*cx).user_regs[10],
@@ -38,6 +39,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
                     (*cx).user_regs[14],
                 ],
             )
+            .instrument(debug_span!("syscall", name = syscall::name(syscall_id)))
             .await;
 
             // 线程应当退出
@@ -82,7 +84,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
         },
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             riscv_time::set_next_trigger();
-            // check_timer();
+            thread::check_timer();
             unsafe {
                 (*local_hart()).curr_thread().yield_now().await;
             }

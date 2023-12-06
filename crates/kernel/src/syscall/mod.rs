@@ -15,25 +15,15 @@ use crate::{hart::curr_process, process::exit_process};
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     let curr_pid = curr_process().pid();
     // 读入标准输入、写入标准输出、写入标准错误、INITPROC 和 shell 都不关心
-    if !((id == READ || id == READV) && args[0] == 0
+    if (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
-        || id == PPOLL)
-        && curr_pid != 1
-        && curr_pid != 2
+        || id == PPOLL
+        || curr_pid == 1
+        || curr_pid == 2
     {
-        info!(
-            "Process {:<10}(pid={curr_pid:>2}) enters syscall {}",
-            curr_process().lock_inner(|inner| inner.name.clone()),
-            name(id)
-        );
-        info!("  Syscall {:<16} starts with args {:x?}", name(id), args);
+        trace!("args {args:x?}",);
     } else {
-        trace!(
-            "Process {:<10}(pid={curr_pid:>2}) enters syscall {}",
-            curr_process().lock_inner(|inner| inner.name.clone()),
-            name(id)
-        );
-        trace!("  Syscall {:<16} starts with args {:x?}", name(id), args);
+        info!("args {args:x?}",);
     }
     let ret = match id {
         // GETCWD => sys_getcwd(args[0] as _, args[1]),
@@ -111,23 +101,14 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
                 && curr_pid != 1
                 && curr_pid != 2
             {
-                info!(
-                    "Process {:<10}(pid={curr_pid:>2}) exits syscall {}, return {ret} = {ret:#x}",
-                    curr_process().lock_inner(|inner| inner.name.clone()),
-                    name(id),
-                );
+                info!("return {ret} = {ret:#x}",);
             }
             ret
         }
         Err(err) => {
             // 等待进程的 EAGAIN 可以忽视
             if !(id == WAIT4 && err == errno::EAGAIN) {
-                info!(
-                    "Process {:<10}(pid={curr_pid:>2}) exits syscall {}, return {err:?}, {}",
-                    curr_process().lock_inner(|inner| inner.name.clone()),
-                    name(id),
-                    errno::error_info(err.as_isize()),
-                );
+                info!("return {err:?}, {}", errno::error_info(err.as_isize()),);
             }
             err.as_isize()
         }
@@ -137,7 +118,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
 macro_rules! declare_syscall_id {
     ($($name:tt, $id:literal,)*) => {
         $(const $name: usize = $id;)*
-        fn name(id: usize) -> &'static str {
+        pub fn name(id: usize) -> &'static str {
             match id {
                 $($id => stringify!($name),)*
                 _ => unreachable!("{}", id),

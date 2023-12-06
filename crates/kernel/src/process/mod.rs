@@ -46,7 +46,7 @@ pub struct Process {
 
 impl Process {
     pub fn from_path(path: CompactString, args: Vec<CompactString>) -> Result<Arc<Self>> {
-        let _enter = info_span!("Process from_path", path = path, args = args).entered();
+        let _enter = info_span!("spawn process", path = path, args = args).entered();
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
             process_name.push(' ');
@@ -228,7 +228,7 @@ static PID_ALLOCATOR: Mutex<RecycleAllocator> = Mutex::new(RecycleAllocator::beg
 ///
 /// 其他线程在进入内核时会检查对应的进程是否为 zombie 从而决定是否退出
 pub fn exit_process(process: Arc<Process>, exit_code: i8) {
-    info!("[Pid {}] Process exits with code {exit_code}", process.pid);
+    info!("Process exits with code {exit_code}");
     process.lock_inner(|inner| inner.mark_exit(exit_code));
     // TODO: 要不要修改为等待线程完全退出
 }

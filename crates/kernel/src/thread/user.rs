@@ -31,18 +31,10 @@ async fn user_thread_loop(thread: Arc<Thread>) {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
-        trace!(
-            "[Pid {}] thread {} enter user mode",
-            thread.process.upgrade().unwrap().pid(),
-            thread.tid
-        );
+        trace!("enter user mode",);
         trap::trap_return(unsafe { (*local_hart()).trap_context() });
 
-        trace!(
-            "[Pid {}] thread {} enter kernel mode",
-            thread.process.upgrade().unwrap().pid(),
-            thread.tid
-        );
+        trace!("enter kernel mode",);
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
         let next_op = trap::trap_handler().await;
 
@@ -64,7 +56,7 @@ async fn user_thread_loop(thread: Arc<Thread>) {
 fn exit_thread(thread: Arc<Thread>) {
     let process = thread.process.upgrade().unwrap();
 
-    info!("[Pid {}] thread {} exits", process.pid(), thread.tid);
+    debug!("one thread exits");
     let children = process.lock_inner(|process_inner| {
         process_inner.threads[thread.tid].take();
         process_inner.tid_allocator.dealloc(thread.tid);
@@ -79,7 +71,7 @@ fn exit_thread(thread: Arc<Thread>) {
         // 但主要的资源是会释放的，比如地址空间、线程控制块等
         // FIXME: 目前是遍历一遍，可能导致锁太久
         if !process_inner.threads.iter().any(|t| t.is_some()) {
-            info!("[Pid {}] all threads exit", process.pid());
+            info!("all threads exit");
             // 如果进程尚未被标记为僵尸，则将线程的退出码赋予给它
             if process_inner.zombie_exit_code.is_none() {
                 process_inner.zombie_exit_code = Some(exit_code);
@@ -139,7 +131,8 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         process.lock_inner(|inner| inner.memory_set.activate());
         let pid = process.pid();
         let tid = self.thread.tid;
-        trace!("[Pid {pid}] thread {tid} running");
+        let _enter = info_span!("task", pid = pid, tid = tid).entered();
+        trace!("User task running");
         self.thread.lock_inner(|inner| {
             inner.thread_status = ThreadStatus::Running;
         });
@@ -148,7 +141,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
 
         // 该进程退出运行态。不过页表不会切换
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成
-        trace!("[Pid {pid}] thread {tid} deactivate");
+        trace!("User task deactivate");
         let hart = local_hart_mut();
         unsafe {
             (*hart).replace_thread(None);

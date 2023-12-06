@@ -21,14 +21,16 @@ extern crate kernel_tracer;
 extern crate alloc;
 
 pub fn kernel_loop() -> ! {
-    let hart_id = unsafe { (*local_hart()).hart_id() };
-    info!("Hart {hart_id} enter kernel loop");
+    {
+        let hart_id = unsafe { (*local_hart()).hart_id() };
+        let _enter = debug_span!("hart", id = hart_id).entered();
+        info!("Enter kernel loop");
 
-    thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
-    let completed_task_num = executor::run_utils_idle();
+        thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
+        executor::run_utils_idle();
 
-    info!("Hart {hart_id} executed {completed_task_num} tasks");
-    info!("Hart {hart_id} exit kernel loop");
+        info!("Exit kernel loop");
+    }
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }
