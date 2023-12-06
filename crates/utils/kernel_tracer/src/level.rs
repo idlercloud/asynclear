@@ -77,6 +77,7 @@ impl LevelFilter {
 
 pub const CLOG: LevelFilter = decide_log_level(option_env!("KERNEL_CLOG"));
 pub const FLOG: LevelFilter = decide_log_level(option_env!("KERNEL_FLOG"));
+pub const SLOG: LevelFilter = decide_log_level(option_env!("KERNEL_SLOG"));
 
 const fn decide_log_level(level_str: Option<&str>) -> LevelFilter {
     const fn str_eq(lhs: &str, rhs: &str) -> bool {

@@ -11,7 +11,7 @@ mod record;
 mod span;
 
 pub use instrument::Instrument;
-pub use level::{Level, LevelFilter, CLOG, FLOG};
+pub use level::{Level, LevelFilter, CLOG, FLOG, SLOG};
 pub use record::Record;
 pub use span::Span;
 
@@ -62,15 +62,12 @@ impl KernelTracer {
 
             const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
 
-            let mut has_span = false;
-
             for id in stack.iter() {
                 let id = id.as_slab_index();
                 let span_data = slab.get(id).unwrap();
                 if span_data.level() > CLOG {
                     continue;
                 }
-                has_span = true;
                 write!(
                     stdout,
                     "{}{}{}",
@@ -85,9 +82,6 @@ impl KernelTracer {
                 write!(stdout, ":").unwrap();
             }
 
-            if has_span {
-                write!(stdout, " ").unwrap();
-            }
             writeln!(stdout, "{}", record.args()).unwrap();
         }
     }

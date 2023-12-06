@@ -15,6 +15,9 @@ pub struct BuildArgs {
     /// 文件日志级别
     #[clap(long, default_value_t = String::from("TRACE"))]
     flog: String,
+    /// `span` 过滤器级别
+    #[clap(long, default_value_t = String::from("INFO"))]
+    slog: String,
 }
 
 impl BuildArgs {
@@ -38,7 +41,11 @@ impl BuildArgs {
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
-            .envs([("KERNEL_CLOG", &self.clog), ("KERNEL_FLOG", &self.flog)])
+            .envs([
+                ("KERNEL_CLOG", &self.clog),
+                ("KERNEL_FLOG", &self.flog),
+                ("KERNEL_SLOG", &self.slog),
+            ])
             .invoke();
         let kernel_path = format!(
             "target/{TARGET_ARCH}/{}/kernel",
