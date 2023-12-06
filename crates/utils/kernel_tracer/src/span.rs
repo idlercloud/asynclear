@@ -1,5 +1,6 @@
 use core::{
     fmt::{Display, Write},
+    marker::PhantomData,
     num::NonZeroU32,
 };
 
@@ -38,11 +39,13 @@ macro_rules! mydisplay_impl {
 
 mydisplay_impl!(u8 u16 u32 u64 usize i8 i16 i32 i64 str char String CompactString);
 
-impl<T: SpecDisplay> Loggable for T {
+impl<T: SpecDisplay + ?Sized> Loggable for T {
     fn log(&self, writer: &mut CompactString) {
         core::fmt::write(writer, format_args!("{self}")).unwrap();
     }
 }
+
+impl<T: SpecDisplay + ?Sized> SpecDisplay for &T {}
 
 impl<T: SpecDisplay> Loggable for [T] {
     fn log(&self, writer: &mut CompactString) {
@@ -66,6 +69,9 @@ impl<T: SpecDisplay> Loggable for Vec<T> {
 }
 
 impl Span {
+    /// 创建一个新的 span。但只是将其注册，而没有实际实际启用。
+    ///
+    /// 调用 `entered()` 以进入该 span
     pub fn new<'a>(
         level: Level,
         name: &'static str,
@@ -98,11 +104,24 @@ impl Span {
         Self { id: None }
     }
 
+    pub fn enter(&self) -> RefEnterGuard<'_> {
+        if let Some(id) = &self.id {
+            KERNLE_TRACER.span_stack.lock().push(id.clone());
+        }
+        RefEnterGuard {
+            span: self,
+            _not_send: PhantomData,
+        }
+    }
+
     pub fn entered(self) -> OwnedEnterGuard {
         if let Some(id) = &self.id {
             KERNLE_TRACER.span_stack.lock().push(id.clone());
         }
-        OwnedEnterGuard { span: self }
+        OwnedEnterGuard {
+            span: self,
+            _not_send: PhantomData,
+        }
     }
 }
 
@@ -115,14 +134,33 @@ impl Drop for Span {
     }
 }
 
+#[must_use = "once a span has been entered, it should be exited"]
+pub struct RefEnterGuard<'a> {
+    span: &'a Span,
+    _not_send: PhantomData<*const ()>,
+}
+
+impl Drop for RefEnterGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(id) = &self.span.id {
+            let _span_id = KERNLE_TRACER.span_stack.lock().pop();
+            // 维持一个栈结构，因此退出的 id 应当与进入的 id 保持一致
+            debug_assert_eq!(_span_id.as_ref(), Some(id));
+        }
+    }
+}
+
+#[must_use = "once a span has been entered, it should be exited"]
 pub struct OwnedEnterGuard {
     span: Span,
+    _not_send: PhantomData<*const ()>,
 }
 
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {
         if let Some(id) = &self.span.id {
             let _span_id = KERNLE_TRACER.span_stack.lock().pop();
+            // 维持一个栈结构，因此退出的 id 应当与进入的 id 保持一致
             debug_assert_eq!(_span_id.as_ref(), Some(id));
         }
     }

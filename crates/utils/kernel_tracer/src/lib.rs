@@ -1,7 +1,3 @@
-//! 综合参考 log、tracing、puffin 等库设计的内核用日志、跟踪、性能分析库
-//!
-//! 自己造轮子是因为一来有一些性能上的原因，希望可以优化；二来是这些库有些太过复杂，超出了内核的需求范围
-
 #![no_std]
 #![feature(format_args_nl)]
 
@@ -9,10 +5,12 @@ extern crate alloc;
 
 #[macro_use]
 mod macros;
+mod instrument;
 mod level;
 mod record;
 mod span;
 
+pub use instrument::Instrument;
 pub use level::{Level, LevelFilter, CLOG, FLOG};
 pub use record::Record;
 pub use span::Span;
