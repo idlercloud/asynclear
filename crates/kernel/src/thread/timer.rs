@@ -46,7 +46,7 @@ impl Eq for Timer {}
 
 impl PartialOrd for Timer {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.expire_ms.partial_cmp(&other.expire_ms)
+        Some(self.cmp(other))
     }
 }
 
