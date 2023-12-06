@@ -472,8 +472,8 @@ impl MapArea {
     /// 约定：当前逻辑段必须是 `Framed` 的。而且 `data` 的长度不得超过逻辑段长度。
     pub fn copy_data(&mut self, page_table: &mut PageTable, start_offset: usize, data: &[u8]) {
         assert_matches!(self.map_type, MapType::Framed { .. });
-        assert!(start_offset < PAGE_SIZE);
-        assert!(data.len() <= self.len());
+        debug_assert!(start_offset < PAGE_SIZE);
+        debug_assert!(data.len() <= self.len());
         let mut curr_vpn = self.vpn_range.start;
 
         let (first_block, rest) = data.split_at((PAGE_SIZE - start_offset).min(data.len()));

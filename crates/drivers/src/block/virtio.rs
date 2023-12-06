@@ -64,7 +64,6 @@ unsafe impl Hal for HalImpl {
 
 impl BlockDevice for VirtIOBlk<HalImpl, MmioTransport> {
     const BLOCK_SIZE: u32 = 512;
-    // const _:_ = {assert!(VirtIOBlk<HalImpl,MmioTransport>)}
 
     fn read_block(&mut self, block_id: u64, buf: &mut [u8; Self::BLOCK_SIZE as usize]) {
         self.read_blocks(block_id as usize, buf)
@@ -76,6 +75,7 @@ impl BlockDevice for VirtIOBlk<HalImpl, MmioTransport> {
     }
 }
 
+/// BLOCK_SIZE 必须是 SECTOR_SIZE 的正整数倍
 const _: () = assert!(
     (<VirtIOBlk<HalImpl, MmioTransport> as BlockDevice>::BLOCK_SIZE as usize)
         % virtio_drivers::device::blk::SECTOR_SIZE
