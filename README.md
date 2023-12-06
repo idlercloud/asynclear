@@ -20,7 +20,7 @@
 
 按优先级排列：
 
-- [ ] kernel_tracer（文件日志跟进；Profiling）
+- [ ] kernel_tracer（Profiling）
 - [ ] Testing
 - [ ] 时间和定时器
 - [ ] 统一的睡眠锁和唤醒方式
