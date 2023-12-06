@@ -39,7 +39,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
                     (*cx).user_regs[14],
                 ],
             )
-            .instrument(debug_span!("syscall", name = syscall::name(syscall_id)))
+            .instrument(info_span!("syscall", name = syscall::name(syscall_id)))
             .await;
 
             // 线程应当退出

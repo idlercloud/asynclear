@@ -23,7 +23,7 @@ extern crate alloc;
 pub fn kernel_loop() -> ! {
     {
         let hart_id = unsafe { (*local_hart()).hart_id() };
-        let _enter = debug_span!("hart", id = hart_id).entered();
+        let _enter = info_span!("hart", id = hart_id).entered();
         info!("Enter kernel loop");
 
         thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
