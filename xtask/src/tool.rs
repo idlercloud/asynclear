@@ -23,7 +23,17 @@ impl AsmArgs {
     pub fn dump(self) {
         self.build.build_kernel();
         let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
-        let output = Cmd::parse("rust-objdump --arch-name=riscv64 -S")
+        let output = Cmd::parse("rust-objdump --arch-name=riscv64 -g")
+            .args([
+                "--source",
+                "--demangle",
+                "--line-numbers",
+                "--file-headers",
+                // "--section-headers",
+                "--symbolize-operands",
+                "--print-imm-hex",
+                "--no-show-raw-insn",
+            ])
             .args(["--section", ".data"])
             .args(["--section", ".bss"])
             .args(["--section", ".text"])
