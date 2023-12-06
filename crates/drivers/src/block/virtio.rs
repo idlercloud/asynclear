@@ -75,7 +75,7 @@ impl BlockDevice for VirtIOBlk<HalImpl, MmioTransport> {
     }
 }
 
-/// BLOCK_SIZE 必须是 SECTOR_SIZE 的正整数倍
+/// `BLOCK_SIZE` 必须是 `SECTOR_SIZE` 的正整数倍
 const _: () = assert!(
     (<VirtIOBlk<HalImpl, MmioTransport> as BlockDevice>::BLOCK_SIZE as usize)
         % virtio_drivers::device::blk::SECTOR_SIZE
