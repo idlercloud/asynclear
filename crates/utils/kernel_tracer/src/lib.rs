@@ -36,8 +36,8 @@ pub struct KernelTracer {
 }
 
 impl KernelTracer {
-    #[inline]
-    fn log_to_console(&self, record: &Record<'_>) {
+    fn write_log(&self, writer: &mut impl Write, record: &Record<'_>, span_level: LevelFilter) {
+        // 开头部分，即日志级别，如 `[ INFO]`
         let color = match record.level() {
             Level::Error => AnsiColor::Red,         // Red
             Level::Warn => AnsiColor::BrightYellow, // BrightYellow
@@ -45,55 +45,52 @@ impl KernelTracer {
             Level::Debug => AnsiColor::Green,       // Green
             Level::Trace => AnsiColor::BrightBlack, // BrightBlack
         };
-        let mut stdout = sbi_console::STDOUT.lock();
-
         write!(
-            stdout,
-            "{}[{:>5}]{} ",
+            writer,
+            "{}[{:>5}]{}",
             color.render_fg(),
             record.level(),
             Reset.render()
         )
         .unwrap();
 
-        let slab = self.slab.lock();
-        let stack = self.span_stack.lock();
+        // Span 栈部分
+        let mut has_span = false;
+        {
+            let slab = self.slab.lock();
+            let stack = self.span_stack.lock();
 
-        const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
+            const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
 
-        for id in stack.iter() {
-            let id = id.as_slab_index();
-            let span_data = slab.get(id).unwrap();
-            if span_data.level() > CLOG {
-                continue;
+            for id in stack.iter() {
+                let id = id.as_slab_index();
+                let span_data = slab.get(id).unwrap();
+                if span_data.level() > span_level {
+                    continue;
+                }
+                has_span = true;
+
+                write!(
+                    writer,
+                    "-{}{}{}",
+                    SPAN_NAME_COLOR.render(),
+                    span_data.name(),
+                    Reset.render()
+                )
+                .unwrap();
+                if let Some(kvs) = span_data.kvs() {
+                    write!(writer, "{{{kvs}}}").unwrap();
+                }
             }
-            write!(
-                stdout,
-                "{}{}{}",
-                SPAN_NAME_COLOR.render(),
-                span_data.name(),
-                Reset.render()
-            )
-            .unwrap();
-            if let Some(kvs) = span_data.kvs() {
-                write!(stdout, "{{{kvs}}}").unwrap();
-            }
-            write!(stdout, ":").unwrap();
+        }
+        if has_span {
+            write!(writer, ": ").unwrap();
+        } else {
+            write!(writer, " ").unwrap();
         }
 
-        writeln!(stdout, "{}", record.args()).unwrap();
-    }
-
-    #[inline]
-    fn log_to_file(&self, record: &Record<'_>) {
-        static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
-        writeln!(
-            &mut LOG_FS.lock(),
-            "[{:>5}] {}",
-            record.level(),
-            record.args()
-        )
-        .unwrap();
+        // 日志信息部分
+        writeln!(writer, "{}", record.args()).unwrap();
     }
 }
 
@@ -102,9 +99,10 @@ impl KernelTracer {
 pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
     let record = Record::new(level, args);
     if level <= crate::CLOG {
-        crate::KERNLE_TRACER.log_to_console(&record);
+        KERNLE_TRACER.write_log(&mut *sbi_console::STDOUT.lock(), &record, CLOG);
     }
     if level <= crate::FLOG {
-        crate::KERNLE_TRACER.log_to_file(&record);
+        static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
+        KERNLE_TRACER.write_log(&mut *LOG_FS.lock(), &record, FLOG);
     }
 }

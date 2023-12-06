@@ -45,7 +45,7 @@ impl QemuArgs {
         println!("Running qemu...");
         fs::create_dir_all("logs").unwrap();
         let date_time = Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap());
-        let log_file_name = format!("logs/{}.log", date_time.format("%Y-%m-%d %H_%M_%S"));
+        let log_file_name = format!("logs/{}.ansi", date_time.format("%Y-%m-%d %H_%M_%S"));
         // 预留 512KB 的日志空间
         const LOG_PRESERVED_SIZE: u64 = 512 * 1024;
         {
