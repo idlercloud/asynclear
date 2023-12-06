@@ -104,7 +104,7 @@ impl Span {
         Self { id: None }
     }
 
-    pub fn enter(&self) -> RefEnterGuard<'_> {
+    pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
         if let Some(id) = &self.id {
             KERNLE_TRACER.span_stack.lock().push(id.clone());
         }
