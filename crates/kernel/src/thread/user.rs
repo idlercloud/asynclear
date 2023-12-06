@@ -112,6 +112,7 @@ fn exit_thread(thread: Arc<Thread>) {
 }
 
 /// `UserThreadFuture` 用来处理用户线程获取控制权以及让出控制权时的上下文切换。如页表切换等
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project::pin_project]
 struct UserThreadFuture<F: Future + Send> {
     #[pin]

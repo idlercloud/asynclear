@@ -13,8 +13,7 @@ compact_str.workspace = true
 goblin.workspace = true
 bitflags.workspace = true
 sbi-rt.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
+pin-project.workspace = true
 riscv_time = { path = "../arch/riscv_time" }
 sbi_console = { path = "../arch/sbi_console" }
 executor = { path = "../executor" }
@@ -23,7 +22,6 @@ idallocator = { path = "../utils/idallocator" }
 defines = { path = "../utils/defines" }
 drivers = { path = "../drivers" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
-pin-project = "1.1"
 
 [lints]
 workspace = true

@@ -21,6 +21,7 @@
 按优先级排列：
 
 - [ ] kernel_tracer（异步可用；span 单独的环境变量过滤器；Profiling）
+- [ ] Testing
 - [ ] 时间和定时器
 - [ ] 统一的睡眠锁和唤醒方式
 - [ ] rCore-Tutorial I/O 设备管理（中断）

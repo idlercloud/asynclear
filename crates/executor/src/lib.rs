@@ -50,10 +50,9 @@ where
 pub fn run_utils_idle() -> usize {
     let mut completed = 0;
     while let Some(task) = TASK_QUEUE.fetch_task() {
-        trace!("调度新任务");
+        trace!("Schedule new task");
         task.run();
         completed += 1;
-        trace!("完成任务");
     }
     completed
 }

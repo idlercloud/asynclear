@@ -230,4 +230,5 @@ static PID_ALLOCATOR: Mutex<RecycleAllocator> = Mutex::new(RecycleAllocator::beg
 pub fn exit_process(process: Arc<Process>, exit_code: i8) {
     info!("[Pid {}] Process exits with code {exit_code}", process.pid);
     process.lock_inner(|inner| inner.mark_exit(exit_code));
+    // TODO: 要不要修改为等待线程完全退出
 }
