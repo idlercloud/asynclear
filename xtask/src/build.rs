@@ -37,10 +37,7 @@ impl BuildArgs {
         Cmd::parse("cargo build --package kernel")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
-            .env(
-                "RUSTFLAGS",
-                "-Clink-arg=-Tcrates/kernel/src/linker.ld -Cforce-unwind-tables=yes",
-            )
+            .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
             .envs([("KERNEL_CLOG", &self.clog), ("KERNEL_FLOG", &self.flog)])
             .invoke();
         let kernel_path = format!(
