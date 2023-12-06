@@ -72,19 +72,30 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
             fn sbss();
             fn ebss();
         }
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                sbss as usize as *mut u8,
-                ebss as usize - sbss as usize,
-            )
-            .fill(0);
 
+        fn clear_bss() {
+            let len = ebss as usize - sbss as usize;
+            // 为 debug 模式做的优化，减少启动时间
+            const BATCH_SIZE: usize = 4096;
+            let batch_end = sbss as usize + len / BATCH_SIZE * BATCH_SIZE;
+            unsafe {
+                core::slice::from_raw_parts_mut(
+                    sbss as usize as *mut [u8; BATCH_SIZE],
+                    len / BATCH_SIZE,
+                )
+                .fill([0; BATCH_SIZE]);
+                core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as usize - batch_end)
+                    .fill(0);
+            }
+        }
+        clear_bss();
+        unsafe {
             memory::init();
-            KERNEL_SPACE.activate();
             set_local_hart(hart_id);
         }
+        KERNEL_SPACE.activate();
 
-        info!("Init hart {hart_id} started");
+        info!("Init hart {hart_id} started",);
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
         // 将下面的代码取消注释即可启动多核
