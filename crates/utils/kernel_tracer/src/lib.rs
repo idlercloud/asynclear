@@ -5,34 +5,37 @@ extern crate alloc;
 
 #[macro_use]
 mod macros;
-mod instrument;
 mod level;
 mod record;
 mod span;
 
-pub use instrument::Instrument;
-pub use level::{Level, LevelFilter, CLOG, FLOG, SLOG};
-pub use record::Record;
-pub use span::Span;
+pub use level::{Level, CLOG, FLOG, SLOG};
+pub use span::{instrument::Instrument, Span};
 
 use core::fmt::Write;
 
 use alloc::vec::Vec;
 use anstyle::{AnsiColor, Reset, Style};
 use drivers::DiskDriver;
+use level::LevelFilter;
+use record::Record;
 use slab::Slab;
 use span::{SpanData, SpanId};
 use spin::{Lazy, Mutex};
 
-pub static KERNLE_TRACER: Lazy<KernelTracer> = Lazy::new(|| KernelTracer {
+static KERNLE_TRACER: Lazy<KernelTracer> = Lazy::new(|| KernelTracer {
     slab: Mutex::new(Slab::with_capacity(64)),
     // TODO: 改造 span_stack 使其适应多核；并且可以用于栈展开
     span_stack: Mutex::new(Vec::with_capacity(32)),
+    #[cfg(feature = "profiling")]
+    profiling_events: Mutex::new(Vec::with_capacity(64)),
 });
 
 pub struct KernelTracer {
     slab: Mutex<Slab<SpanData>>,
     span_stack: Mutex<Vec<SpanId>>,
+    #[cfg(feature = "profiling")]
+    profiling_events: Mutex<Vec<span::ProfilingEvent>>,
 }
 
 impl KernelTracer {
@@ -95,14 +98,31 @@ impl KernelTracer {
 }
 
 #[inline]
-#[doc(hidden)]
 pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
     let record = Record::new(level, args);
     if level <= crate::CLOG {
         KERNLE_TRACER.write_log(&mut *sbi_console::STDOUT.lock(), &record, CLOG);
     }
     if level <= crate::FLOG {
-        static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
         KERNLE_TRACER.write_log(&mut *LOG_FS.lock(), &record, FLOG);
+    }
+}
+
+static LOG_FS: Lazy<Mutex<DiskDriver>> = Lazy::new(|| Mutex::new(DiskDriver::new()));
+
+#[cfg(feature = "profiling")]
+pub fn report_profiling() {
+    let mut fs = LOG_FS.lock();
+    writeln!(fs, "<Profiling Report>").unwrap();
+    for event in &*KERNLE_TRACER.profiling_events.lock() {
+        match event {
+            span::ProfilingEvent::SetName { id, name } => {
+                writeln!(fs, "Setname: {id} => {name}").unwrap();
+            }
+            span::ProfilingEvent::Enter { id, instant } => {
+                writeln!(fs, "Enter: {id} at {instant}ns").unwrap();
+            }
+            span::ProfilingEvent::Exit { instant } => writeln!(fs, "Exit: at {instant}ns").unwrap(),
+        }
     }
 }

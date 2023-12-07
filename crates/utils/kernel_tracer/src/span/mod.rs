@@ -1,13 +1,18 @@
+pub mod instrument;
+
+pub mod loggable;
+
 use core::{
-    fmt::{Display, Write},
+    fmt::{Debug, Write},
     marker::PhantomData,
     num::NonZeroU32,
 };
 
-use alloc::{string::String, vec::Vec};
 use compact_str::CompactString;
 
 use crate::{Level, KERNLE_TRACER};
+
+use self::loggable::Loggable;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SpanId(NonZeroU32);
@@ -33,11 +38,11 @@ impl Span {
     ) -> Self {
         let kvs = kvs.map(|kvs| {
             let mut kvs_str = CompactString::new("");
-            let mut i = 1;
             // this will not panic because
             // the macro implementation guarantee the array size > 0
             write!(kvs_str, "{}=", kvs[0].0).unwrap();
             kvs[0].1.log(&mut kvs_str);
+            let mut i = 1;
             while i < kvs.len() {
                 write!(kvs_str, " {}=", kvs[i].0).unwrap();
                 kvs[i].1.log(&mut kvs_str);
@@ -48,8 +53,15 @@ impl Span {
 
         let span_data = SpanData { level, name, kvs };
         let id = KERNLE_TRACER.slab.lock().insert(span_data);
+        let id = NonZeroU32::new(id as u32 + 1).unwrap();
+        #[cfg(feature = "profiling")]
+        #[cfg(feature = "profiling")]
+        KERNLE_TRACER
+            .profiling_events
+            .lock()
+            .push(ProfilingEvent::SetName { id: id.get(), name });
         Span {
-            id: NonZeroU32::new(id as u32 + 1).map(SpanId),
+            id: Some(SpanId(id)),
         }
     }
 
@@ -60,6 +72,14 @@ impl Span {
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
         if let Some(id) = &self.id {
             KERNLE_TRACER.span_stack.lock().push(id.clone());
+            #[cfg(feature = "profiling")]
+            KERNLE_TRACER
+                .profiling_events
+                .lock()
+                .push(ProfilingEvent::Enter {
+                    id: id.0.get(),
+                    instant: riscv_time::get_time_ns() as u64,
+                });
         }
         RefEnterGuard {
             span: self,
@@ -70,6 +90,14 @@ impl Span {
     pub fn entered(self) -> OwnedEnterGuard {
         if let Some(id) = &self.id {
             KERNLE_TRACER.span_stack.lock().push(id.clone());
+            #[cfg(feature = "profiling")]
+            KERNLE_TRACER
+                .profiling_events
+                .lock()
+                .push(ProfilingEvent::Enter {
+                    id: id.0.get(),
+                    instant: riscv_time::get_time_ns() as u64,
+                });
         }
         OwnedEnterGuard {
             span: self,
@@ -112,6 +140,13 @@ pub struct OwnedEnterGuard {
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {
         if let Some(id) = &self.span.id {
+            #[cfg(feature = "profiling")]
+            KERNLE_TRACER
+                .profiling_events
+                .lock()
+                .push(ProfilingEvent::Exit {
+                    instant: riscv_time::get_time_ns() as u64,
+                });
             let _span_id = KERNLE_TRACER.span_stack.lock().pop();
             // 维持一个栈结构，因此退出的 id 应当与进入的 id 保持一致
             debug_assert_eq!(_span_id.as_ref(), Some(id));
@@ -119,10 +154,9 @@ impl Drop for OwnedEnterGuard {
     }
 }
 
-#[derive(Debug)]
 pub struct SpanData {
-    level: Level,
     name: &'static str,
+    level: Level,
     kvs: Option<CompactString>,
 }
 
@@ -140,49 +174,9 @@ impl SpanData {
     }
 }
 
-/// 可用于 span 宏键值对中值的类型
-pub trait Loggable {
-    fn log(&self, writer: &mut CompactString);
-}
-
-// 要经过这个转一道。
-// 不允许 impl<T: Display> Loggable for T 后再去给其他上游类型 impl Loggable
-// 因为上游随时可能为该类型实现 Display，导致冲突
-trait SpecDisplay: Display {}
-
-macro_rules! mydisplay_impl {
-    ($($t:tt)*) => ($(
-        impl SpecDisplay for $t {}
-    )*);
-}
-
-mydisplay_impl!(u8 u16 u32 u64 usize i8 i16 i32 i64 str char String CompactString);
-
-impl<T: SpecDisplay + ?Sized> Loggable for T {
-    fn log(&self, writer: &mut CompactString) {
-        core::fmt::write(writer, format_args!("{self}")).unwrap();
-    }
-}
-
-impl<T: SpecDisplay + ?Sized> SpecDisplay for &T {}
-
-impl<T: SpecDisplay> Loggable for [T] {
-    fn log(&self, writer: &mut CompactString) {
-        writer.push_str("[");
-        let mut rest = false;
-        for t in self {
-            if rest {
-                writer.push_str(", ");
-            }
-            core::fmt::write(writer, format_args!("{t}")).unwrap();
-            rest = true;
-        }
-        writer.push_str("]");
-    }
-}
-
-impl<T: SpecDisplay> Loggable for Vec<T> {
-    fn log(&self, writer: &mut CompactString) {
-        self.as_slice().log(writer);
-    }
+#[cfg(feature = "profiling")]
+pub enum ProfilingEvent {
+    SetName { id: u32, name: &'static str },
+    Enter { id: u32, instant: u64 },
+    Exit { instant: u64 },
 }

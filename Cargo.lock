@@ -381,8 +381,10 @@ dependencies = [
  "compact_str",
  "drivers",
  "pin-project",
+ "riscv_time",
  "sbi_console",
  "slab",
+ "smallvec",
  "spin",
 ]
 
@@ -570,6 +572,12 @@ checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "smallvec"
+version = "2.0.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af12b8880f45a593fc99ac6d0a066f762861ea6822a6a6790fa1363d70a8089"
 
 [[package]]
 name = "spin"

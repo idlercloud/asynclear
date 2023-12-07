@@ -31,6 +31,7 @@ pub fn kernel_loop() -> ! {
 
         info!("Exit kernel loop");
     }
+    kernel_tracer::report_profiling();
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }
