@@ -15,11 +15,10 @@ riscv_time = { path = "../../arch/riscv_time", optional = true }
 sbi_console = { path = "../../arch/sbi_console" }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
-smallvec = { version = "2.0.0-alpha.1", optional = true }
 
 [lints]
 workspace = true
 
 [features]
 default = ["profiling"]
-profiling = ["smallvec", "riscv_time"]
+profiling = ["riscv_time"]
