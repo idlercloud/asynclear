@@ -5,6 +5,12 @@
 #![feature(format_args_nl)]
 #![feature(const_binary_heap_constructor)]
 
+#[macro_use]
+extern crate sbi_console;
+#[macro_use]
+extern crate kernel_tracer;
+extern crate alloc;
+
 use crate::{hart::local_hart, process::INITPROC};
 
 mod hart;
@@ -13,12 +19,6 @@ mod process;
 mod syscall;
 mod thread;
 mod trap;
-
-#[macro_use]
-extern crate sbi_console;
-#[macro_use]
-extern crate kernel_tracer;
-extern crate alloc;
 
 pub fn kernel_loop() -> ! {
     {

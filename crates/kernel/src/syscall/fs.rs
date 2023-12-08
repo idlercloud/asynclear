@@ -74,9 +74,12 @@ pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
     // Ok(nread as isize)
     if fd == 0 {
         let mut c: usize;
-        #[allow(deprecated)]
+
         loop {
-            c = sbi_rt::legacy::console_getchar();
+            #[allow(deprecated)]
+            {
+                c = sbi_rt::legacy::console_getchar();
+            }
             if c == 0 {
                 unsafe {
                     (*local_hart()).curr_thread().yield_now().await;
