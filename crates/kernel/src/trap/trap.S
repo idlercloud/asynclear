@@ -1,9 +1,9 @@
 .altmacro
-.macro SAVE_REG pre, n, m
-    sd \pre\n, \m*8(a0)
+.macro SAVE_REG prefix, n, m
+    sd \prefix\n, \m*8(a0)
 .endm
-.macro LOAD_REG pre, n, m
-    ld \pre\n, \m*8(a0)
+.macro LOAD_REG prefix, n, m
+    ld \prefix\n, \m*8(a0)
 .endm
 
     .section .text.trap
@@ -12,7 +12,7 @@
     .align 2
 __trap_from_user:
     # 在这个情况下，TrapContext 的地址会被存放在 sscratch 中
-    # 使 a0 指向 TrapContext，sscratch 指向用户栈顶
+    # 使 a0 指向 TrapContext，sscratch 暂存用户 a0 的值
     # 这里用 a0 只是为了和 __return_to_user 统一起来，用其他的也可以（记得改宏的定义）
     csrrw a0, sscratch, a0
 
