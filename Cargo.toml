@@ -37,6 +37,13 @@ goblin = { version = "0.7", default-features = false, features = [
 sbi-rt = { version = "0.0.3-rc.2", features = ["legacy"] }
 event-listener = { version = "4.0", default-features = false }
 
+[profile.dev]
+debug = 2
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+
 [workspace.lints.clippy]
 all = "warn"
 await_holding_lock = "warn"
@@ -120,21 +127,3 @@ rust_2018_idioms = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 
 unreachable_patterns = "deny"
-
-[profile.dev]
-debug = 2
-opt-level = 0
-
-[profile.release]
-debug = 2
-opt-level = 3
-codegen-units = 1
-
-[profile.release.package.user]
-debug = false
-opt-level = 3
-
-[profile.release.package.xtask]
-debug = false
-opt-level = 2
-codegen-units = 256
