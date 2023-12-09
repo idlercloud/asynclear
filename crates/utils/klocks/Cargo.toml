@@ -8,11 +8,13 @@ edition.workspace = true
 
 [dependencies]
 event-listener.workspace = true
-riscv_time = { path = "../../arch/riscv_time" }
 spin = { version = "0.9", default-features = false, features = [
   "lazy",
   "spin_mutex",
 ] }
+
+[target.riscv64imac-unknown-none-elf.dependencies]
+riscv_time = { path = "../../arch/riscv_time" }
 
 [dev-dependencies]
 smol = "1.3"

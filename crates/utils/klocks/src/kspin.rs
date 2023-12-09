@@ -37,8 +37,10 @@ impl<T: ?Sized> SpinMutex<T> {
     /// and the lock will be dropped when the guard falls out of scope.
     #[inline]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, not(test)))]
         let begin = riscv_time::get_time_ms();
+        #[cfg(test)]
+        let begin = std::time::Instant::now();
         loop {
             if let Some(guard) = self.try_lock() {
                 return guard;
@@ -46,8 +48,12 @@ impl<T: ?Sized> SpinMutex<T> {
 
             while self.is_locked() {
                 core::hint::spin_loop();
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, not(test)))]
                 if begin - riscv_time::get_time_ms() >= 2000 {
+                    panic!("deadlock detected");
+                }
+                #[cfg(test)]
+                if begin.elapsed().as_millis() >= 2000 {
                     panic!("deadlock detected");
                 }
             }
