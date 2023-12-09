@@ -1,0 +1,21 @@
+[package]
+name = "klocks"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+event-listener.workspace = true
+riscv_time = { path = "../../arch/riscv_time" }
+spin = { version = "0.9", default-features = false, features = [
+  "lazy",
+  "spin_mutex",
+] }
+
+[dev-dependencies]
+smol = "1.3"
+
+[lints]
+workspace = true
