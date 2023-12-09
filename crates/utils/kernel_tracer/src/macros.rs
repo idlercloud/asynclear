@@ -27,7 +27,7 @@ macro_rules! trace {
 macro_rules! span {
     // span!(Level::Info, "sys_clone");
     ($lvl:expr, $name:expr) => {
-        if ($lvl <= $crate::CLOG || $lvl <= $crate::FLOG) && $lvl <= $crate::SLOG {
+        if $lvl <= $crate::SLOG {
             $crate::Span::new(
                 $lvl,
                 $name,
@@ -39,7 +39,7 @@ macro_rules! span {
     };
     // span!(Level::Info, "sys_clone", key1 = 42, key2 = true);
     ($lvl:expr, $name:expr, $($key:tt = $value:expr),+) => {
-        if ($lvl <= $crate::CLOG || $lvl <= $crate::FLOG) && $lvl <= $crate::SLOG {
+        if $lvl <= $crate::SLOG {
             $crate::Span::new(
                 $lvl,
                 $name,
