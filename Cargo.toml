@@ -26,7 +26,6 @@ fatfs = { path = "crates/dependencies/rust-fatfs" }
 # "lfn",
 # ] }
 pin-project = "1.1"
-spin = "0.9"
 bitflags = "2.4"
 tap = "1"
 compact_str = { version = "0.8.0-beta", default-features = false }
@@ -36,6 +35,7 @@ goblin = { version = "0.7", default-features = false, features = [
   "endian_fd",
 ] }
 sbi-rt = { version = "0.0.3-rc.2", features = ["legacy"] }
+event-listener = { version = "4.0", default-features = false }
 
 [workspace.lints.clippy]
 all = "warn"

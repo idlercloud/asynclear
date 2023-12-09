@@ -6,7 +6,7 @@ use core::{
 };
 
 use alloc::collections::BinaryHeap;
-use spin::Mutex;
+use klocks::SpinMutex;
 
 pub struct TimerFuture {
     expire_ms: usize,
@@ -56,7 +56,8 @@ impl Ord for Timer {
     }
 }
 
-static TIMERS: Mutex<BinaryHeap<Reverse<Timer>>> = Mutex::new(BinaryHeap::<Reverse<Timer>>::new());
+static TIMERS: SpinMutex<BinaryHeap<Reverse<Timer>>> =
+    SpinMutex::new(BinaryHeap::<Reverse<Timer>>::new());
 
 /// 返回值表示在初赛测试中是否可以继续而非等待
 pub fn check_timer() {

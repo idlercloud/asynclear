@@ -9,7 +9,7 @@ use core::future::Future;
 
 use async_task::{Runnable, Task};
 use crossbeam_queue::ArrayQueue;
-use spin::Lazy;
+use klocks::Lazy;
 
 pub use self::yield_now::yield_now;
 

@@ -5,8 +5,8 @@ mod user;
 use alloc::sync::Weak;
 use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::trap_context::TrapContext;
+use klocks::SpinMutex;
 use memory::{MapPermission, MemorySet, VirtAddr};
-use spin::Mutex;
 
 use crate::process::Process;
 
@@ -21,7 +21,7 @@ pub struct Thread {
     pub tid: usize,
     // TODO: 其实也不是一定要用 Weak。完全可以手动释放
     pub process: Weak<Process>,
-    inner: Mutex<ThreadInner>,
+    inner: SpinMutex<ThreadInner>,
 }
 
 impl Thread {
@@ -29,7 +29,7 @@ impl Thread {
         Self {
             tid,
             process,
-            inner: Mutex::new(ThreadInner {
+            inner: SpinMutex::new(ThreadInner {
                 exit_code: 0,
                 thread_status: ThreadStatus::Ready,
                 trap_context,

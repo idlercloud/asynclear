@@ -7,8 +7,9 @@
 ### 基础设施
 
 - [ ] Testing
-- [ ] Logging
-- [ ] Profiling
+- [ ] 栈回溯（基于 span）
+- [x] Logging（日志事件、span 上下文）
+- [ ] Profiling（可视化）
 
 ### 比较独立的工作
 
@@ -20,20 +21,18 @@
 
 按优先级排列：
 
-- [ ] kernel_tracer（Profiling）
-- [ ] Testing
-- [ ] 时间和定时器
-- [ ] 统一的睡眠锁和唤醒方式
 - [ ] rCore-Tutorial I/O 设备管理（中断）
-- [ ] 内核线程
-- [ ] CoW、Lazy Page，顺便重构 memory 模块
-- [ ] async-task 和 embassy 的原理
-- [ ] 思考 Future 和 Send
-- [ ] 用户指针检查通过内核异常来做
-- [ ] 信号机制
 - [ ] trap 改为 vector 模式
+- [ ] 内核线程
+- [ ] Testing
+- [ ] kernel_tracer（Profiling 可视化）
+- [ ] 用户指针检查通过内核异常来做
+- [ ] CoW、Lazy Page，顺便重构 memory 模块
+- [ ] 信号机制
+- [ ] async-task 和 embassy 的原理
 - [ ] kernel 内容能否放入 huge page？
 - [ ] 虚拟文件系统和页缓存
+- [ ] 思考 `Future` 和 `Send`
 
 ## 参考资料
 

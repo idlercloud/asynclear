@@ -3,7 +3,7 @@
 #![no_std]
 #![feature(format_args_nl)]
 
-use spin::Mutex;
+use klocks::SpinMutex;
 
 use core::fmt::{Arguments, Result, Write};
 
@@ -26,7 +26,7 @@ impl Write for Stdout {
     }
 }
 
-pub static STDOUT: Mutex<Stdout> = Mutex::new(Stdout(()));
+pub static STDOUT: SpinMutex<Stdout> = SpinMutex::new(Stdout(()));
 
 /// 输出到 stdout
 #[inline]

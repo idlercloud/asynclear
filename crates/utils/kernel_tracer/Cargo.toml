@@ -7,12 +7,12 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-spin.workspace = true
 compact_str.workspace = true
 pin-project.workspace = true
 drivers = { path = "../../drivers" }
 riscv_time = { path = "../../arch/riscv_time", optional = true }
 sbi_console = { path = "../../arch/sbi_console" }
+klocks = { path = "../../utils/klocks" }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
 

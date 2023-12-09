@@ -9,10 +9,10 @@ edition.workspace = true
 [dependencies]
 buddy_system_allocator.workspace = true
 riscv.workspace = true
-spin.workspace = true
 bitflags.workspace = true
 goblin.workspace = true
 defines = { path = "../utils/defines" }
+klocks = { path = "../utils/klocks" }
 
 [lints]
 workspace = true

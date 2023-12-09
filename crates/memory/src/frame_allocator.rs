@@ -7,7 +7,7 @@ use super::address::PhysAddr;
 
 use super::{kernel_ppn_to_vpn, kernel_va_to_pa, PhysPageNum, VirtAddr};
 use defines::config::{MEMORY_END, MEMORY_SIZE, PAGE_SIZE};
-use spin::Mutex;
+use klocks::SpinMutex;
 
 /// manage a frame which has the same lifecycle as the tracker
 #[derive(Debug)]
@@ -84,7 +84,7 @@ impl FrameAllocator for BuddySystemFrameAllocator {
 
 type FrameAllocatorImpl = BuddySystemFrameAllocator;
 
-static FRAME_ALLOCATOR: Mutex<FrameAllocatorImpl> = Mutex::new(FrameAllocatorImpl::new());
+static FRAME_ALLOCATOR: SpinMutex<FrameAllocatorImpl> = SpinMutex::new(FrameAllocatorImpl::new());
 
 pub fn init_frame_allocator() {
     let physical_memory_begin_frame = kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;

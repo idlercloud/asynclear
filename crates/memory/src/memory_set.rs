@@ -14,8 +14,8 @@ use defines::{
 };
 use goblin::elf::Elf;
 use goblin::elf64::program_header::{PF_R, PF_W, PF_X, PT_LOAD};
+use klocks::Lazy;
 use riscv::register::satp;
-use spin::Lazy;
 
 extern "C" {
     fn stext();

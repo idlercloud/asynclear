@@ -11,8 +11,8 @@ use compact_str::CompactString;
 use defines::{config::PAGE_SIZE, error::Result, trap_context::TrapContext};
 use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
+use klocks::{Lazy, SpinMutex};
 use memory::{MemorySet, KERNEL_SPACE};
-use spin::{Lazy, Mutex};
 
 use crate::thread::{self, Thread};
 
@@ -41,7 +41,7 @@ pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
 
 pub struct Process {
     pid: usize,
-    pub inner: Mutex<ProcessInner>,
+    pub inner: SpinMutex<ProcessInner>,
 }
 
 impl Process {
@@ -87,7 +87,7 @@ impl Process {
             trap_context.user_regs[10] = argv_base;
             Process {
                 pid: PID_ALLOCATOR.lock().alloc(),
-                inner: Mutex::new(ProcessInner {
+                inner: SpinMutex::new(ProcessInner {
                     name: process_name,
                     memory_set,
                     heap_range: brk..brk,
@@ -133,7 +133,7 @@ impl Process {
                 ));
                 Self {
                     pid,
-                    inner: Mutex::new(ProcessInner {
+                    inner: SpinMutex::new(ProcessInner {
                         name: inner.name.clone(),
                         memory_set,
                         heap_range: inner.heap_range.clone(),
@@ -220,7 +220,7 @@ impl Drop for Process {
     }
 }
 
-static PID_ALLOCATOR: Mutex<RecycleAllocator> = Mutex::new(RecycleAllocator::begin_with(1));
+static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAllocator::begin_with(1));
 
 /// 退出进程，终止其所有线程。
 ///

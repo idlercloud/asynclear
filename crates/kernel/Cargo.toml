@@ -7,7 +7,6 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-spin.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
 goblin.workspace = true
@@ -22,6 +21,7 @@ idallocator = { path = "../utils/idallocator" }
 defines = { path = "../utils/defines" }
 drivers = { path = "../drivers" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
+klocks = { path = "../utils/klocks" }
 
 [lints]
 workspace = true
