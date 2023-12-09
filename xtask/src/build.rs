@@ -1,6 +1,7 @@
 use std::{fs, sync::LazyLock};
 
 use clap::Parser;
+use tap::Tap;
 
 use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
 
@@ -9,6 +10,9 @@ pub struct BuildArgs {
     /// 是否以 release 构建内核
     #[clap(short, long)]
     release: bool,
+    /// 是否开启 profiling
+    #[clap(short, long)]
+    profiling: bool,
     /// 控制台日志级别
     #[clap(long, default_value_t = String::from("INFO"))]
     clog: String,
@@ -40,6 +44,11 @@ impl BuildArgs {
         Cmd::parse("cargo build --package kernel")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
+            .tap_mut(|cmd| {
+                if self.profiling {
+                    cmd.args(["--features", "profiling"]);
+                }
+            })
             .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
             .envs([
                 ("KERNEL_CLOG", &self.clog),

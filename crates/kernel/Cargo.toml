@@ -23,5 +23,10 @@ drivers = { path = "../drivers" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
 
+[features]
+default = []
+# 是否使用 `span` 进行性能分析
+profiling = ["kernel_tracer/profiling"]
+
 [lints]
 workspace = true
