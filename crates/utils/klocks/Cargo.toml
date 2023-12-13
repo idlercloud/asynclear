@@ -15,6 +15,7 @@ spin = { version = "0.9", default-features = false, features = [
 
 [target.riscv64imac-unknown-none-elf.dependencies]
 riscv_time = { path = "../../arch/riscv_time" }
+riscv_guard = { path = "../../arch/riscv_guard" }
 
 [dev-dependencies]
 smol = "1.3"

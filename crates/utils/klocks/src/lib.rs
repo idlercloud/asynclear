@@ -3,6 +3,6 @@
 mod kspin;
 mod sleep;
 
-pub use kspin::SpinMutex;
+pub use kspin::{SpinMutex, SpinNoIrqMutex};
 pub use sleep::SleepMutex;
-pub use spin::{mutex::SpinMutexGuard, Lazy};
+pub use spin::Lazy;

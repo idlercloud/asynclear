@@ -4,6 +4,11 @@
 //!
 //! 未来有可能添加一些额外的操作（比如关中断等）
 
+use core::{
+    mem::ManuallyDrop,
+    ops::{Deref, DerefMut},
+};
+
 use spin::mutex::SpinMutexGuard;
 
 pub struct SpinMutex<T: ?Sized> {
@@ -21,12 +26,6 @@ impl<T> SpinMutex<T> {
         Self {
             base: spin::mutex::SpinMutex::new(data),
         }
-    }
-
-    /// Consumes this [`SpinMutex`] and unwraps the underlying data.
-    #[inline(always)]
-    pub fn into_inner(self) -> T {
-        self.base.into_inner()
     }
 }
 
@@ -67,24 +66,117 @@ impl<T: ?Sized> SpinMutex<T> {
     /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
     /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
     #[inline(always)]
-    pub fn is_locked(&self) -> bool {
+    fn is_locked(&self) -> bool {
         self.base.is_locked()
     }
 
     /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
     #[inline(always)]
-    pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
+    fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
         self.base.try_lock()
     }
+}
 
-    /// Returns a mutable reference to the underlying data.
-    ///
-    /// Since this call borrows the [`SpinMutex`] mutably, and a mutable reference is guaranteed to be exclusive in
-    /// Rust, no actual locking needs to take place -- the mutable borrow statically guarantees no locks exist. As
-    /// such, this is a 'zero-cost' operation.
+pub struct SpinNoIrqMutex<T: ?Sized> {
+    base: spin::mutex::SpinMutex<T>,
+}
+
+pub struct SpinNoIrqMutexGuard<'a, T: ?Sized> {
+    // 要控制一下析构顺序，先释放锁再开中断
+    spin_guard: ManuallyDrop<SpinMutexGuard<'a, T>>,
+    #[cfg(not(test))]
+    _no_irq_guard: riscv_guard::NoIrqGuard,
+}
+
+// Same unsafe impls as `std::sync::Mutex`
+unsafe impl<T: ?Sized + Send> Sync for SpinNoIrqMutex<T> {}
+unsafe impl<T: ?Sized + Send> Send for SpinNoIrqMutex<T> {}
+
+unsafe impl<T: ?Sized + Sync> Sync for SpinNoIrqMutexGuard<'_, T> {}
+unsafe impl<T: ?Sized + Send> Send for SpinNoIrqMutexGuard<'_, T> {}
+
+impl<T> SpinNoIrqMutex<T> {
+    /// Creates a new [`SpinNoIrqMutex`] wrapping the supplied data.
     #[inline(always)]
-    pub fn get_mut(&mut self) -> &mut T {
-        self.base.get_mut()
+    pub const fn new(data: T) -> Self {
+        Self {
+            base: spin::mutex::SpinMutex::new(data),
+        }
+    }
+}
+
+impl<T: ?Sized> SpinNoIrqMutex<T> {
+    /// Locks the [`SpinNoIrqMutex`] and returns a guard that permits access to the inner data.
+    ///
+    /// The returned value may be dereferenced for data access
+    /// and the lock will be dropped when the guard falls out of scope.
+    #[inline]
+    pub fn lock(&self) -> SpinNoIrqMutexGuard<'_, T> {
+        #[cfg(all(debug_assertions, not(test)))]
+        let begin = riscv_time::get_time_ms();
+        #[cfg(test)]
+        let begin = std::time::Instant::now();
+        loop {
+            if let Some(guard) = self.try_lock() {
+                return guard;
+            }
+
+            while self.is_locked() {
+                core::hint::spin_loop();
+                #[cfg(all(debug_assertions, not(test)))]
+                if begin - riscv_time::get_time_ms() >= 2000 {
+                    panic!("deadlock detected");
+                }
+                #[cfg(test)]
+                if begin.elapsed().as_millis() >= 2000 {
+                    panic!("deadlock detected");
+                }
+            }
+        }
+    }
+
+    /// Returns `true` if the lock is currently held.
+    ///
+    /// # Safety
+    ///
+    /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
+    /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
+    #[inline(always)]
+    fn is_locked(&self) -> bool {
+        self.base.is_locked()
+    }
+
+    /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
+    #[inline(always)]
+    fn try_lock(&self) -> Option<SpinNoIrqMutexGuard<'_, T>> {
+        self.base.try_lock().map(|spin_guard| SpinNoIrqMutexGuard {
+            spin_guard: ManuallyDrop::new(spin_guard),
+            #[cfg(not(test))]
+            _no_irq_guard: riscv_guard::NoIrqGuard::new(),
+        })
+    }
+}
+
+impl<'a, T: ?Sized> Deref for SpinNoIrqMutexGuard<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        // We know statically that only we are referencing data
+        &self.spin_guard
+    }
+}
+
+impl<'a, T: ?Sized> DerefMut for SpinNoIrqMutexGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.spin_guard
+    }
+}
+
+impl<'a, T: ?Sized> Drop for SpinNoIrqMutexGuard<'a, T> {
+    fn drop(&mut self) {
+        // SAFETY: 只会在这里 drop，而且之后再也不会被用到
+        unsafe {
+            ManuallyDrop::drop(&mut self.spin_guard);
+        }
     }
 }
 
@@ -92,7 +184,6 @@ impl<T: ?Sized> SpinMutex<T> {
 mod tests {
     use std::prelude::v1::*;
 
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::Arc;
     use std::thread;
@@ -167,30 +258,6 @@ mod tests {
         ::core::mem::drop(a);
         let c = mutex.try_lock();
         assert_eq!(c.as_ref().map(|r| **r), Some(42));
-    }
-
-    #[test]
-    fn test_into_inner() {
-        let m = SpinMutex::<_>::new(NonCopy(10));
-        assert_eq!(m.into_inner(), NonCopy(10));
-    }
-
-    #[test]
-    fn test_into_inner_drop() {
-        struct Foo(Arc<AtomicUsize>);
-        impl Drop for Foo {
-            fn drop(&mut self) {
-                self.0.fetch_add(1, Ordering::SeqCst);
-            }
-        }
-        let num_drops = Arc::new(AtomicUsize::new(0));
-        let m = SpinMutex::<_>::new(Foo(num_drops.clone()));
-        assert_eq!(num_drops.load(Ordering::SeqCst), 0);
-        {
-            let _inner = m.into_inner();
-            assert_eq!(num_drops.load(Ordering::SeqCst), 0);
-        }
-        assert_eq!(num_drops.load(Ordering::SeqCst), 1);
     }
 
     #[test]
