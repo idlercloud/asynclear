@@ -150,6 +150,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
     }
 
     // 尝试寻找符合条件的子进程
+    // TODO: 这里的逻辑感觉可以重写下
     loop {
         let process = curr_process();
         let mut inner = process.inner.lock();

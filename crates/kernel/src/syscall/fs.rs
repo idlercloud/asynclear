@@ -68,6 +68,7 @@ use crate::{
 /// - `len` 指定至多读取的字节数
 pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
     let buf = check_slice_mut(buf as *mut u8, len)?;
+    debug!("fd = {fd}, len = {len}");
     // TODO: 实现 `sys_read()`
     // let file = prepare_io(fd, true)?;
     // let nread = file.read(buf);
