@@ -88,7 +88,7 @@ static FRAME_ALLOCATOR: SpinMutex<FrameAllocatorImpl> = SpinMutex::new(FrameAllo
 
 pub fn init_frame_allocator() {
     let physical_memory_begin_frame = kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
-    FRAME_ALLOCATOR.try_lock().unwrap().allocator.add_frame(
+    FRAME_ALLOCATOR.lock().allocator.add_frame(
         0,
         PhysAddr(MEMORY_END).floor().0 - physical_memory_begin_frame,
     );
@@ -97,8 +97,7 @@ pub fn init_frame_allocator() {
 /// initiate the frame allocator using `ekernel` and `MEMORY_END`
 pub fn frame_alloc(num: usize) -> Option<FrameTracker> {
     FRAME_ALLOCATOR
-        .try_lock()
-        .unwrap()
+        .lock()
         .alloc(num)
         .map(|ppn| FrameTracker::new(ppn, num))
 }
@@ -106,5 +105,5 @@ pub fn frame_alloc(num: usize) -> Option<FrameTracker> {
 /// deallocate a frame
 #[track_caller]
 pub fn frame_dealloc(range: Range<PhysPageNum>) {
-    FRAME_ALLOCATOR.try_lock().unwrap().dealloc(range);
+    FRAME_ALLOCATOR.lock().dealloc(range);
 }

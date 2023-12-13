@@ -17,25 +17,25 @@ use core::fmt::Write;
 use alloc::vec::Vec;
 use anstyle::{AnsiColor, Reset, Style};
 use drivers::DiskDriver;
-use klocks::{Lazy, SpinMutex};
+use klocks::{Lazy, SpinNoIrqMutex};
 use level::LevelFilter;
 use record::Record;
 use slab::Slab;
 use span::{SpanData, SpanId};
 
 static KERNLE_TRACER: Lazy<KernelTracer> = Lazy::new(|| KernelTracer {
-    slab: SpinMutex::new(Slab::with_capacity(64)),
+    slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
     // TODO: 改造 span_stack 使其适应多核；并且可以用于栈展开
-    span_stack: SpinMutex::new(Vec::with_capacity(32)),
+    span_stack: SpinNoIrqMutex::new(Vec::with_capacity(32)),
     #[cfg(feature = "profiling")]
-    profiling_events: SpinMutex::new(Vec::with_capacity(64)),
+    profiling_events: SpinNoIrqMutex::new(Vec::with_capacity(64)),
 });
 
 pub struct KernelTracer {
-    slab: SpinMutex<Slab<SpanData>>,
-    span_stack: SpinMutex<Vec<SpanId>>,
+    slab: SpinNoIrqMutex<Slab<SpanData>>,
+    span_stack: SpinNoIrqMutex<Vec<SpanId>>,
     #[cfg(feature = "profiling")]
-    profiling_events: SpinMutex<Vec<span::ProfilingEvent>>,
+    profiling_events: SpinNoIrqMutex<Vec<span::ProfilingEvent>>,
 }
 
 impl KernelTracer {
@@ -108,7 +108,8 @@ pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
     }
 }
 
-static LOG_FS: Lazy<SpinMutex<DiskDriver>> = Lazy::new(|| SpinMutex::new(DiskDriver::new()));
+static LOG_FS: Lazy<SpinNoIrqMutex<DiskDriver>> =
+    Lazy::new(|| SpinNoIrqMutex::new(DiskDriver::new()));
 
 #[cfg(feature = "profiling")]
 pub fn report_profiling() {

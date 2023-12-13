@@ -1,9 +1,7 @@
-//! SBI console driver, for text output
-
 #![no_std]
 #![feature(format_args_nl)]
 
-use klocks::SpinMutex;
+use klocks::SpinNoIrqMutex;
 
 use core::fmt::{Arguments, Result, Write};
 
@@ -26,7 +24,7 @@ impl Write for Stdout {
     }
 }
 
-pub static STDOUT: SpinMutex<Stdout> = SpinMutex::new(Stdout(()));
+pub static STDOUT: SpinNoIrqMutex<Stdout> = SpinNoIrqMutex::new(Stdout(()));
 
 /// 输出到 stdout
 #[inline]

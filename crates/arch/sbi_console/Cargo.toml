@@ -8,6 +8,7 @@ edition.workspace = true
 
 [dependencies]
 sbi-rt.workspace = true
+riscv_guard = { path = "../riscv_guard" }
 defines = { path = "../../utils/defines" }
 klocks = { path = "../../utils/klocks" }
 sbi-spec = "0.0.6"

@@ -19,7 +19,7 @@ edition = "2021"
 
 [workspace.dependencies]
 riscv = { path = "crates/dependencies/riscv/riscv" }
-buddy_system_allocator = { path = "crates/dependencies/buddy_system_allocator" }
+buddy_system_allocator = { path = "crates/dependencies/buddy_system_allocator", default-features = false }
 fatfs = { path = "crates/dependencies/rust-fatfs" }
 # fatfs = { path = "crates/dependencies/rust-fatfs", default-features = false, features = [
 # "alloc",

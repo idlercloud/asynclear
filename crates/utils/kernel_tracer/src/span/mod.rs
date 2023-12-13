@@ -9,6 +9,7 @@ use core::{
 };
 
 use compact_str::CompactString;
+use riscv_guard::NoIrqGuard;
 
 use crate::{Level, KERNLE_TRACER};
 
@@ -71,6 +72,7 @@ impl Span {
 
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
         if let Some(id) = &self.id {
+            let _guard = NoIrqGuard::new();
             KERNLE_TRACER.span_stack.lock().push(id.clone());
             #[cfg(feature = "profiling")]
             KERNLE_TRACER
@@ -89,6 +91,7 @@ impl Span {
 
     pub fn entered(self) -> OwnedEnterGuard {
         if let Some(id) = &self.id {
+            let _guard = NoIrqGuard::new();
             KERNLE_TRACER.span_stack.lock().push(id.clone());
             #[cfg(feature = "profiling")]
             KERNLE_TRACER

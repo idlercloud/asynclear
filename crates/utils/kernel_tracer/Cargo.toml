@@ -11,6 +11,7 @@ compact_str.workspace = true
 pin-project.workspace = true
 drivers = { path = "../../drivers" }
 riscv_time = { path = "../../arch/riscv_time", optional = true }
+riscv_guard = { path = "../../arch/riscv_guard" }
 sbi_console = { path = "../../arch/sbi_console" }
 klocks = { path = "../../utils/klocks" }
 anstyle = { version = "1.0", default-features = false }
