@@ -26,7 +26,8 @@ pub const SYSCALL_DUP: usize = 24;
 pub const SYSCALL_PIPE: usize = 59;
 pub const SYSCALL_WAITTID: usize = 462;
 
-pub fn syscall(id: usize, args: [usize; 3]) -> isize {
+#[inline(always)]
+pub fn syscall3(id: usize, args: [usize; 3]) -> isize {
     let mut ret: isize;
     unsafe {
         core::arch::asm!(
@@ -40,6 +41,7 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     ret
 }
 
+#[inline(always)]
 pub fn syscall6(id: usize, args: [usize; 6]) -> isize {
     let mut ret: isize;
     unsafe {
@@ -71,18 +73,18 @@ pub fn sys_openat(dirfd: usize, path: &str, flags: u32, mode: u32) -> isize {
 }
 
 pub fn sys_close(fd: usize) -> isize {
-    syscall(SYSCALL_CLOSE, [fd, 0, 0])
+    syscall3(SYSCALL_CLOSE, [fd, 0, 0])
 }
 
 pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {
-    syscall(
+    syscall3(
         SYSCALL_READ,
         [fd, buffer.as_mut_ptr() as usize, buffer.len()],
     )
 }
 
 pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
-    syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
+    syscall3(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
 }
 
 pub fn sys_linkat(
@@ -106,54 +108,54 @@ pub fn sys_linkat(
 }
 
 pub fn sys_unlinkat(dirfd: usize, path: &str, flags: usize) -> isize {
-    syscall(SYSCALL_UNLINKAT, [dirfd, path.as_ptr() as usize, flags])
+    syscall3(SYSCALL_UNLINKAT, [dirfd, path.as_ptr() as usize, flags])
 }
 
 pub fn sys_fstat(fd: usize, st: &Stat) -> isize {
-    syscall(SYSCALL_FSTAT, [fd, st as *const _ as usize, 0])
+    syscall3(SYSCALL_FSTAT, [fd, st as *const _ as usize, 0])
 }
 
 pub fn sys_mail_read(buffer: &mut [u8]) -> isize {
-    syscall(
+    syscall3(
         SYSCALL_MAIL_READ,
         [buffer.as_ptr() as usize, buffer.len(), 0],
     )
 }
 
 pub fn sys_mail_write(pid: usize, buffer: &[u8]) -> isize {
-    syscall(
+    syscall3(
         SYSCALL_MAIL_WRITE,
         [pid, buffer.as_ptr() as usize, buffer.len()],
     )
 }
 
 pub fn sys_exit(exit_code: i32) -> ! {
-    syscall(SYSCALL_EXIT, [exit_code as usize, 0, 0]);
+    syscall3(SYSCALL_EXIT, [exit_code as usize, 0, 0]);
     panic!("sys_exit never returns!");
 }
 
 pub fn sys_sleep(sleep_ms: usize) -> isize {
-    syscall(SYSCALL_SLEEP, [sleep_ms, 0, 0])
+    syscall3(SYSCALL_SLEEP, [sleep_ms, 0, 0])
 }
 
 pub fn sys_yield() -> isize {
-    syscall(SYSCALL_YIELD, [0, 0, 0])
+    syscall3(SYSCALL_YIELD, [0, 0, 0])
 }
 
 pub fn sys_get_time(time: &TimeVal, tz: usize) -> isize {
-    syscall(SYSCALL_GETTIMEOFDAY, [time as *const _ as usize, tz, 0])
+    syscall3(SYSCALL_GETTIMEOFDAY, [time as *const _ as usize, tz, 0])
 }
 
 pub fn sys_getpid() -> isize {
-    syscall(SYSCALL_GETPID, [0, 0, 0])
+    syscall3(SYSCALL_GETPID, [0, 0, 0])
 }
 
 pub fn sys_fork() -> isize {
-    syscall(SYSCALL_FORK, [0, 0, 0])
+    syscall3(SYSCALL_FORK, [0, 0, 0])
 }
 
 pub fn sys_exec(path: &str, args: &[*const u8]) -> isize {
-    syscall(
+    syscall3(
         SYSCALL_EXEC,
         [path.as_ptr() as usize, args.as_ptr() as usize, 0],
     )
@@ -167,33 +169,33 @@ pub fn sys_waitpid(pid: isize, xstatus: *mut i32) -> isize {
 }
 
 pub fn sys_set_priority(prio: isize) -> isize {
-    syscall(SYSCALL_SET_PRIORITY, [prio as usize, 0, 0])
+    syscall3(SYSCALL_SET_PRIORITY, [prio as usize, 0, 0])
 }
 
 pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
-    syscall(SYSCALL_MMAP, [start, len, prot])
+    syscall3(SYSCALL_MMAP, [start, len, prot])
 }
 
 pub fn sys_munmap(start: usize, len: usize) -> isize {
-    syscall(SYSCALL_MUNMAP, [start, len, 0])
+    syscall3(SYSCALL_MUNMAP, [start, len, 0])
 }
 
 pub fn sys_spawn(path: &str) -> isize {
-    syscall(SYSCALL_SPAWN, [path.as_ptr() as usize, 0, 0])
+    syscall3(SYSCALL_SPAWN, [path.as_ptr() as usize, 0, 0])
 }
 
 pub fn sys_dup(fd: usize) -> isize {
-    syscall(SYSCALL_DUP, [fd, 0, 0])
+    syscall3(SYSCALL_DUP, [fd, 0, 0])
 }
 
 pub fn sys_pipe(pipe: &mut [usize]) -> isize {
-    syscall(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
+    syscall3(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
 }
 
 pub fn sys_gettid() -> isize {
-    syscall(SYSCALL_GETTID, [0; 3])
+    syscall3(SYSCALL_GETTID, [0; 3])
 }
 
 pub fn sys_waittid(tid: usize) -> isize {
-    syscall(SYSCALL_WAITTID, [tid, 0, 0])
+    syscall3(SYSCALL_WAITTID, [tid, 0, 0])
 }

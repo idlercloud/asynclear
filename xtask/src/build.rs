@@ -8,10 +8,10 @@ use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
 #[derive(Parser)]
 pub struct BuildArgs {
     /// 是否以 release 构建内核
-    #[clap(short, long)]
+    #[clap(long)]
     release: bool,
     /// 是否开启 profiling
-    #[clap(short, long)]
+    #[clap(long)]
     profiling: bool,
     /// 控制台日志级别
     #[clap(long, default_value_t = String::from("INFO"))]
