@@ -152,50 +152,50 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
     // 尝试寻找符合条件的子进程
     // TODO: 这里的逻辑感觉可以重写下
     loop {
-        let process = curr_process();
-        let mut inner = process.inner.lock();
-        // 是否有符合 pid 要求的子进程
-        let mut has_proper_child = false;
-        let mut child_index = None;
-        for (index, child) in inner.children.iter().enumerate() {
-            if pid == -1 || child.pid() == pid as usize {
-                has_proper_child = true;
-                if child.lock_inner(|inner| inner.zombie_exit_code.is_some()) {
-                    child_index = Some(index);
+        {
+            let process = curr_process();
+            let mut inner = process.inner.lock();
+            // 是否有符合 pid 要求的子进程
+            let mut has_proper_child = false;
+            let mut child_index = None;
+            for (index, child) in inner.children.iter().enumerate() {
+                if pid == -1 || child.pid() == pid as usize {
+                    has_proper_child = true;
+                    if child.lock_inner(|inner| inner.zombie_exit_code.is_some()) {
+                        child_index = Some(index);
+                    }
                 }
             }
-        }
 
-        if has_proper_child {
+            if !has_proper_child {
+                return Err(errno::ECHILD);
+            }
+
             if let Some(index) = child_index {
                 let mut child = inner.children.remove(index);
+                // TODO: 下面这个假设是对的吗？
                 // 此时理论上子进程只在当前进程的子进程列表中保存了
                 let child = Arc::get_mut(&mut child).unwrap();
                 let found_pid = child.pid();
                 let exit_code = child.lock_inner(|inner| inner.zombie_exit_code.unwrap());
                 let wstatus = wstatus as *mut i32;
                 if !wstatus.is_null() {
+                    // 因为 `check_ptr_mut` 里面会用，所以得 drop
                     drop(inner);
                     let wstatus = check_ptr_mut(wstatus)?;
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
                     unsafe { *wstatus.raw() = (exit_code as i32) << 8 };
                 }
                 return Ok(found_pid as isize);
-            } else {
-                // 否则视 `options` 而定
-                if options.contains(WaitFlags::WNOHANG) {
-                    return Ok(0);
-                } else {
-                    trace!("no proper child exited");
-                    drop(inner);
-                    drop(process);
-                    unsafe {
-                        (*local_hart()).curr_thread().yield_now().await;
-                    }
-                }
             }
-        } else {
-            return Err(errno::ECHILD);
+            // 否则视 `options` 而定
+            if options.contains(WaitFlags::WNOHANG) {
+                return Ok(0);
+            }
+        }
+        trace!("no proper child exited");
+        unsafe {
+            (*local_hart()).curr_thread().yield_now().await;
         }
     }
 }

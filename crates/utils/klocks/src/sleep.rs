@@ -19,11 +19,12 @@ pub struct SleepMutexGuard<'a, T: ?Sized> {
     mutex: &'a SleepMutex<T>,
 }
 
-unsafe impl<T: ?Sized + Send> Sync for SleepMutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for SleepMutex<T> {}
+unsafe impl<T: ?Sized + Send> Sync for SleepMutex<T> {}
 
+// 不允许 Guard 越过 .await
+impl<T: ?Sized> !Send for SleepMutexGuard<'_, T> {}
 unsafe impl<T: ?Sized + Sync> Sync for SleepMutexGuard<'_, T> {}
-unsafe impl<T: ?Sized + Send> Send for SleepMutexGuard<'_, T> {}
 
 impl<T> SleepMutex<T> {
     #[inline(always)]

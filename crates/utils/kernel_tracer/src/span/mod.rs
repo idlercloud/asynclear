@@ -4,7 +4,6 @@ pub mod loggable;
 
 use core::{
     fmt::{Debug, Write},
-    marker::PhantomData,
     num::NonZeroU32,
 };
 
@@ -83,10 +82,7 @@ impl Span {
                     instant: riscv_time::get_time_ns() as u64,
                 });
         }
-        RefEnterGuard {
-            span: self,
-            _not_send: PhantomData,
-        }
+        RefEnterGuard { span: self }
     }
 
     pub fn entered(self) -> OwnedEnterGuard {
@@ -102,10 +98,7 @@ impl Span {
                     instant: riscv_time::get_time_ns() as u64,
                 });
         }
-        OwnedEnterGuard {
-            span: self,
-            _not_send: PhantomData,
-        }
+        OwnedEnterGuard { span: self }
     }
 }
 
@@ -121,8 +114,10 @@ impl Drop for Span {
 #[must_use = "once a span has been entered, it should be exited"]
 pub struct RefEnterGuard<'a> {
     span: &'a Span,
-    _not_send: PhantomData<*const ()>,
 }
+
+// 不允许 Guard 越过 .await
+impl !Send for RefEnterGuard<'_> {}
 
 impl Drop for RefEnterGuard<'_> {
     fn drop(&mut self) {
@@ -137,8 +132,10 @@ impl Drop for RefEnterGuard<'_> {
 #[must_use = "once a span has been entered, it should be exited"]
 pub struct OwnedEnterGuard {
     span: Span,
-    _not_send: PhantomData<*const ()>,
 }
+
+// 不允许 Guard 越过 .await
+impl !Send for OwnedEnterGuard {}
 
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {

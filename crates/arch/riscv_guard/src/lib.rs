@@ -1,10 +1,14 @@
 #![no_std]
+#![feature(negative_impls)]
 
 use riscv::register::sstatus;
 
 pub struct NoIrqGuard {
     before: bool,
 }
+
+// 不允许 Guard 越过 .await
+impl !Send for NoIrqGuard {}
 
 impl NoIrqGuard {
     #[allow(clippy::new_without_default)]

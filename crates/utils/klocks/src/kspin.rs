@@ -9,15 +9,22 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use spin::mutex::SpinMutexGuard;
-
 pub struct SpinMutex<T: ?Sized> {
     base: spin::mutex::SpinMutex<T>,
+}
+
+pub struct SpinMutexGuard<'a, T: ?Sized> {
+    // 要控制一下析构顺序，先释放锁再开中断
+    inner: spin::mutex::SpinMutexGuard<'a, T>,
 }
 
 // Same unsafe impls as `std::sync::Mutex`
 unsafe impl<T: ?Sized + Send> Sync for SpinMutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for SpinMutex<T> {}
+
+// 不允许 Guard 越过 .await
+impl<T: ?Sized> !Send for SpinMutexGuard<'_, T> {}
+unsafe impl<T: ?Sized + Sync> Sync for SpinMutexGuard<'_, T> {}
 
 impl<T> SpinMutex<T> {
     /// Creates a new [`SpinMutex`] wrapping the supplied data.
@@ -73,7 +80,21 @@ impl<T: ?Sized> SpinMutex<T> {
     /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
     #[inline(always)]
     fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
-        self.base.try_lock()
+        self.base.try_lock().map(|inner| SpinMutexGuard { inner })
+    }
+}
+
+impl<'a, T: ?Sized> Deref for SpinMutexGuard<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        // We know statically that only we are referencing data
+        &self.inner
+    }
+}
+
+impl<'a, T: ?Sized> DerefMut for SpinMutexGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
     }
 }
 
@@ -83,17 +104,17 @@ pub struct SpinNoIrqMutex<T: ?Sized> {
 
 pub struct SpinNoIrqMutexGuard<'a, T: ?Sized> {
     // 要控制一下析构顺序，先释放锁再开中断
-    spin_guard: ManuallyDrop<SpinMutexGuard<'a, T>>,
+    spin_guard: ManuallyDrop<spin::mutex::SpinMutexGuard<'a, T>>,
     #[cfg(not(test))]
     _no_irq_guard: riscv_guard::NoIrqGuard,
 }
 
-// Same unsafe impls as `std::sync::Mutex`
-unsafe impl<T: ?Sized + Send> Sync for SpinNoIrqMutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for SpinNoIrqMutex<T> {}
+unsafe impl<T: ?Sized + Send> Sync for SpinNoIrqMutex<T> {}
 
+// 不允许 Guard 越过 .await
+impl<T: ?Sized> !Send for SpinNoIrqMutexGuard<'_, T> {}
 unsafe impl<T: ?Sized + Sync> Sync for SpinNoIrqMutexGuard<'_, T> {}
-unsafe impl<T: ?Sized + Send> Send for SpinNoIrqMutexGuard<'_, T> {}
 
 impl<T> SpinNoIrqMutex<T> {
     /// Creates a new [`SpinNoIrqMutex`] wrapping the supplied data.
