@@ -55,7 +55,7 @@ impl<T: ?Sized> SpinMutex<T> {
             while self.is_locked() {
                 core::hint::spin_loop();
                 #[cfg(all(debug_assertions, not(test)))]
-                if begin - riscv_time::get_time_ms() >= 2000 {
+                if riscv_time::get_time_ms() - begin >= 2000 {
                     panic!("deadlock detected");
                 }
                 #[cfg(test)]
@@ -145,7 +145,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
             while self.is_locked() {
                 core::hint::spin_loop();
                 #[cfg(all(debug_assertions, not(test)))]
-                if begin - riscv_time::get_time_ms() >= 2000 {
+                if riscv_time::get_time_ms() - begin >= 2000 {
                     panic!("deadlock detected");
                 }
                 #[cfg(test)]
