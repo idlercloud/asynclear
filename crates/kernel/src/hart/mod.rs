@@ -119,6 +119,8 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
     // 允许在内核态下访问用户数据
     // TODO: 这个应该做成只在需要访问时设置，以防止意外
     unsafe { sstatus::set_sum() };
+    crate::trap::enable_timer_interrupt();
+    riscv_time::set_next_trigger();
 
     crate::kernel_loop();
 }

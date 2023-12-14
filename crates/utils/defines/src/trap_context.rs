@@ -35,6 +35,8 @@ impl TrapContext {
         let mut sstatus = sstatus::read();
         // 即将返回用户态，因此 `spp` 设为 `SPP::USER`
         sstatus.set_spp(SPP::User);
+        sstatus.set_sie(false);
+        sstatus.set_spie(true);
         let kernel_tp: usize;
         unsafe {
             core::arch::asm!("mv {}, tp", out(reg) kernel_tp);

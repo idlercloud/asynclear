@@ -6,10 +6,12 @@
     ld \prefix\n, \m*8(a0)
 .endm
 
-    .section .text.trap
-    .globl __trap_from_user
-    .globl __return_to_user
-    .align 2
+.section .text.trap
+.globl __trap_from_user
+.globl __return_to_user
+.globl __trap_from_kernel
+
+.align 2
 __trap_from_user:
     # 在这个情况下，TrapContext 的地址会被存放在 sscratch 中
     # 使 a0 指向 TrapContext，sscratch 暂存用户 a0 的值
@@ -86,3 +88,47 @@ __return_to_user:
     # 最后恢复 a0(x10) 寄存器
     ld a0, 9*8(a0)
     sret
+
+.align 2
+__trap_from_kernel:
+    # 内核 trap 直接在内核栈上进行
+    # 只需保存 caller-saved 的寄存器
+    # 同时因为内核 trap 完成后必然回到原来的位置，且不会嵌套
+    # sepc 和 sstatus 也不用保存
+    addi sp, sp, -16*8
+    sd  ra,  0*8(sp)
+    sd  t0,  1*8(sp)
+    sd  t1,  2*8(sp)
+    sd  t2,  3*8(sp)
+    sd  t3,  4*8(sp)
+    sd  t4,  5*8(sp)
+    sd  t5,  6*8(sp)
+    sd  t6,  7*8(sp)
+    sd  a0,  8*8(sp)
+    sd  a1,  9*8(sp)
+    sd  a2, 10*8(sp)
+    sd  a3, 11*8(sp)
+    sd  a4, 12*8(sp)
+    sd  a5, 13*8(sp)
+    sd  a6, 14*8(sp)
+    sd  a7, 15*8(sp)
+    call kernel_trap_handler
+    ld  ra,  0*8(sp)
+    ld  t0,  1*8(sp)
+    ld  t1,  2*8(sp)
+    ld  t2,  3*8(sp)
+    ld  t3,  4*8(sp)
+    ld  t4,  5*8(sp)
+    ld  t5,  6*8(sp)
+    ld  t6,  7*8(sp)
+    ld  a0,  8*8(sp)
+    ld  a1,  9*8(sp)
+    ld  a2, 10*8(sp)
+    ld  a3, 11*8(sp)
+    ld  a4, 12*8(sp)
+    ld  a5, 13*8(sp)
+    ld  a6, 14*8(sp)
+    ld  a7, 15*8(sp)
+    addi sp, sp, 16*8
+    sret
+

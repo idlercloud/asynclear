@@ -1,32 +1,33 @@
+mod kernel_trap;
+mod timer;
+
 use core::ops::ControlFlow;
 
 use defines::{error::errno, trap_context::TrapContext};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
-    sepc, sie, stval,
+    sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
 
-use crate::{hart::local_hart, process, syscall, thread};
+use crate::{hart::local_hart, process, syscall};
 
 core::arch::global_asm!(include_str!("trap.S"));
 
 /// 在某些情况下，如调用了 `sys_exit`，会返回 `ControlFlow::Break`
 ///
 /// 以通知结束用户线程循环
-pub async fn trap_handler() -> ControlFlow<(), ()> {
-    set_kernel_trap_entry();
+pub async fn user_trap_handler() -> ControlFlow<(), ()> {
+    kernel_trap::set_kernel_trap_entry();
 
     let scause = scause::read();
-    trace!("Trap happened {:?}", scause.cause());
-    let stval = stval::read();
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => unsafe {
+            sstatus::set_sie();
             let mut cx = (*local_hart()).trap_context();
-            // TODO: 异常的返回位置是下一条指令，不过一定是 +4 吗？
+            // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
             (*cx).sepc += 4;
-            // get system call return value
             let syscall_id = (*cx).user_regs[16];
             let result = syscall::syscall(
                 syscall_id,
@@ -66,7 +67,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
             error!(
                 "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
                 scause.cause(),
-                stval,
+                stval::read(),
                 (*cx).sepc,
             );
             process::exit_process((*local_hart()).curr_process(), -2);
@@ -83,8 +84,9 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
             ControlFlow::Break(())
         },
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            trace!("timer interrupt");
             riscv_time::set_next_trigger();
-            thread::check_timer();
+            timer::check_timer();
             unsafe {
                 (*local_hart()).curr_thread().yield_now().await;
             }
@@ -95,7 +97,7 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
             panic!(
                 "Unsupported trap {:?}, stval = {:#x}!",
                 scause.cause(),
-                stval
+                stval::read()
             );
         }
     }
@@ -105,6 +107,12 @@ pub async fn trap_handler() -> ControlFlow<(), ()> {
 ///
 /// 注意：会切换控制流和栈
 pub fn trap_return(trap_context: *mut TrapContext) {
+    // 因为 trap entry 要切换为用户的
+    // 在回到用户态之前不能触发中断
+    unsafe {
+        sstatus::clear_sie();
+    }
+    trace!("enter user mode");
     set_user_trap_entry();
     extern "C" {
         fn __return_to_user(cx: *mut TrapContext);
@@ -115,7 +123,6 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     unsafe { __return_to_user(trap_context) }
 }
 
-#[allow(dead_code)]
 pub fn enable_timer_interrupt() {
     unsafe {
         sie::set_stimer();
@@ -130,19 +137,5 @@ fn set_user_trap_entry() {
     unsafe {
         // stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
         stvec::write(__trap_from_user as usize, TrapMode::Direct);
-    }
-}
-
-fn set_kernel_trap_entry() {
-    extern "C" fn trap_from_kernel() -> ! {
-        panic!(
-            "Trap from kernel! Cause = {:?}, bad addr = {:#x}, bad instruction = {:#x}",
-            scause::read().cause(),
-            stval::read(),
-            sepc::read(),
-        );
-    }
-    unsafe {
-        stvec::write(trap_from_kernel as usize, TrapMode::Direct);
     }
 }

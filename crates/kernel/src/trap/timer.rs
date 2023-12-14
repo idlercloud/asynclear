@@ -6,9 +6,9 @@ use core::{
 };
 
 use alloc::collections::BinaryHeap;
-use klocks::SpinMutex;
+use klocks::SpinNoIrqMutex;
 
-pub struct TimerFuture {
+struct TimerFuture {
     expire_ms: usize,
     timer_activated: bool,
 }
@@ -31,7 +31,7 @@ impl Future for TimerFuture {
     }
 }
 
-pub struct Timer {
+struct Timer {
     expire_ms: usize,
     waker: Waker,
 }
@@ -56,13 +56,12 @@ impl Ord for Timer {
     }
 }
 
-static TIMERS: SpinMutex<BinaryHeap<Reverse<Timer>>> =
-    SpinMutex::new(BinaryHeap::<Reverse<Timer>>::new());
+static TIMERS: SpinNoIrqMutex<BinaryHeap<Reverse<Timer>>> =
+    SpinNoIrqMutex::new(BinaryHeap::<Reverse<Timer>>::new());
 
-/// 返回值表示在初赛测试中是否可以继续而非等待
 pub fn check_timer() {
-    let current_ms = riscv_time::get_time_ms();
     let mut timers = TIMERS.lock();
+    let current_ms = riscv_time::get_time_ms();
     while let Some(timer) = timers.peek() {
         if current_ms >= timer.0.expire_ms {
             let timer = timers.pop().unwrap();

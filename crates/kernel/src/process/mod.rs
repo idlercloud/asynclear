@@ -45,6 +45,8 @@ pub struct Process {
 }
 
 impl Process {
+    // TODO: 整理这些函数，抽出共同部分
+
     pub fn from_path(path: CompactString, args: Vec<CompactString>) -> Result<Arc<Self>> {
         let _enter = info_span!("spawn process", path = path, args = args).entered();
         let mut process_name = path.clone();

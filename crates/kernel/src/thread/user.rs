@@ -31,12 +31,11 @@ async fn user_thread_loop(thread: Arc<Thread>) {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
-        trace!("enter user mode",);
         trap::trap_return(unsafe { (*local_hart()).trap_context() });
 
-        trace!("enter kernel mode",);
+        trace!("enter kernel mode");
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
-        let next_op = trap::trap_handler().await;
+        let next_op = trap::user_trap_handler().await;
 
         if next_op.is_break()
             || thread
@@ -123,9 +122,8 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let hart = local_hart_mut();
         unsafe {
-            (*hart).replace_thread(Some(Arc::clone(&self.thread)));
+            (*local_hart_mut()).replace_thread(Some(Arc::clone(&self.thread)));
         }
         let process = self.thread.process.upgrade().unwrap();
         process.lock_inner(|inner| inner.memory_set.activate());
@@ -142,9 +140,8 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         // 该进程退出运行态。不过页表不会切换
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成
         trace!("User task deactivate");
-        let hart = local_hart_mut();
         unsafe {
-            (*hart).replace_thread(None);
+            (*local_hart_mut()).replace_thread(None);
         }
 
         ret
