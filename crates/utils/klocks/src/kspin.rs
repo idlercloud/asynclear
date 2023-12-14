@@ -42,6 +42,7 @@ impl<T: ?Sized> SpinMutex<T> {
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
     #[inline]
+    #[track_caller]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
         #[cfg(all(debug_assertions, not(test)))]
         let begin = riscv_time::get_time_ms();
@@ -132,6 +133,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
     #[inline]
+    #[track_caller]
     pub fn lock(&self) -> SpinNoIrqMutexGuard<'_, T> {
         #[cfg(all(debug_assertions, not(test)))]
         let begin = riscv_time::get_time_ms();
@@ -170,10 +172,12 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
     #[inline(always)]
     fn try_lock(&self) -> Option<SpinNoIrqMutexGuard<'_, T>> {
+        #[cfg(not(test))]
+        let _no_irq_guard = riscv_guard::NoIrqGuard::new();
         self.base.try_lock().map(|spin_guard| SpinNoIrqMutexGuard {
             spin_guard: ManuallyDrop::new(spin_guard),
             #[cfg(not(test))]
-            _no_irq_guard: riscv_guard::NoIrqGuard::new(),
+            _no_irq_guard,
         })
     }
 }
