@@ -17,11 +17,15 @@ pub struct AsmArgs {
     /// ELF path, if not specified, kernel's path will be selected
     #[clap(short, long)]
     path: Option<PathBuf>,
+    #[clap(long)]
+    skip_build: bool,
 }
 
 impl AsmArgs {
     pub fn dump(self) {
-        self.build.build_kernel();
+        if !self.skip_build {
+            self.build.build_kernel();
+        }
         let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
         let output = Cmd::parse("rust-objdump --arch-name=riscv64 -g")
             .args([
