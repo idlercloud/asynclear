@@ -12,12 +12,12 @@ pub struct TrapContext {
     /// - trap 之前的权限模式 (SPP)
     /// - 是否允许读取用户数据 (SUM)
     pub sstatus: Sstatus,
-    /// 发生 trap 时的 pc 值。一般而言从 trap 返回就是回到它
+    /// 发生 trap 时的 pc 值。一般而言从 user trap 返回就是回到它
     pub sepc: usize,
     pub kernel_sp: usize,
     /// TODO: 这个是否其实永远是同一个值，即 [`super::trap_return`] 中最后的指令？而且是否保存了两遍？
     pub kernel_ra: usize,
-    /// 内核的 tp 存放了 local_hart 的地址
+    /// 内核的 tp 存放了 `local_hart` 的地址
     pub kernel_tp: usize,
     /// s0~s11。原因见 [`super::trap_return`]
     pub kernel_s: [usize; 12],
