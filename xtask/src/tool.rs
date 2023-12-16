@@ -1,7 +1,7 @@
 use clap::Parser;
 use fatfs::{FileSystem, FsOptions};
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use tap::Tap;
 
@@ -10,6 +10,7 @@ use crate::cmd_util::Cmd;
 use crate::variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH};
 use crate::KERNEL_ELF_PATH;
 
+/// 生成内核或指定 ELF 的汇编
 #[derive(Parser)]
 pub struct AsmArgs {
     #[clap(flatten)]
@@ -50,24 +51,6 @@ impl AsmArgs {
             elf_path.with_extension("S").display()
         );
     }
-}
-
-pub fn elf_extract() {
-    let fs = File::options()
-        .read(true)
-        .write(true)
-        .open("res/fat32.img")
-        .unwrap();
-
-    let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
-    let root_dir = fs.root_dir();
-    let mut data = Vec::new();
-    root_dir
-        .open_file("lua")
-        .unwrap()
-        .read_to_end(&mut data)
-        .unwrap();
-    fs::write("lua.elf", data).unwrap();
 }
 
 /// fat-fs 探针。单纯是用于加载和查看 fat 文件系统中的东西

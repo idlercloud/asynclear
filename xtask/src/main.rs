@@ -27,11 +27,13 @@ struct Cli {
 enum Commands {
     Build(BuildArgs),
     Asm(AsmArgs),
+    /// 清除内核和用户程序的构建产物
     Clean,
+    /// 对项目进行代码检查
     Lint,
     Qemu(QemuArgs),
     FatProbe(FatProbeArgs),
-    ElfExtractor,
+    /// 准备项目的开发环境，运行一次即可
     Env,
 }
 
@@ -45,7 +47,6 @@ fn main() {
         Lint => tool::lint(),
         Qemu(args) => args.run(),
         FatProbe(args) => args.probe(),
-        ElfExtractor => tool::elf_extract(),
         Env => tool::prepare_env(),
     }
 }

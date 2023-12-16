@@ -5,6 +5,7 @@ use tap::Tap;
 
 use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
 
+/// 构建内核和用户程序
 #[derive(Parser)]
 pub struct BuildArgs {
     /// 是否以 release 构建内核
