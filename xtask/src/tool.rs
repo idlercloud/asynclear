@@ -110,9 +110,9 @@ pub fn pack(elf_names: &[String]) {
             elf_name,
         );
     }
-    pack_into("res/test_bin/clone", "clone");
-    pack_into("res/test_bin/execve", "execve");
-    pack_into("res/test_bin/fork", "fork");
+    // pack_into("res/test_bin/clone", "clone");
+    // pack_into("res/test_bin/execve", "execve");
+    // pack_into("res/test_bin/fork", "fork");
 }
 
 pub fn clean() {
