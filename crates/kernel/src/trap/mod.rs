@@ -123,9 +123,12 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     unsafe { __return_to_user(trap_context) }
 }
 
-pub fn enable_timer_interrupt() {
+pub fn init() {
     unsafe {
         sie::set_stimer();
+        riscv_time::set_next_trigger();
+        kernel_trap::set_kernel_trap_entry();
+        sstatus::set_sie();
     }
 }
 

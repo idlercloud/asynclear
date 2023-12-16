@@ -11,7 +11,7 @@ extern crate sbi_console;
 extern crate kernel_tracer;
 extern crate alloc;
 
-use crate::{hart::local_hart, process::INITPROC};
+use crate::process::INITPROC;
 
 mod hart;
 mod lang_items;
@@ -21,16 +21,12 @@ mod thread;
 mod trap;
 
 pub fn kernel_loop() -> ! {
-    {
-        let hart_id = unsafe { (*local_hart()).hart_id() };
-        let _enter = info_span!("hart", id = hart_id).entered();
-        info!("Enter kernel loop");
+    info!("Enter kernel loop");
+    thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
+    executor::run_utils_idle();
 
-        thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
-        executor::run_utils_idle();
+    info!("Exit kernel loop");
 
-        info!("Exit kernel loop");
-    }
     #[cfg(feature = "profiling")]
     kernel_tracer::report_profiling();
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
