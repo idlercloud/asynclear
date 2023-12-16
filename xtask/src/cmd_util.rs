@@ -59,8 +59,14 @@ impl Cmd {
         self
     }
 
+    #[track_caller]
     pub fn status(&mut self) -> process::ExitStatus {
-        self.0.status().unwrap()
+        match self.0.status() {
+            Ok(status) => status,
+            Err(e) => {
+                panic!("Failed calling {:?}: {e}", self.info());
+            }
+        }
     }
 
     pub fn info(&self) -> OsString {
@@ -103,9 +109,9 @@ impl Cmd {
         let output = self.0.output().unwrap();
         if !output.status.success() {
             panic!(
-                "Failed with code {}: {:?}",
+                "Failed calling {:?}: error code {}",
+                self.info(),
                 output.status.code().unwrap(),
-                self.info()
             );
         }
         output
