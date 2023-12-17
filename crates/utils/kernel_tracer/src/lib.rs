@@ -17,9 +17,9 @@ use core::fmt::Write;
 
 use alloc::vec::Vec;
 use anstyle::{AnsiColor, Reset, Style};
-use drivers::DiskDriver;
 use klocks::{Lazy, SpinNoIrqMutex};
 use level::LevelFilter;
+use qemu_block::DiskDriver;
 use record::Record;
 use slab::Slab;
 use span::{SpanData, SpanId};

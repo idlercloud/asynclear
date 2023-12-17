@@ -1,0 +1,11 @@
+[package]
+name = "qemu_plic"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+defines = { path = "../../utils/defines" }
+
+[lints]
+workspace = true

@@ -110,7 +110,7 @@ impl MemorySet {
             None,
         );
 
-        // MMIO 映射，物理地址 0x1000_1000，虚拟地址 0xFFFF_FFFF_1000_1000
+        // MMIO 映射
         for &(start, len) in MMIO {
             memory_set.push(
                 MapArea::kernel_map(

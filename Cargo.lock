@@ -239,6 +239,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "bit_field"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc827186963e592360843fb5ba4b973e145841266c1357f7180c43526f2e5b61"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -425,16 +431,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7059fff8937831a9ae6f0fe4d658ffabf58f2ca96aa9dec1c889f936f705f216"
 
 [[package]]
-name = "crossbeam-queue"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9bcf5bdbfdd6030fb4a1c497b5d5fc5921aa2f60d359a17e249c0e6df3de153"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-utils"
 version = "0.8.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -447,16 +443,20 @@ dependencies = [
 name = "defines"
 version = "0.1.0"
 dependencies = [
+ "compact_str",
  "riscv",
 ]
 
 [[package]]
-name = "drivers"
+name = "drivers_hal"
 version = "0.1.0"
 dependencies = [
  "defines",
- "memory",
- "virtio-drivers",
+ "klocks",
+ "qemu_block",
+ "qemu_plic",
+ "qemu_uart",
+ "riscv",
 ]
 
 [[package]]
@@ -518,8 +518,8 @@ name = "executor"
 version = "0.1.0"
 dependencies = [
  "async-task",
- "crossbeam-queue",
  "defines",
+ "heapless",
  "kernel_tracer",
  "klocks",
 ]
@@ -546,6 +546,14 @@ dependencies = [
  "bitflags 2.4.1",
  "chrono",
  "log",
+]
+
+[[package]]
+name = "filesystem"
+version = "0.1.0"
+dependencies = [
+ "defines",
+ "qemu_uart",
 ]
 
 [[package]]
@@ -597,6 +605,25 @@ dependencies = [
  "log",
  "plain",
  "scroll",
+]
+
+[[package]]
+name = "hash32"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d60b12902ba28e2730cd37e95b8c9223af2808df9e902d4df49588d1470606"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
+name = "heapless"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
+dependencies = [
+ "hash32",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -680,8 +707,9 @@ dependencies = [
  "bitflags 2.4.1",
  "compact_str",
  "defines",
- "drivers",
+ "drivers_hal",
  "executor",
+ "filesystem",
  "goblin",
  "idallocator",
  "kernel_tracer",
@@ -700,9 +728,9 @@ version = "0.1.0"
 dependencies = [
  "anstyle",
  "compact_str",
- "drivers",
  "klocks",
  "pin-project",
+ "qemu_block",
  "riscv_guard",
  "riscv_time",
  "sbi_console",
@@ -876,12 +904,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu_block"
+version = "0.1.0"
+dependencies = [
+ "defines",
+ "klocks",
+ "memory",
+ "virtio-drivers",
+]
+
+[[package]]
+name = "qemu_plic"
+version = "0.1.0"
+dependencies = [
+ "defines",
+]
+
+[[package]]
+name = "qemu_uart"
+version = "0.1.0"
+dependencies = [
+ "defines",
+ "heapless",
+ "kernel_tracer",
+ "klocks",
+ "uart_16550",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "raw-cpuid"
+version = "10.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c297679cb867470fa8c9f67dbba74a78d78e3e98d7cf2b08d6d71540f797332"
+dependencies = [
+ "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -1066,6 +1131,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "stable_deref_trait"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1109,6 +1180,17 @@ name = "tracing-core"
 version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
+
+[[package]]
+name = "uart_16550"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dc00444796f6c71f47c85397a35e9c4dbf9901902ac02386940d178e2b78687"
+dependencies = [
+ "bitflags 1.3.2",
+ "rustversion",
+ "x86",
+]
 
 [[package]]
 name = "unicode-ident"
@@ -1370,6 +1452,17 @@ name = "windows_x86_64_msvc"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
+
+[[package]]
+name = "x86"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2781db97787217ad2a2845c396a5efe286f87467a5810836db6d74926e94a385"
+dependencies = [
+ "bit_field",
+ "bitflags 1.3.2",
+ "raw-cpuid",
+]
 
 [[package]]
 name = "xtask"

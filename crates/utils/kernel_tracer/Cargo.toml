@@ -9,7 +9,7 @@ edition.workspace = true
 [dependencies]
 compact_str.workspace = true
 pin-project.workspace = true
-drivers = { path = "../../drivers" }
+qemu_block = { path = "../../drivers/qemu_block" }
 riscv_time = { path = "../../arch/riscv_time", optional = true }
 riscv_guard = { path = "../../arch/riscv_guard" }
 sbi_console = { path = "../../arch/sbi_console" }

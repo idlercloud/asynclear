@@ -8,7 +8,8 @@ extern crate kernel_tracer;
 use core::future::Future;
 
 use async_task::{Runnable, Task};
-use crossbeam_queue::ArrayQueue;
+use defines::config::TASK_LIMIT;
+use heapless::mpmc::MpMcQueue;
 use klocks::Lazy;
 
 pub use self::yield_now::yield_now;
@@ -17,22 +18,22 @@ static TASK_QUEUE: Lazy<TaskQueue> = Lazy::new(TaskQueue::new);
 
 /// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接 panic
 struct TaskQueue {
-    queue: ArrayQueue<Runnable>,
+    queue: MpMcQueue<Runnable, TASK_LIMIT>,
 }
 
 impl TaskQueue {
     fn new() -> Self {
         Self {
-            queue: ArrayQueue::new(defines::config::TASK_LIMIT),
+            queue: MpMcQueue::new(),
         }
     }
 
     fn push_task(&self, runnable: Runnable) {
-        self.queue.push(runnable).expect("Out of task limit");
+        self.queue.enqueue(runnable).expect("Out of task limit");
     }
 
     fn fetch_task(&self) -> Option<Runnable> {
-        self.queue.pop()
+        self.queue.dequeue()
     }
 }
 

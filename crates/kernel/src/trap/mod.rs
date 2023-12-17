@@ -4,6 +4,7 @@ mod timer;
 use core::ops::ControlFlow;
 
 use defines::{error::errno, trap_context::TrapContext};
+use drivers_hal::{InterruptSource, Plic, UART0};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
@@ -90,7 +91,11 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             unsafe {
                 (*local_hart()).curr_thread().yield_now().await;
             }
-            // TODO: 其他让出控制权的方式是否也应该以 Future 形式实现
+            ControlFlow::Continue(())
+        }
+        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            debug!("external interrupt");
+            interrupt_handler();
             ControlFlow::Continue(())
         }
         _ => {
@@ -141,4 +146,19 @@ fn set_user_trap_entry() {
         // stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
         stvec::write(__trap_from_user as usize, TrapMode::Direct);
     }
+}
+
+fn interrupt_handler() {
+    let plic = unsafe { &*Plic::mmio() };
+    let hart_id = unsafe { (*local_hart()).hart_id() };
+    let context_id = hart_id * 2;
+    let interrupt_id = plic.claim(context_id);
+    let Some(interrupt_source) = InterruptSource::from_id(interrupt_id) else {
+        panic!("Unknown interrupt {interrupt_id}");
+    };
+    match interrupt_source {
+        InterruptSource::Uart0 => UART0.handle_irq(),
+        InterruptSource::VirtIO => todo!(),
+    }
+    plic.complete(context_id, interrupt_id);
 }

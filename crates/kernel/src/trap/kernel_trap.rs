@@ -26,6 +26,9 @@ pub extern "C" fn kernel_trap_handler() {
             timer::check_timer();
             riscv_time::set_next_trigger();
         }
+        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            super::interrupt_handler();
+        }
         other => {
             panic!(
                 "Trap from kernel! Cause = {:?}, bad addr = {:#x}, bad instruction = {:#x}",

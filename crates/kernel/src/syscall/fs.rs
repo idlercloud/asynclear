@@ -1,9 +1,7 @@
 use defines::error::Result;
+use filesystem::TtyFuture;
 
-use crate::{
-    hart::local_hart,
-    process::{check_slice, check_slice_mut},
-};
+use crate::process::{check_slice, check_slice_mut};
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///
@@ -74,25 +72,7 @@ pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
     // let nread = file.read(buf);
     // Ok(nread as isize)
     if fd == 0 {
-        let mut c: usize;
-
-        loop {
-            #[allow(deprecated)]
-            {
-                c = sbi_rt::legacy::console_getchar();
-            }
-            if c == 0 {
-                unsafe {
-                    (*local_hart()).curr_thread().yield_now().await;
-                }
-            } else {
-                break;
-            }
-        }
-        unsafe {
-            (*buf.raw())[0] = c as u8;
-        }
-        return Ok(1);
+        return Ok(TtyFuture::new(buf).await as isize);
     }
     todo!()
 }

@@ -8,3 +8,4 @@ pub mod constant;
 pub mod error;
 pub mod structs;
 pub mod trap_context;
+pub mod user_ptr;

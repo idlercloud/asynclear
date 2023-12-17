@@ -19,6 +19,7 @@ static mut HARTS: [Hart; HART_NUM] = [const { Hart::new() }; HART_NUM];
 /// 因此，一般可以假定不会被并行访问
 #[repr(align(32))]
 pub struct Hart {
+    hart_id: usize,
     //TODO: 内核线程是不是会不太一样？
     /// 当前 hart 上正在运行的线程。
     thread: Option<Arc<Thread>>,
@@ -26,7 +27,14 @@ pub struct Hart {
 
 impl Hart {
     pub const fn new() -> Hart {
-        Hart { thread: None }
+        Hart {
+            hart_id: 0,
+            thread: None,
+        }
+    }
+
+    pub fn hart_id(&self) -> usize {
+        self.hart_id
     }
 
     #[track_caller]
@@ -98,6 +106,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
             set_local_hart(hart_id);
         }
         KERNEL_SPACE.activate();
+        drivers_hal::init();
 
         info!("Init hart {hart_id} started",);
         INIT_FINISHED.store(true, Ordering::SeqCst);
@@ -137,6 +146,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 /// 需保证由不同 hart 调用
 unsafe fn set_local_hart(hart_id: usize) {
     let hart = unsafe { &mut HARTS[hart_id] };
+    hart.hart_id = hart_id;
     let hart_addr = hart as *const _ as usize;
     unsafe { asm!("mv tp, {}", in(reg) hart_addr) };
 }

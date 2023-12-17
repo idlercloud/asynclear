@@ -8,6 +8,7 @@ edition.workspace = true
 
 [dependencies]
 riscv.workspace = true
+compact_str.workspace = true
 
 [lints]
 workspace = true

@@ -41,7 +41,15 @@ pub const CLOCK_FREQ: usize = 10_000_000;
 pub const TICKS_PER_SEC: usize = 20;
 
 /// I/O 映射的起始地址和长度
-pub const MMIO: &[(usize, usize)] = &[(0x1000_1000, 0x1000)];
+pub const MMIO: &[(usize, usize)] = &[
+    (QEMU_UART_ADDR, 0x1000),   // UART
+    (0x1000_1000, 0x1000),      // VIRTIO
+    (0x0200_0000, 0x10000),     // CLINT
+    (QEMU_PLIC_ADDR, 0x400000), // PLIC
+];
+
+pub const QEMU_UART_ADDR: usize = 0x1000_0000;
+pub const QEMU_PLIC_ADDR: usize = 0xc00_0000;
 
 /// 信号机制所需的 bitset 大小
 pub const SIGSET_SIZE: usize = 64;
@@ -53,4 +61,4 @@ pub const HART_NUM: usize = 8;
 pub const HART_START_ADDR: usize = 0x8020_0000;
 
 /// 内核并发任务上限
-pub const TASK_LIMIT: usize = 256;
+pub const TASK_LIMIT: usize = 128;
