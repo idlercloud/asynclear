@@ -1,6 +1,6 @@
 # asynclear
 
-基于 Rust 的异步操作系统内核。
+基于 Rust 的异步操作系统内核。可运行在 riscv64imac 环境下。
 
 ## 结构说明
 
@@ -43,9 +43,34 @@ sudo make install
 
 注意，在这种情况下，由于 xtask 目录被排除，vscode 中只会为 xtask 提供基本的补全、跳转，错误信息不会显示。
 
-TODO: 写更详细的调试教程
+推荐扩展：
 
-可以通过 `.vscode/launch.json` 与 `riscv64-unknown-elf-gdb` 支持内核调试。
+- rust-analyzer
+- Even Better TOML
+- crates
+- Error Lens
+- C/C++（调试用）
+- RISC-V Support
+- todo tree（用于查看项目中的 TODO/FIXME/NOTE）
+- ANSI Colors（用于查看日志文件）
+- AutoCorrect（中英文之间自动加空格隔开）
+
+### 调试方法
+
+如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中，需要在 `.vscode/launch.json` 中配置它的路径。
+
+1. 运行 `cargo qemu` 时，多加一个参数 `--debug`
+2. vscode 中按 F5，也就是启动调试
+3. 可以通过图形界面控制运行，也可以在下方的调试控制台里通过 `-exec <gdb command>` 来手动输入 gdb 指令
+
+由于 boot 时页表的变换，断点的打法是有技巧的：
+
+1. 操作系统刚刚启动，此时起始点是在 linker 脚本里的地址，也即 0x80200000，所以先在 `*0x80200000` 处打个断点，然后 continue 过去。
+2. 启动后会加载临时页表，加载后才可以直接给各种函数打断点，因此先步进大约 15 次
+3. 此时高地址载入页表，已经可以用函数名或者 vscode 界面打断点了。
+4. 另外，因为很快页表会再次变化，所以低地址的断点会无效，记得删掉第一个断点
+
+其实 1、2 步可以合并，最初就直接 `break *0x8020001a`，然后直接 continue 过去，就可以进行第 3 步了。
 
 ## Todo
 
@@ -86,3 +111,11 @@ TODO: 写更详细的调试教程
     - binary-encoding 是调用约定
     - ext-debug-console 是一种更好的输入和输出控制台的方式
     - ext-legacy 是一些旧版的功能
+- 其他 OS 实现
+    - <https://github.com/greenhandzpx/Titanix.git>
+    - <https://gitlab.eduxiji.net/DarkAngelEX/oskernel2022-ftlos>
+    - <https://gitlab.eduxiji.net/scPointer/maturin>
+    - <https://gitlab.eduxiji.net/dh2zz/oskernel2022>
+    - <https://gitee.com/LoanCold/ultraos_backup>
+    - <https://github.com/xiaoyang-sde/rust-kernel-riscv>
+    - <https://github.com/equation314/nimbos>
