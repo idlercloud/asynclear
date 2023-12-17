@@ -21,7 +21,7 @@ pub struct BuildArgs {
     #[clap(long, default_value_t = String::from("TRACE"))]
     flog: String,
     /// `span` 过滤器级别
-    #[clap(long, default_value_t = String::from("INFO"))]
+    #[clap(long, default_value_t = String::from("DEBUG"))]
     slog: String,
 }
 
