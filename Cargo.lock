@@ -707,6 +707,7 @@ dependencies = [
  "anstyle",
  "bitflags 2.4.1",
  "compact_str",
+ "crossbeam-utils",
  "defines",
  "drivers_hal",
  "executor",

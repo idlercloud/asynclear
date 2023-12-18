@@ -21,6 +21,7 @@ defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
 uart_console = { path = "../utils/uart_console" }
+crossbeam-utils = { version = "0.8", default-features = false }
 anstyle = { version = "1.0", default-features = false }
 
 [features]

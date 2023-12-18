@@ -4,6 +4,7 @@ use core::{
 };
 
 use alloc::sync::Arc;
+use crossbeam_utils::CachePadded;
 use defines::{config::HART_NUM, trap_context::TrapContext};
 use memory::KERNEL_SPACE;
 use riscv::register::sstatus;
@@ -12,12 +13,14 @@ use crate::{log_impl, process::Process, thread::Thread};
 
 core::arch::global_asm!(include_str!("entry.S"));
 
-static mut HARTS: [Hart; HART_NUM] = [const { Hart::new() }; HART_NUM];
+// `CachePadded` 可以保证 per-cpu 的结构位于不同的 cache line 中
+// 因此避免 false sharing
+static mut HARTS: [CachePadded<Hart>; HART_NUM] =
+    [const { CachePadded::new(Hart::new()) }; HART_NUM];
 
 /// 可以认为代表一个处理器。存放一些 per-hart 的数据
 ///
 /// 因此，一般可以假定不会被并行访问
-#[repr(align(32))]
 pub struct Hart {
     hart_id: usize,
     //TODO: 内核线程是不是会不太一样？
