@@ -30,6 +30,13 @@ pub struct Uart {
 }
 
 impl Uart {
+    pub fn print(&self, bytes: &[u8]) {
+        let mut port = self.port.lock();
+        for byte in bytes {
+            port.send(*byte);
+        }
+    }
+
     pub fn handle_irq(&self) {
         trace!("uart interrupt");
         let ch = self.port.lock().receive();
