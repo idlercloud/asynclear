@@ -14,7 +14,3 @@ pub trait BlockDevice {
     fn read_block(&mut self, block_id: u64, buf: &mut [u8; Self::BLOCK_SIZE as usize]);
     fn write_block(&mut self, block_id: u64, buf: &[u8; Self::BLOCK_SIZE as usize]);
 }
-
-pub fn new_virtio_driver() -> DiskDriver {
-    DiskDriver::new()
-}

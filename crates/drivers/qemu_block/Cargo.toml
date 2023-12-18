@@ -7,7 +7,6 @@ edition.workspace = true
 [dependencies]
 memory = { path = "../../memory" }
 defines = { path = "../../utils/defines" }
-klocks = { path = "../../utils/klocks" }
 virtio-drivers = "0.7"
 
 [lints]
