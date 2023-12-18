@@ -9,12 +9,10 @@ edition.workspace = true
 [dependencies]
 compact_str.workspace = true
 pin-project.workspace = true
-qemu_block = { path = "../../drivers/qemu_block" }
+# TODO: 如果 kernel_tracer 做成 facade 库的形式，这些依赖应该可以统统干掉
 riscv_time = { path = "../../arch/riscv_time", optional = true }
 riscv_guard = { path = "../../arch/riscv_guard" }
-sbi_console = { path = "../../arch/sbi_console" }
 klocks = { path = "../../utils/klocks" }
-anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
 
 [lints]

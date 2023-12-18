@@ -6,7 +6,7 @@
 #![feature(const_binary_heap_constructor)]
 
 #[macro_use]
-extern crate sbi_console;
+extern crate uart_console;
 #[macro_use]
 extern crate kernel_tracer;
 extern crate alloc;
@@ -15,6 +15,7 @@ use crate::process::INITPROC;
 
 mod hart;
 mod lang_items;
+mod log_impl;
 mod process;
 mod syscall;
 mod thread;
@@ -28,7 +29,7 @@ pub fn kernel_loop() -> ! {
     info!("Exit kernel loop");
 
     #[cfg(feature = "profiling")]
-    kernel_tracer::report_profiling();
+    log_impl::report_profiling();
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }

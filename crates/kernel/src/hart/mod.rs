@@ -8,7 +8,7 @@ use defines::{config::HART_NUM, trap_context::TrapContext};
 use memory::KERNEL_SPACE;
 use riscv::register::sstatus;
 
-use crate::{process::Process, thread::Thread};
+use crate::{log_impl, process::Process, thread::Thread};
 
 core::arch::global_asm!(include_str!("entry.S"));
 
@@ -58,55 +58,26 @@ impl Hart {
     }
 }
 
-static INIF_HART: AtomicBool = AtomicBool::new(true);
-static INIT_FINISHED: AtomicBool = AtomicBool::new(false);
-
 #[no_mangle]
 pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
+    static INIF_HART: AtomicBool = AtomicBool::new(true);
+    static INIT_FINISHED: AtomicBool = AtomicBool::new(false);
+
+    // 主核启动
     if INIF_HART
         .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
         .is_ok()
     {
-        // 清理 bss 段
-        extern "C" {
-            fn sbss();
-            fn ebss();
-        }
-
-        fn clear_bss() {
-            let len = ebss as usize - sbss as usize;
-            // 为 debug 模式做的优化，减少启动时间
-            #[cfg(debug_assertions)]
-            {
-                // 似乎 `BATCH_SIZE` 为 4096 时效果最好
-                // 是因为恰好为一个 `PAGE_SIZE` 吗
-                const BATCH_SIZE: usize = 4096;
-                let batch_end = sbss as usize + len / BATCH_SIZE * BATCH_SIZE;
-                unsafe {
-                    core::slice::from_raw_parts_mut(
-                        sbss as usize as *mut [u8; BATCH_SIZE],
-                        len / BATCH_SIZE,
-                    )
-                    .fill([0; BATCH_SIZE]);
-                    core::slice::from_raw_parts_mut(
-                        batch_end as *mut u8,
-                        ebss as usize - batch_end,
-                    )
-                    .fill(0);
-                }
-            }
-            #[cfg(not(debug_assertions))]
-            unsafe {
-                core::slice::from_raw_parts_mut(sbss as *mut u8, len).fill(0);
-            }
-        }
         clear_bss();
         unsafe {
-            memory::init();
             set_local_hart(hart_id);
+            memory::init();
         }
         KERNEL_SPACE.activate();
+        // drivers 依赖于 mmio 映射（其实也许可以放在 boot page table 里？）
         drivers_hal::init();
+        // log 实现依赖于 uart 和 virtio_block
+        log_impl::init();
 
         info!("Init hart {hart_id} started",);
         INIT_FINISHED.store(true, Ordering::SeqCst);
@@ -137,6 +108,35 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
     crate::trap::init();
 
     crate::kernel_loop();
+}
+
+fn clear_bss() {
+    extern "C" {
+        fn sbss();
+        fn ebss();
+    }
+    let len = ebss as usize - sbss as usize;
+    // 为 debug 模式做的优化，减少启动时间
+    #[cfg(debug_assertions)]
+    {
+        // 似乎 `BATCH_SIZE` 为 4096 时效果最好
+        // 是因为恰好为一个 `PAGE_SIZE` 吗
+        const BATCH_SIZE: usize = 4096;
+        let batch_end = sbss as usize + len / BATCH_SIZE * BATCH_SIZE;
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                sbss as usize as *mut [u8; BATCH_SIZE],
+                len / BATCH_SIZE,
+            )
+            .fill([0; BATCH_SIZE]);
+            core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as usize - batch_end)
+                .fill(0);
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as *mut u8, len).fill(0);
+    }
 }
 
 /// 设置当前 hart 的 `Hart` 结构，将 `tp` 设置为其地址
