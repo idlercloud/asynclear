@@ -18,7 +18,7 @@ pub struct BuildArgs {
     #[clap(long, default_value_t = String::from("INFO"))]
     clog: String,
     /// 文件日志级别
-    #[clap(long, default_value_t = String::from("TRACE"))]
+    #[clap(long, default_value_t = String::from("DEBUG"))]
     flog: String,
     /// `span` 过滤器级别
     #[clap(long, default_value_t = String::from("DEBUG"))]

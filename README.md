@@ -21,7 +21,7 @@ TODO: 添加项目模块说明
 3. 运行 cargo env
 4. 运行 cargo qemu
 
-可以用 `cargo qemu --clog="DEBUG" --flog="TRACE" --slog="TRACE"` 来具体指定日志级别。
+可以用 `cargo qemu --clog="INFO" --flog="DEBUG" --slog="DEBUG"` 来具体指定日志级别。
 
 ### 在 Linux 上编译 qemu-system-riscv64
 
