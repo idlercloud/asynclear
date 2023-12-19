@@ -37,12 +37,9 @@ impl Write for ConsoleBuffer {
     }
 }
 
-#[allow(unused)]
-pub fn print(args: fmt::Arguments) {
+pub fn print(args: fmt::Arguments<'_>) {
     let mut buf = CONSOLE_BUFFER.lock();
-    // buf.write_fmt(args).unwrap();
-    // BUG FIX: 关闭 stdout 后，本函数不能触发 panic，否则会造成死锁
-    buf.write_fmt(args);
+    buf.write_fmt(args).unwrap();
 }
 
 #[macro_export]

@@ -31,44 +31,40 @@ pub fn main() -> i32 {
                     if line == "exit" {
                         return 0;
                     }
-                    let args: Vec<_> = line.as_str().split(' ').collect();
-                    let mut args_copy: Vec<String> = args
-                        .iter()
-                        .map(|&arg| {
-                            let mut string = String::new();
-                            string.push_str(arg);
-                            string
-                        })
-                        .collect();
+                    let mut args = line
+                        .as_str()
+                        .split(' ')
+                        .map(String::from)
+                        .collect::<Vec<_>>();
 
-                    args_copy.iter_mut().for_each(|string| {
-                        string.push('\0');
-                    });
+                    for s in args.iter_mut() {
+                        s.push('\0');
+                    }
 
                     // redirect input
                     let mut input = String::new();
-                    if let Some((idx, _)) = args_copy
+                    if let Some((idx, _)) = args
                         .iter()
                         .enumerate()
                         .find(|(_, arg)| arg.as_str() == "<\0")
                     {
-                        input = args_copy[idx + 1].clone();
-                        args_copy.drain(idx..=idx + 1);
+                        input = args[idx + 1].clone();
+                        args.drain(idx..=idx + 1);
                     }
 
                     // redirect output
                     let mut output = String::new();
-                    if let Some((idx, _)) = args_copy
+                    if let Some((idx, _)) = args
                         .iter()
                         .enumerate()
                         .find(|(_, arg)| arg.as_str() == ">\0")
                     {
-                        output = args_copy[idx + 1].clone();
-                        args_copy.drain(idx..=idx + 1);
+                        output = args[idx + 1].clone();
+                        args.drain(idx..=idx + 1);
                     }
 
                     let mut args_addr: Vec<*const u8> =
-                        args_copy.iter().map(|arg| arg.as_ptr()).collect();
+                        args.iter().map(|arg| arg.as_ptr()).collect();
                     args_addr.push(core::ptr::null());
                     let pid = fork();
                     if pid == 0 {
@@ -98,7 +94,7 @@ pub fn main() -> i32 {
                             close(output_fd);
                         }
                         // child process
-                        if exec(args_copy[0].as_str(), args_addr.as_slice()) < 0 {
+                        if exec(args[0].as_str(), args_addr.as_slice()) < 0 {
                             println!("Error when executing!");
                             return -4;
                         }
