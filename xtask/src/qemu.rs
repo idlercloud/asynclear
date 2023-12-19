@@ -1,19 +1,12 @@
 use std::{
     fs::{self, File},
     io::{Read, Write},
-    path::Path,
 };
 
 use chrono::{FixedOffset, Utc};
 use clap::Parser;
 
-use crate::{
-    build::{BuildArgs, USER_BINS},
-    cmd_util::Cmd,
-    tool,
-    variables::SBI_PATH,
-    KERNEL_BIN_PATH, KERNEL_ELF_PATH,
-};
+use crate::{build::BuildArgs, cmd_util::Cmd, tool, variables::SBI_PATH, KERNEL_BIN_PATH};
 
 /// 使用 QEMU 运行内核
 #[derive(Parser)]
@@ -30,18 +23,11 @@ pub struct QemuArgs {
 
 impl QemuArgs {
     pub fn run(self) {
-        // Build kernel and user apps
+        // 构建内核和用户应用
         self.build.build();
 
-        // Make kernel bin
-        println!("Making kernel bin...");
-        make_bin(KERNEL_ELF_PATH);
+        tool::prepare_os();
 
-        // Pack filesystem
-        println!("Packing filesystem...");
-        tool::pack(&USER_BINS);
-
-        // Call qemu
         println!("Running qemu...");
         fs::create_dir_all("logs").unwrap();
         let date_time = Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap());
@@ -54,17 +40,9 @@ impl QemuArgs {
             let placeholder = vec![b' '; LOG_PRESERVED_SIZE as usize];
             log_file.write_all(&placeholder).unwrap();
         }
-        Cmd::new("qemu-system-riscv64")
-            .args(["-machine", "virt"])
-            .args(["-kernel", KERNEL_BIN_PATH])
-            .args(["-m", "128M"])
-            .args(["-nographic"])
+
+        Self::base_qemu()
             .args(["-smp", &self.smp.to_string()])
-            .args(["-bios", SBI_PATH])
-            // .args(&[
-            //     "-drive",
-            //     &format!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
-            // ])
             .args([
                 "-drive",
                 &format!("file={log_file_name},if=none,format=raw,id=x0"),
@@ -94,13 +72,22 @@ impl QemuArgs {
         }
         log_file.set_len(len).unwrap();
     }
-}
 
-fn make_bin(elf_path: impl AsRef<Path>) {
-    let path = elf_path.as_ref();
-    Cmd::new("rust-objcopy")
-        .arg(path)
-        .args(["-O", "binary"])
-        .arg(path.with_extension("bin"))
-        .invoke();
+    pub fn base_qemu() -> Cmd {
+        let mut cmd = Cmd::new("qemu-system-riscv64");
+        cmd.args(["-machine", "virt"])
+            .args(["-kernel", KERNEL_BIN_PATH])
+            .args(["-m", "128M"])
+            .args(["-nographic"])
+            .args(["-bios", SBI_PATH]);
+        // .args(&[
+        //     "-drive",
+        //     &format!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
+        // ])
+        // .args([
+        //     "-device",
+        //     "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+        // ])
+        cmd
+    }
 }

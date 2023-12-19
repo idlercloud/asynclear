@@ -93,9 +93,8 @@ sudo make install
 
 按优先级排列：
 
-- [ ] rCore-Tutorial I/O 设备管理（中断）
-- [ ] 内核线程
 - [ ] Testing
+- [ ] 内核线程
 - [ ] kernel_tracer（Profiling 可视化）
 - [ ] 用户指针检查通过内核异常来做
 - [ ] CoW、Lazy Page，顺便重构 memory 模块

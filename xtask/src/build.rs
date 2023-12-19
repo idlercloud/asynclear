@@ -31,6 +31,17 @@ impl BuildArgs {
         self.build_kernel();
     }
 
+    pub fn build_for_test() {
+        let args = Self {
+            release: false,
+            profiling: false,
+            clog: String::from("NONE"),
+            flog: String::from("NONE"),
+            slog: String::from("NONE"),
+        };
+        args.build();
+    }
+
     pub fn build_user_apps() {
         println!("Building user apps...");
         Cmd::parse("cargo build --package user --release")

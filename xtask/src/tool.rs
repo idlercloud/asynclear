@@ -5,10 +5,10 @@ use std::io::{Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use tap::Tap;
 
-use crate::build::BuildArgs;
+use crate::build::{BuildArgs, USER_BINS};
 use crate::cmd_util::Cmd;
 use crate::variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH};
-use crate::KERNEL_ELF_PATH;
+use crate::{tool, KERNEL_BIN_PATH, KERNEL_ELF_PATH};
 
 /// 生成内核或指定 ELF 的汇编
 #[derive(Parser)]
@@ -127,4 +127,18 @@ pub fn lint() {
         .args(["--target", TARGET_ARCH])
         .invoke();
     Cmd::parse("cargo clippy --package xtask").invoke();
+}
+
+/// 准备 OS 运行需要的二进制文件，包括内核二进制和文件镜像
+pub fn prepare_os() {
+    // Make kernel bin
+    println!("Making kernel bin...");
+    Cmd::new("rust-objcopy")
+        .arg(KERNEL_ELF_PATH)
+        .args(["-O", "binary", KERNEL_BIN_PATH])
+        .invoke();
+
+    // Pack filesystem
+    println!("Packing filesystem...");
+    tool::pack(&USER_BINS);
 }

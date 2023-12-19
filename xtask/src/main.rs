@@ -2,6 +2,7 @@
 
 mod build;
 mod cmd_util;
+mod ktest;
 mod qemu;
 mod tool;
 mod variables;
@@ -9,6 +10,7 @@ mod variables;
 use build::BuildArgs;
 use clap::{Parser, Subcommand};
 use const_format::formatcp;
+use ktest::KtestArgs;
 use qemu::QemuArgs;
 use tool::{AsmArgs, FatProbeArgs};
 use variables::TARGET_ARCH;
@@ -27,6 +29,7 @@ struct Cli {
 enum Commands {
     Build(BuildArgs),
     Asm(AsmArgs),
+    Ktest(KtestArgs),
     /// 清除内核和用户程序的构建产物
     Clean,
     /// 对项目进行代码检查
@@ -43,6 +46,7 @@ fn main() {
     match Cli::parse().command {
         Build(args) => args.build(),
         Asm(args) => args.dump(),
+        Ktest(args) => args.run_test(),
         Clean => tool::clean(),
         Lint => tool::lint(),
         Qemu(args) => args.run(),

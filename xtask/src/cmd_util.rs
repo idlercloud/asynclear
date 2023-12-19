@@ -1,7 +1,7 @@
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
-    process,
+    process::{self, Child, Stdio},
 };
 
 pub struct Cmd(process::Command);
@@ -117,24 +117,11 @@ impl Cmd {
         output
     }
 
-    #[allow(dead_code)]
-    pub fn spawn_with_stdout(mut self) -> ChildProcess {
-        let child = self.0.stdout(process::Stdio::piped()).spawn().unwrap();
-        ChildProcess(self, child)
-    }
-}
-
-#[allow(dead_code)]
-pub struct ChildProcess(pub Cmd, pub process::Child);
-
-impl ChildProcess {
-    #[allow(dead_code)]
-    pub fn stdout(&mut self) -> &mut process::ChildStdout {
-        self.1.stdout.as_mut().unwrap()
-    }
-
-    #[allow(dead_code)]
-    pub fn wait(&mut self) -> process::ExitStatus {
-        self.1.wait().unwrap()
+    pub fn spawn(&mut self) -> Child {
+        self.0
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap()
     }
 }
