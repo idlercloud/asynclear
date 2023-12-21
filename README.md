@@ -10,7 +10,44 @@
 
 使用 `cargo xtask --help` 列出所有可用的任务，然后可以通过 `cargo <task>` 来运行（原理为在 `.cargo/config.toml` 设置 alias）。如 `cargo xbuild` 将构建内核和用户程序。具体参数可以查看每个任务的 `--help`。
 
-TODO: 添加项目模块说明
+### 项目模块
+
+本项目采用 cargo workspace 维护。一个项目中包含多个 crate。crate 之间的依赖形成有向无环图
+
+- crates/kernel
+    - 内核的主模块，生成内核二进制文件
+    - 包含 trap 处理、进程/线程管理、hart 管理等
+    - 内核的入口在 src/hart/entry.S 中
+    - 加载内核栈和临时页表后，跳转到 src/hart/mod.rs::__hart_entry()
+    - 主 hart 进行一些必要的初始化工作，并启动其他 hart
+    - 最后进入 src/main::kernel_loop()，即内核主循环，不断运行用户任务
+- crates/arch
+    - 一些特定于架构的东西，比如 riscv 的 time 读取
+- crates/dependencies（这个实际上不包含在 workspace 中，暂时）
+    - 一些第三方库，但是需要做一些修改
+    - 后期也可能基于它们扩展
+- crates/drivers
+    - 支持中断和各种外设
+- crates/executor
+    - 内核的异步调度和执行器
+- crates/filesystem
+    - 文件系统。目前未实现，只完成了基于 uart 的 stdio
+- crates/memory
+    - 管理内核堆、用户帧分配、虚拟内存等
+    - 注意，这个模块即将大改
+- crates/utils
+    - 一些通用组件
+    - defines 包括一些内核参数、错误码、常用结构等
+    - idallocator 是用于分配整数（pid、tid）的分配器实现
+    - kernel_tracer 是内核的日志系统的基础
+    - klocks 实现自旋锁、关中断自旋锁、睡眠锁等原语
+    - uart_console 是基于 uart 实现的 print 支持
+- user
+    - 一些用户应用，可以用做测试
+    - 包括 initproc 和 shell。由于目前还没有文件系统，它们是直接二进制嵌入到内核中的
+- xtask
+    - xtask 方式管理内核的构建、运行等
+    - 它是一个运行在开发环境（而非目标环境如 qemu）下的 cli
 
 ## 如何运行
 
@@ -39,9 +76,20 @@ sudo make install
 
 ### vscode 配置
 
-若使用 vscode + rust-analyzer，建议将以下设置加入 vscode 设置：`"rust-analyzer.check.overrideCommand": ["cargo", "check", "--workspace", "--message-format=json", "--bins", "--target", "riscv64imac-unknown-none-elf", "--exclude", "xtask"],`
+若使用 vscode + rust-analyzer，建议将以下设置加入 vscode 设置：`"rust-analyzer.check.overrideCommand": ["cargo", "check", "--workspace", "--message-format=json", "--bins", "--target", "riscv64imac-unknown-none-elf", "--exclude", "xtask"],`。注意，在这种情况下，由于 xtask 目录被排除，vscode 中只会为 xtask 提供基本的补全、跳转，错误信息不会显示。
 
-注意，在这种情况下，由于 xtask 目录被排除，vscode 中只会为 xtask 提供基本的补全、跳转，错误信息不会显示。
+可以通过调整添加 vscode 设置使 unsafe 块显示为血红色：
+
+```json
+"editor.semanticTokenColorCustomizations": {
+    "enabled": true,
+    "rules": {
+        "*.unsafe:rust": "#ff4040"
+    }
+},
+```
+
+如非必要最好不要写 unsafe，如果一定要用，请控制使用范围，并且尽量不要从 `*const T`/`*mut T` 转换成 `&T`/`&mut T`，转换了也不要长期持有。
 
 推荐扩展：
 
@@ -54,6 +102,67 @@ sudo make install
 - todo tree（用于查看项目中的 TODO/FIXME/NOTE）
 - ANSI Colors（用于查看日志文件）
 - AutoCorrect（中英文之间自动加空格隔开）
+
+可以为 Todo Tree 添加以下配置：
+
+```json
+"todo-tree.regex.regex": "(todo!|(//|#|<!--|;|/\\*|^|^\\s*(-|\\d+.))\\s*($TAGS))",
+"todo-tree.tree.labelFormat": "${tag}${after}",
+"todo-tree.general.tags": ["TODO", "TAG", "NOTE", "FIXME", "[ ]"],
+"todo-tree.highlights.enabled": true,
+"todo-tree.highlights.customHighlight": {
+    "todo!": {
+        "icon": "list-unordered",
+        "foreground": "#131416",
+        "background": "#ffbf00",
+        "rulerColour": "#ffbf00",
+        "iconColour": "#ffbf00"
+    },
+    "TODO": {
+        "icon": "list-unordered",
+        "foreground": "#131416",
+        "background": "#ffbf00",
+        "rulerColour": "#ffbf00",
+        "iconColour": "#ffbf00"
+    },
+    "DONE": {
+        "icon": "issue-closed",
+        "foreground": "#131416",
+        "background": "#12cc12",
+        "rulerColour": "#12cc12",
+        "iconColour": "#12cc12"
+    },
+    "FIXME": {
+        "icon": "bug",
+        "foreground": "#dcdcdc",
+        "background": "#e60000",
+        "rulerColour": "#e60000",
+        "iconColour": "#e60000",
+        "rulerLane": "full"
+    },
+    "TAG": {
+        "icon": "tag",
+        "foreground": "#dcdcdc",
+        "background": "#2e80f2",
+        "rulerColour": "#2e80f2",
+        "iconColour": "#2e80f2"
+    },
+    "NOTE": {
+        "icon": "note",
+        "foreground": "#dcdcdc",
+        "background": "#8b00ff",
+        "rulerColour": "#8b00ff",
+        "iconColour": "#8b00ff"
+    },
+    "[ ]": {
+        "icon": "list-unordered",
+        "foreground": "#131416",
+        "background": "#ffbf00",
+        "rulerColour": "#ffbf00",
+        "iconColour": "#ffbf00"
+    }
+},
+```
 
 ### 调试方法
 
@@ -119,3 +228,4 @@ sudo make install
     - <https://gitee.com/LoanCold/ultraos_backup>
     - <https://github.com/xiaoyang-sde/rust-kernel-riscv>
     - <https://github.com/equation314/nimbos>
+    - <https://gitlab.eduxiji.net/202310007101563/Alien>
