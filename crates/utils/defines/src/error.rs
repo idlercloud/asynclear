@@ -17,7 +17,7 @@ pub mod errno {
             pub const $name: super::Error = super::Error($errno);)*
             pub fn error_info(errno: isize) -> &'static str {
                 match errno {
-                    $($errno => concat!(stringify!($name), ", ", stringify!($desc)),)*
+                    $($errno => ::core::concat!(stringify!($name), ", ", stringify!($desc)),)*
                     _ => unreachable!("{}", errno),
                 }
             }
