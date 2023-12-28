@@ -23,6 +23,8 @@ pub struct BuildArgs {
     /// `span` 过滤器级别
     #[clap(long, default_value_t = String::from("DEBUG"))]
     slog: String,
+    #[clap(skip = false)]
+    ktest: bool,
 }
 
 impl BuildArgs {
@@ -38,11 +40,12 @@ impl BuildArgs {
             clog: String::from("NONE"),
             flog: String::from("NONE"),
             slog: String::from("NONE"),
+            ktest: true,
         };
         args.build();
     }
 
-    pub fn build_user_apps() {
+    fn build_user_apps() {
         println!("Building user apps...");
         Cmd::parse("cargo build --package user --release")
             .args(["--target", TARGET_ARCH])
@@ -59,6 +62,9 @@ impl BuildArgs {
             .tap_mut(|cmd| {
                 if self.profiling {
                     cmd.args(["--features", "profiling"]);
+                }
+                if self.ktest {
+                    cmd.args(["--features", "ktest"]);
                 }
             })
             .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
