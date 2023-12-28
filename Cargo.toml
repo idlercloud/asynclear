@@ -40,6 +40,7 @@ event-listener = { version = "4.0", default-features = false }
 heapless = "0.8"
 
 [profile.dev]
+opt-level = 1
 debug = 2
 
 [profile.release]
