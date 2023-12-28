@@ -24,14 +24,23 @@ use self::{
 pub use self::user_ptr::*;
 
 // FIXME: 暂时而言应用是嵌入内核的。之后需要修复
+static TMP_FS: &[(&str, &[u8])] = macros::gen_tmp_fs!();
 
-static INITPROC_ELF: &[u8] =
-    include_bytes!("../../../../user/target/riscv64imac-unknown-none-elf/release/initproc");
-
-static SHELL_ELF: &[u8] =
-    include_bytes!("../../../../user/target/riscv64imac-unknown-none-elf/release/shell");
+fn find_file(name: &str) -> Option<&'static [u8]> {
+    for (n, bytes) in TMP_FS {
+        if *n == name {
+            return Some(bytes);
+        }
+    }
+    None
+}
 
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
+    println!("----All Apps----");
+    for (name, _) in TMP_FS {
+        println!("{name}");
+    }
+    println!("----------------");
     Process::from_path(
         CompactString::from_static_str("initproc"),
         vec![CompactString::from_static_str("initproc")],
@@ -57,13 +66,7 @@ impl Process {
 
         let mut memory_set = MemorySet::new_bare();
         memory_set.map_kernel_areas(KERNEL_SPACE.page_table());
-        let elf_data = if path == "initproc" {
-            INITPROC_ELF
-        } else if path == "shell" {
-            SHELL_ELF
-        } else {
-            panic!("Unsupported app");
-        };
+        let elf_data = find_file(&path).unwrap();
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         let elf_end = memory_set.load_sections(&elf, elf_data);
         let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
@@ -165,13 +168,7 @@ impl Process {
             process_name.push_str(arg);
         }
 
-        let elf_data = if path == "initproc" {
-            INITPROC_ELF
-        } else if path == "shell" {
-            SHELL_ELF
-        } else {
-            panic!("Unsupported app: {path}");
-        };
+        let elf_data = find_file(&path).unwrap();
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         self.lock_inner(|inner| {
             assert_eq!(inner.thread_count(), 1);
