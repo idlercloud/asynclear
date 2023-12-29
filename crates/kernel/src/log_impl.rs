@@ -9,6 +9,7 @@ use kernel_tracer::{Level, Log, Record, KERNLE_TRACER};
 use klocks::{Lazy, SpinNoIrqMutex};
 use uart_console::STDOUT;
 
+#[cfg(not(feature = "ktest"))]
 pub fn init() {
     KERNLE_TRACER.logger.call_once(|| &KernelLogImpl(()));
 }

@@ -9,7 +9,7 @@ use defines::{config::HART_NUM, trap_context::TrapContext};
 use memory::KERNEL_SPACE;
 use riscv::register::sstatus;
 
-use crate::{log_impl, process::Process, thread::Thread};
+use crate::{process::Process, thread::Thread};
 
 core::arch::global_asm!(include_str!("entry.S"));
 
@@ -82,7 +82,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // log 实现依赖于 uart 和 virtio_block
         // 内核测试中不开启日志
         #[cfg(not(feature = "ktest"))]
-        log_impl::init();
+        crate::log_impl::init();
 
         info!("Init hart {hart_id} started",);
         INIT_FINISHED.store(true, Ordering::SeqCst);

@@ -27,9 +27,9 @@ pub fn gen_tmp_fs(_items: TokenStream) -> TokenStream {
             continue;
         }
 
-        add_elf(&elf_name);
+        add_elf(elf_name);
     }
 
-    array_code.push_str("]");
+    array_code.push(']');
     array_code.parse().unwrap()
 }
