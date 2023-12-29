@@ -3,6 +3,7 @@ mod inner;
 mod user_ptr;
 
 use alloc::{
+    collections::BTreeMap,
     sync::{Arc, Weak},
     vec,
     vec::Vec,
@@ -101,11 +102,10 @@ impl Process {
                     zombie_exit_code: None,
                     cwd: CompactString::from_static_str("/"),
                     tid_allocator,
-                    threads: vec![Some(Arc::new(Thread::new(
-                        Weak::clone(process),
+                    threads: BTreeMap::from([(
                         tid,
-                        trap_context,
-                    )))],
+                        Arc::new(Thread::new(Weak::clone(process), tid, trap_context)),
+                    )]),
                 }),
             }
         });
@@ -118,7 +118,7 @@ impl Process {
     /// `stack` 若不为 0 则指定新进程的栈顶
     pub fn clone(self: &Arc<Self>, stack: usize) -> Arc<Self> {
         let child = self.lock_inner(|inner| {
-            assert_eq!(inner.thread_count(), 1);
+            assert_eq!(inner.threads.len(), 1);
             let pid = PID_ALLOCATOR.lock().alloc();
             let child = Arc::new_cyclic(|weak_child| {
                 // 复制父进程的地址空间
@@ -144,7 +144,10 @@ impl Process {
                         heap_range: inner.heap_range.clone(),
                         parent: Arc::downgrade(self),
                         children: Vec::new(),
-                        threads: vec![Some(Arc::clone(&child_main_thread))],
+                        threads: BTreeMap::from([(
+                            child_main_thread.tid,
+                            Arc::clone(&child_main_thread),
+                        )]),
                         zombie_exit_code: None,
                         cwd: inner.cwd.clone(),
                         tid_allocator: inner.tid_allocator.clone(),
@@ -171,7 +174,7 @@ impl Process {
         let elf_data = find_file(&path).unwrap();
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         self.lock_inner(|inner| {
-            assert_eq!(inner.thread_count(), 1);
+            assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
             inner.memory_set.recycle_user_pages();

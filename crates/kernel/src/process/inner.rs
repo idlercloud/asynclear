@@ -1,6 +1,7 @@
 use core::ops::Range;
 
 use alloc::{
+    collections::BTreeMap,
     sync::{Arc, Weak},
     vec::Vec,
 };
@@ -39,7 +40,7 @@ pub struct ProcessInner {
 
     /* 线程 */
     pub tid_allocator: RecycleAllocator,
-    pub threads: Vec<Option<Arc<Thread>>>,
+    pub threads: BTreeMap<usize, Arc<Thread>>,
 }
 
 impl ProcessInner {
@@ -85,18 +86,8 @@ impl ProcessInner {
     //     }
     // }
 
-    pub fn thread_count(&self) -> usize {
-        let mut count = 0;
-        for t in &self.threads {
-            if t.is_some() {
-                count += 1;
-            }
-        }
-        count
-    }
-
     pub fn main_thread(&self) -> Arc<Thread> {
-        self.threads[0].as_ref().cloned().unwrap()
+        Arc::clone(&self.threads.get(&0).unwrap())
     }
 
     /// 标记进程已退出。但是不会回收资源。

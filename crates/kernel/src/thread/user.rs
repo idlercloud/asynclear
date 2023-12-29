@@ -5,8 +5,8 @@ use core::{
 };
 
 use alloc::{
+    collections::BTreeMap,
     sync::{Arc, Weak},
-    vec::Vec,
 };
 use compact_str::CompactString;
 
@@ -57,7 +57,7 @@ fn exit_thread(thread: Arc<Thread>) {
 
     debug!("one thread exits");
     let children = process.lock_inner(|process_inner| {
-        process_inner.threads[thread.tid].take();
+        process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
         let exit_code = thread.lock_inner(|thread_inner| {
@@ -68,8 +68,7 @@ fn exit_thread(thread: Arc<Thread>) {
         // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
         // 如果父进程不 wait 的话，就一直存活着，并占用 pid 等资源
         // 但主要的资源是会释放的，比如地址空间、线程控制块等
-        // FIXME: 目前是遍历一遍，可能导致锁太久
-        if !process_inner.threads.iter().any(|t| t.is_some()) {
+        if process_inner.threads.is_empty() {
             info!("all threads exit");
             // 如果进程尚未被标记为僵尸，则将线程的退出码赋予给它
             if process_inner.zombie_exit_code.is_none() {
@@ -79,7 +78,7 @@ fn exit_thread(thread: Arc<Thread>) {
             // 根页表以及内核相关的部分要留着
             process_inner.memory_set.recycle_user_pages();
             process_inner.parent = Weak::new();
-            process_inner.threads = Vec::new();
+            process_inner.threads = BTreeMap::new();
             process_inner.tid_allocator.release();
 
             Some(core::mem::take(&mut process_inner.children))
