@@ -113,16 +113,13 @@ impl Process {
         Ok(process)
     }
 
-    /// clone 一个新进程，目前仅支持只有一个主线程的进程。
+    /// fork 一个新进程，目前仅支持只有一个主线程的进程。
     ///
     /// `stack` 若不为 0 则指定新进程的栈顶
-    pub fn clone(self: &Arc<Self>, stack: usize) -> Arc<Self> {
+    pub fn fork(self: &Arc<Self>, stack: usize) -> Arc<Self> {
         let child = self.lock_inner(|inner| {
             assert_eq!(inner.threads.len(), 1);
-            let pid = PID_ALLOCATOR.lock().alloc();
             let child = Arc::new_cyclic(|weak_child| {
-                // 复制父进程的地址空间
-                let memory_set = MemorySet::from_existed_user(&inner.memory_set);
                 // // 复制文件描述符表
                 // let new_fd_table = parent_inner.fd_table.clone();
                 let parent_main_thread = inner.main_thread();
@@ -131,26 +128,27 @@ impl Process {
                 if stack != 0 {
                     trap_context.user_regs[1] = stack;
                 }
-                let child_main_thread = Arc::new(Thread::new(
-                    Weak::clone(weak_child),
-                    parent_main_thread.tid,
-                    trap_context,
-                ));
+                // 子进程 fork 后返回值为 0
+                trap_context.user_regs[9] = 0;
                 Self {
-                    pid,
+                    pid: PID_ALLOCATOR.lock().alloc(),
                     inner: SpinMutex::new(ProcessInner {
                         name: inner.name.clone(),
-                        memory_set,
+                        memory_set: MemorySet::from_existed_user(&inner.memory_set),
                         heap_range: inner.heap_range.clone(),
                         parent: Arc::downgrade(self),
                         children: Vec::new(),
-                        threads: BTreeMap::from([(
-                            child_main_thread.tid,
-                            Arc::clone(&child_main_thread),
-                        )]),
                         zombie_exit_code: None,
                         cwd: inner.cwd.clone(),
                         tid_allocator: inner.tid_allocator.clone(),
+                        threads: BTreeMap::from([(
+                            parent_main_thread.tid,
+                            Arc::new(Thread::new(
+                                Weak::clone(weak_child),
+                                parent_main_thread.tid,
+                                trap_context,
+                            )),
+                        )]),
                     }),
                 }
             });

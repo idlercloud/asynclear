@@ -67,12 +67,12 @@ pub fn sys_clone(
     _ctid: usize,
 ) -> Result {
     if u32::try_from(flags).is_err() {
-        error!("flags 超过 u32：{flags:#b}");
+        error!("flags exceeds u32: {flags:#b}");
         return Err(errno::UNSUPPORTED);
     }
     // 参考 https://man7.org/linux/man-pages/man2/clone.2.html，低 8 位是 exit_signal，其余是 clone flags
     let Some(clone_flags) = CloneFlags::from_bits((flags as u32) & !0xff) else {
-        error!("未定义的 Clone Flags：{:#b}", flags & !0xff);
+        error!("undefined CloneFlags: {:#b}", flags & !0xff);
         return Err(errno::UNSUPPORTED);
     };
     // TODO: 完成 exit_signal
@@ -81,18 +81,12 @@ pub fn sys_clone(
     //     return Err(errno::UNSUPPORTED);
     // };
     if !clone_flags.is_empty() {
-        error!("Clone Flags 包含暂未实现的内容：{clone_flags:?}");
+        error!("CloneFlags unsupported: {clone_flags:?}");
         return Err(errno::UNSUPPORTED);
     }
     let current_process = curr_process();
-    let new_process = current_process.clone(user_stack);
-    let new_pid = new_process.pid();
-    new_process.lock_inner(|inner| {
-        inner.main_thread().lock_inner(|inner| {
-            inner.trap_context.user_regs[9] = 0;
-        });
-    });
-    Ok(new_pid as isize)
+    let new_process = current_process.fork(user_stack);
+    Ok(new_process.pid() as isize)
 }
 
 /// 将当前进程的地址空间清空并加载一个特定的可执行文件，返回用户态后开始它的执行。返回参数个数
