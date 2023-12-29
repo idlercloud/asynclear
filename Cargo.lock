@@ -1462,6 +1462,7 @@ dependencies = [
  "chrono",
  "clap",
  "const_format",
+ "fastrand 2.0.1",
  "fatfs",
  "tap",
 ]

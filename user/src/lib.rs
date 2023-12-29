@@ -308,3 +308,9 @@ pub fn waittid(tid: usize) -> isize {
         }
     }
 }
+
+pub fn test_main(name: &str, f: impl FnOnce()) {
+    println!("----{} begins----", name);
+    f();
+    println!("----{} ends  ----", name);
+}
