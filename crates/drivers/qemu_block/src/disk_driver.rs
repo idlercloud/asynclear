@@ -91,8 +91,17 @@ impl DiskDriver {
     pub fn seek(&mut self, pos: SeekFrom) -> u64 {
         let offset = match pos {
             SeekFrom::Start(from_start) => from_start,
-            SeekFrom::End(_) => todo!("目前无法得知设备总大小"),
-            SeekFrom::Current(_) => todo!(),
+            SeekFrom::End(from_end) => {
+                let end_offset = self.device.capacity() * VirtIOBlockDevicde::BLOCK_SIZE as u64 - 1;
+                let offset = end_offset.checked_add_signed(from_end).unwrap();
+                offset
+            }
+            SeekFrom::Current(from_current) => {
+                let curr_offset = self.block_id * VirtIOBlockDevicde::BLOCK_SIZE as u64
+                    + self.block_offset as u64;
+                let offset = curr_offset.checked_add_signed(from_current).unwrap();
+                offset
+            }
         };
         self.block_id = offset / VirtIOBlockDevicde::BLOCK_SIZE as u64;
         self.block_offset = (offset % VirtIOBlockDevicde::BLOCK_SIZE as u64) as u32;
