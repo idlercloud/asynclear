@@ -246,7 +246,7 @@ pub struct TaskInfo {
 }
 
 pub fn sys_setpriority(_prio: isize) -> Result {
-    todo!()
+    todo!("[low] sys_setpriority")
 }
 
 #[repr(C)]
@@ -341,11 +341,11 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
 
 pub fn sys_munmap(_addr: usize, _len: usize) -> Result {
     // Err(errno::UNSUPPORTED)
-    todo!()
+    todo!("[blocked] sys_munmap")
 }
 
 pub fn sys_spawn(_path: *const u8) -> Result {
-    todo!()
+    todo!("[low] sys_spawn")
     // let page_table = current_page_table();
     // let path = if let Some(path) = page_table.translate_str(path) {
     //     path
@@ -370,7 +370,7 @@ pub fn sys_spawn(_path: *const u8) -> Result {
 //     let mut inner = thread.inner();
 //     inner.clear_child_tid = tidptr as usize;
 //     Ok(inner.res.as_ref().unwrap().tid as isize)
-//     todo!()
+//     todo!("[mid] sys_set_tid_address")
 // }
 
 // /// 将 program break 设置为 `brk`。高于当前堆顶会分配空间，低于则会释放空间。
@@ -384,7 +384,7 @@ pub fn sys_spawn(_path: *const u8) -> Result {
 //     // let mut inner = process.inner();
 //     // // 不大于最初的堆地址则失败。其中也包括了 brk 为 0  的情况
 //     // Ok(inner.set_user_brk(brk) as isize)
-//     todo!()
+//     todo!("[mid] sys_brk")
 // }
 
 // /// 为当前进程设置信号动作，返回 0

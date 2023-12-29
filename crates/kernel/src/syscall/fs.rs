@@ -21,10 +21,9 @@ use crate::process::{check_slice, check_slice_mut};
 //     //     return Err(errno::EFAULT);
 //     // }
 //     // Ok(0)
-//     todo!()
+//     todo!("[blocked] sys_ioctl")
 // }
 
-// /// TODO: sys_mkdirat 完善目录
 // pub fn sys_mkdirat(dirfd: usize, path: *const u8, mode: usize) -> Result {
 //     // let path = unsafe { check_cstr(path)? };
 
@@ -38,7 +37,7 @@ use crate::process::{check_slice, check_slice_mut};
 //     // let fd = inner.alloc_fd();
 //     // inner.fd_table[fd] = Some(Arc::new(inode));
 //     // Ok(0)
-//     todo!()
+//     todo!("[blocked] sys_mkdirat")
 // }
 
 // // #[rustfmt::skip]
@@ -67,14 +66,13 @@ use crate::process::{check_slice, check_slice_mut};
 pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
     let buf = check_slice_mut(buf as *mut u8, len)?;
     debug!("fd = {fd}, len = {len}");
-    // TODO: 实现 `sys_read()`
     // let file = prepare_io(fd, true)?;
     // let nread = file.read(buf);
     // Ok(nread as isize)
     if fd == 0 {
         return Ok(TtyFuture::new(buf).await as isize);
     }
-    todo!()
+    todo!("[blocked] sys_read full support")
 }
 
 /// 向 fd 指示的文件中写入至多 `len` 字节的数据。成功时返回写入的字节数
@@ -85,7 +83,6 @@ pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
 /// - `len` 指定至多写入的字节数
 pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
     let buf = check_slice(buf as *const u8, len)?;
-    // TODO: 实现 `sys_write()`
     // let file = prepare_io(fd, false)?;
     // let nwrite = file.write(buf);
     // Ok(nwrite as isize)
@@ -94,7 +91,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
         print!("{s}");
         return Ok(s.len() as isize);
     }
-    todo!()
+    todo!("[blocked] sys_write full support")
 }
 
 // #[repr(C)]
@@ -125,7 +122,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //     tot_read += nread;
 //     // }
 //     // Ok(tot_read as isize)
-//     todo!()
+//     todo!("[blocked] sys_readv")
 // }
 
 // /// 向 fd 中写入数据，数据来自多个用户缓冲区。
@@ -150,7 +147,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //     total_write += nwrite;
 //     // }
 //     // Ok(total_write as isize)
-//     todo!()
+//     todo!("[blocked] sys_writev")
 // }
 
 // // /// 返回一个绝对路径，它指向相对于 `fd` 的名为 `path_name` 的文件
@@ -228,7 +225,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // let fd = inner.alloc_fd();
 //     // inner.fd_table[fd] = Some(Arc::new(inode));
 //     // Ok(fd as isize)
-//     todo!()
+//     todo!("[blocked] sys_openat")
 // }
 
 // pub fn sys_close(fd: usize) -> Result {
@@ -239,7 +236,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //     _ => return Err(errno::EBADF),
 //     // };
 //     // Ok(0)
-//     todo!()
+//     todo!("[blocked] sys_close")
 // }
 
 // /// 创建管道，返回 0
@@ -259,7 +256,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // filedes[0] = read_fd as i32;
 //     // filedes[1] = write_fd as i32;
 //     // Ok(0)
-//     todo!()
+//     todo!("[blocked] sys_pipe2")
 // }
 
 // #[repr(C)]
@@ -277,8 +274,6 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 // }
 
 // /// 获取目录项信息
-// ///
-// /// TODO: 完善 sys_getdents64，写文档
 // pub fn sys_getdents64(fd: usize, buf: *mut u8, _len: usize) -> Result {
 //     // let process = curr_process();
 //     // let inner = process.inner();
@@ -296,7 +291,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // // 接下来应该接着遍历目录项，待后续实现
 
 //     // Ok(offset as _)
-//     todo!()
+//     todo!("[blcoked] sys_getdents64")
 // }
 
 // /// 操控文件描述符
@@ -356,7 +351,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     //         Err(errno::EINVAL)
 //     //     }
 //     // }
-//     todo!()
+//     todo!("[blocked] sys_fcntl64")
 // }
 
 // /// 复制文件描述符，复制到当前进程最小可用 fd
@@ -375,7 +370,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 //     // let new_fd = inner.alloc_fd();
 //     // inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
 //     // Ok(new_fd as isize)
-//     todo!()
+//     todo!("[blocked] sys_dup")
 // }
 
 // pub fn sys_dup3(old: usize, new: usize) -> Result {
@@ -516,7 +511,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
 
 // /// 等待文件描述符上的事件
 // ///
-// /// TODO: 暂不实现 ppoll
+// /// TODO: 暂不实现 sys_ppoll
 // pub fn sys_ppoll() -> Result {
 //     Ok(1)
 // }

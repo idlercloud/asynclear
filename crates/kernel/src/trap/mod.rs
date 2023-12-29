@@ -158,7 +158,7 @@ fn interrupt_handler() {
     };
     match interrupt_source {
         InterruptSource::Uart0 => UART0.handle_irq(),
-        InterruptSource::VirtIO => todo!(),
+        InterruptSource::VirtIO => todo!("[mid] virtio interrupt handler"),
     }
     plic.complete(context_id, interrupt_id);
 }
