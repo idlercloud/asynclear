@@ -196,14 +196,15 @@ sudo make install
 - [ ] frame_allocator 可以试着用别的测试测试性能
 - [ ] 某些堆分配可以用 Allocaotr API 试着优化
 - [ ] trap 改为 vector 模式（会有优化吗？）
+- [ ] per-cpu 的分配缓存
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 
 ### 具体任务
 
 按优先级排列：
 
-- [ ] Testing
 - [ ] 内核线程
+- [ ] 多核
 - [ ] kernel_tracer（Profiling 可视化）
 - [ ] 用户指针检查通过内核异常来做
 - [ ] CoW、Lazy Page，顺便重构 memory 模块

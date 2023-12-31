@@ -44,30 +44,6 @@ pub struct ProcessInner {
 }
 
 impl ProcessInner {
-    // pub fn new() -> Self {
-    //     Self {
-    //         is_zombie: false,
-    //         memory_set: MemorySet::new_bare(),
-    //         parent: Weak::new(),
-    //         children: Vec::new(),
-    //         exit_code: 0,
-    //         heap_range: VirtPageNum(0),
-    //         brk: 0,
-    //         fd_table: vec![
-    //             // 0 -> stdin
-    //             Some(Arc::new(File::new(FileEntity::Stdin(Stdin)))),
-    //             // 1 -> stdout
-    //             Some(Arc::new(File::new(FileEntity::Stdout(Stdout)))),
-    //             // 2 -> stderr
-    //             Some(Arc::new(File::new(FileEntity::Stdout(Stdout)))),
-    //         ],
-    //         threads: Vec::new(),
-    //         thread_res_allocator: RecycleAllocator::new(),
-    //         cwd: "/".to_string(),
-    //         sig_handlers: SignalHandlers::new(),
-    //     }
-    // }
-
     // pub fn alloc_fd(&mut self) -> usize {
     //     self.alloc_fd_from(0)
     // }
