@@ -16,7 +16,7 @@ pub use self::user::spawn_user_thread;
 
 /// 进程控制块
 pub struct Thread {
-    pub tid: usize,
+    tid: usize,
     // TODO: 其实也不是一定要用 Weak。完全可以手动释放
     pub process: Weak<Process>,
     inner: SpinMutex<ThreadInner>,
@@ -33,6 +33,10 @@ impl Thread {
                 trap_context,
             }),
         }
+    }
+
+    pub fn tid(&self) -> usize {
+        self.tid
     }
 
     /// 锁 inner 然后进行操作。这应该是访问 inner 的唯一方式

@@ -146,10 +146,10 @@ impl Process {
                         cwd: inner.cwd.clone(),
                         tid_allocator: inner.tid_allocator.clone(),
                         threads: BTreeMap::from([(
-                            parent_main_thread.tid,
+                            parent_main_thread.tid(),
                             Arc::new(Thread::new(
                                 Weak::clone(weak_child),
-                                parent_main_thread.tid,
+                                parent_main_thread.tid(),
                                 trap_context,
                             )),
                         )]),
