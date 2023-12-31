@@ -8,6 +8,7 @@ edition = "2021"
 buddy_system_allocator = { path = "../crates/dependencies/buddy_system_allocator" }
 bitflags = "2.4"
 spin = "0.9"
+defines = { path = "../crates/utils/defines" }
 
 [lints]
 workspace = true

@@ -155,23 +155,23 @@ bitflags! {
     }
 }
 
-const AT_FDCWD: isize = -100;
+// const AT_FDCWD: isize = -100;
 
-pub fn open(path: &str, flags: OpenFlags) -> isize {
-    sys_openat(
-        AT_FDCWD as usize,
-        path,
-        flags.bits(),
-        OpenFlags::RDWR.bits(),
-    )
-}
+// pub fn open(path: &str, flags: OpenFlags) -> isize {
+//     sys_openat(
+//         AT_FDCWD as usize,
+//         path,
+//         flags.bits(),
+//         OpenFlags::RDWR.bits(),
+//     )
+// }
 
-pub fn close(fd: usize) -> isize {
-    if fd == STDOUT {
-        console::flush();
-    }
-    sys_close(fd)
-}
+// pub fn close(fd: usize) -> isize {
+//     if fd == STDOUT {
+//         console::flush();
+//     }
+//     sys_close(fd)
+// }
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
@@ -181,25 +181,17 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
     sys_write(fd, buf)
 }
 
-pub fn link(old_path: &str, new_path: &str) -> isize {
-    sys_linkat(AT_FDCWD as usize, old_path, AT_FDCWD as usize, new_path, 0)
-}
+// pub fn link(old_path: &str, new_path: &str) -> isize {
+//     sys_linkat(AT_FDCWD as usize, old_path, AT_FDCWD as usize, new_path, 0)
+// }
 
-pub fn unlink(path: &str) -> isize {
-    sys_unlinkat(AT_FDCWD as usize, path, 0)
-}
+// pub fn unlink(path: &str) -> isize {
+//     sys_unlinkat(AT_FDCWD as usize, path, 0)
+// }
 
-pub fn fstat(fd: usize, st: &Stat) -> isize {
-    sys_fstat(fd, st)
-}
-
-pub fn mail_read(buf: &mut [u8]) -> isize {
-    sys_mail_read(buf)
-}
-
-pub fn mail_write(pid: usize, buf: &[u8]) -> isize {
-    sys_mail_write(pid, buf)
-}
+// pub fn fstat(fd: usize, st: &Stat) -> isize {
+//     sys_fstat(fd, st)
+// }
 
 pub fn exit(exit_code: i32) -> ! {
     console::flush();
@@ -208,14 +200,6 @@ pub fn exit(exit_code: i32) -> ! {
 
 pub fn yield_() -> isize {
     sys_yield()
-}
-
-pub fn get_time() -> isize {
-    let time = TimeVal::new();
-    match sys_get_time(&time, 0) {
-        0 => ((time.sec & 0xffff) * 1000 + time.usec / 1000) as isize,
-        _ => -1,
-    }
 }
 
 pub fn getpid() -> isize {
@@ -231,7 +215,7 @@ pub fn fork() -> isize {
 }
 
 pub fn exec(path: &str, args: &[*const u8]) -> isize {
-    sys_exec(path, args)
+    sys_execve(path, args)
 }
 
 pub fn set_priority(prio: isize) -> isize {
@@ -270,16 +254,6 @@ pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
     }
 }
 
-pub fn sleep_blocking(sleep_ms: usize) {
-    sys_sleep(sleep_ms);
-}
-
-pub fn sleep(period_ms: usize) {
-    let start = get_time();
-    while get_time() < start + period_ms as isize {
-        sys_yield();
-    }
-}
 pub fn mmap(start: usize, len: usize, prot: usize) -> isize {
     sys_mmap(start, len, prot)
 }
@@ -288,29 +262,16 @@ pub fn munmap(start: usize, len: usize) -> isize {
     sys_munmap(start, len)
 }
 
-pub fn spawn(path: &str) -> isize {
-    sys_spawn(path)
-}
+// pub fn dup(fd: usize) -> isize {
+//     sys_dup(fd)
+// }
 
-pub fn dup(fd: usize) -> isize {
-    sys_dup(fd)
-}
-pub fn pipe(pipe_fd: &mut [usize]) -> isize {
-    sys_pipe(pipe_fd)
-}
+// pub fn pipe(pipe_fd: &mut [usize]) -> isize {
+//     sys_pipe(pipe_fd)
+// }
 
 pub fn gettid() -> isize {
     sys_gettid()
-}
-pub fn waittid(tid: usize) -> isize {
-    loop {
-        match sys_waittid(tid) {
-            -11 | 0 => {
-                yield_();
-            }
-            exit_code => return exit_code,
-        }
-    }
 }
 
 pub fn test_main(name: &str, f: impl FnOnce()) {
