@@ -91,12 +91,16 @@ impl VirtAddr {
     /// # Safety
     ///
     /// 需要保证该地址转化为 T 后内容合法
+    #[inline]
+    #[track_caller]
     pub unsafe fn as_ref<T>(&self) -> &'static T {
         unsafe { (self.0 as *const T).as_ref().unwrap() }
     }
     /// # Safety
     ///
     /// 需要保证该地址转化为 T 后内容合法
+    #[inline]
+    #[track_caller]
     pub unsafe fn as_mut<T>(&mut self) -> &'static mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
     }
