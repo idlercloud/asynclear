@@ -9,7 +9,11 @@ use alloc::{
     vec::Vec,
 };
 use compact_str::CompactString;
-use defines::{config::PAGE_SIZE, error::Result, trap_context::TrapContext};
+use defines::{
+    config::PAGE_SIZE,
+    error::{errno, Result},
+    trap_context::TrapContext,
+};
 use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex};
@@ -65,10 +69,10 @@ impl Process {
             process_name.push_str(arg);
         }
 
+        let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
+        let elf = Elf::parse(elf_data).expect("Should be valid elf");
         let mut memory_set = MemorySet::new_bare();
         memory_set.map_kernel_areas(KERNEL_SPACE.page_table());
-        let elf_data = find_file(&path).unwrap();
-        let elf = Elf::parse(elf_data).expect("Should be valid elf");
         let elf_end = memory_set.load_sections(&elf, elf_data);
         let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
 
@@ -169,7 +173,7 @@ impl Process {
             process_name.push_str(arg);
         }
 
-        let elf_data = find_file(&path).unwrap();
+        let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         self.lock_inner(|inner| {
             assert_eq!(inner.threads.len(), 1);
