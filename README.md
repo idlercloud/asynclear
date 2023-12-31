@@ -229,3 +229,4 @@ sudo make install
     - <https://github.com/xiaoyang-sde/rust-kernel-riscv>
     - <https://github.com/equation314/nimbos>
     - <https://gitlab.eduxiji.net/202310007101563/Alien>
+    - [适用于 Cortex-M 的小型异步 RTOS](https://github.com/cbiffle/lilos)
