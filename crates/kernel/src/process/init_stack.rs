@@ -129,7 +129,7 @@ impl<'a> UserStackInit<'a> {
             }
         } else {
             // 不需要翻译，也就是目前就在该用户进程的内核态中，比如 `sys_execve()` 时
-            self.user_sp_kernel_va = self.user_sp
+            self.user_sp_kernel_va = self.user_sp;
         }
     }
 

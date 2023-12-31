@@ -63,7 +63,7 @@ impl ProcessInner {
     // }
 
     pub fn main_thread(&self) -> Arc<Thread> {
-        Arc::clone(&self.threads.get(&0).unwrap())
+        Arc::clone(self.threads.get(&0).unwrap())
     }
 
     /// 标记进程已退出。但是不会回收资源。

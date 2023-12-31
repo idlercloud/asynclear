@@ -91,6 +91,8 @@ impl KtestArgs {
                     } else {
                         writeln!(stdin, "{test_name}")?;
                         let output = get_test_output();
+                        // 这样可能可读性更高点
+                        #[allow(clippy::collapsible_else_if)]
                         if test_name.contains("_should_fail_") {
                             if output.contains("ends  ----") {
                                 failed.push(test_name);
