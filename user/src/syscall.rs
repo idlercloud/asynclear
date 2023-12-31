@@ -12,6 +12,7 @@ pub const SYSCALL_SLEEP: usize = 101;
 pub const SYSCALL_YIELD: usize = 124;
 pub const SYSCALL_GETTIMEOFDAY: usize = 169;
 pub const SYSCALL_GETPID: usize = 172;
+pub const SYSCALL_GETPPID: usize = 173;
 pub const SYSCALL_GETTID: usize = 178;
 pub const SYSCALL_FORK: usize = 220;
 pub const SYSCALL_EXEC: usize = 221;
@@ -148,6 +149,10 @@ pub fn sys_get_time(time: &TimeVal, tz: usize) -> isize {
 
 pub fn sys_getpid() -> isize {
     syscall3(SYSCALL_GETPID, [0, 0, 0])
+}
+
+pub fn sys_getppid() -> isize {
+    syscall3(SYSCALL_GETPPID, [0, 0, 0])
 }
 
 pub fn sys_fork() -> isize {

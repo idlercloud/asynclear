@@ -222,6 +222,10 @@ pub fn getpid() -> isize {
     sys_getpid()
 }
 
+pub fn getppid() -> isize {
+    sys_getppid()
+}
+
 pub fn fork() -> isize {
     sys_fork()
 }
