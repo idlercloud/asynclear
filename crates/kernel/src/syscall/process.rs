@@ -330,7 +330,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
         }
         let process = curr_process();
         info!("pid: {}", process.pid());
-        // TODO: 还没有处理 MmapFlags::MAP_FIXED 的情况？
+        // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
         return process.lock_inner(|inner| {
             inner.memory_set.try_map(
                 VirtAddr(addr).vpn()..VirtAddr(addr + len).vpn(),
@@ -340,29 +340,13 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
         });
     }
 
-    // FIXME: "其他映射尚未实现"
+    // TODO: [blocked] 其他映射尚未实现
     Err(errno::UNSUPPORTED)
 }
 
 pub fn sys_munmap(_addr: usize, _len: usize) -> Result {
     // Err(errno::UNSUPPORTED)
     todo!("[blocked] sys_munmap")
-}
-
-pub fn sys_spawn(_path: *const u8) -> Result {
-    todo!("[low] sys_spawn")
-    // let page_table = current_page_table();
-    // let path = if let Some(path) = page_table.translate_str(path) {
-    //     path
-    // } else {
-    //     return -1;
-    // };
-    // if let Some(app_inode) = open_file(&path, OpenFlags::RDONLY) {
-    //     let current_process = current_process();
-    //     current_process.spawn(&app_inode.read_all())
-    // } else {
-    //     -1
-    // }
 }
 
 // /// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的 tid。

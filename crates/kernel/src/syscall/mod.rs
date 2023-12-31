@@ -85,7 +85,6 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
             args[4] as _,
             args[5],
         ),
-        SPAWN => sys_spawn(args[0] as _),
         _ => {
             error!("Unsupported syscall id: {id}");
             exit_process(curr_process(), -10);
@@ -179,5 +178,4 @@ declare_syscall_id!(
     EXECVE,             221,
     MMAP,               222,
     WAIT4,              260,
-    SPAWN,              400,
 );
