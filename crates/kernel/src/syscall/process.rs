@@ -245,13 +245,24 @@ pub fn sys_setpriority(_prio: isize) -> Result {
 
 #[repr(C)]
 pub struct Tms {
+    /// 当前进程的用户态时间
     tms_utime: usize,
+    /// 当前进程的内核态时间
     tms_stime: usize,
+    /// 已被 wait 的子进程的用户态时间
     tms_cutime: usize,
+    /// 已被 wait 的子进程的内核态时间
     tms_cstime: usize,
 }
 
 // FIXME: `sys_times` 暂时是非正确的实现
+/// 获取进程和子进程运行时间，单位是**时钟 tick 数**
+///
+/// 参数：
+/// - `tms` 是一个用户指针，结果被写入其中。
+///
+/// 错误：
+/// - `EFAULT` `tms` 指向非法地址
 pub fn sys_times(tms: *mut Tms) -> Result {
     let ticks = riscv::register::time::read();
     let tms = check_ptr_mut(tms)?;
