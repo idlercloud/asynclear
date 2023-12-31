@@ -77,7 +77,7 @@ impl Process {
         let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
 
         // 在用户栈上推入参数、环境变量、辅助向量等
-        let mut stack_init = UserStackInit::new(user_sp, memory_set.page_table());
+        let mut stack_init = UserStackInit::new(user_sp, Some(memory_set.page_table()));
         let argc = args.len();
         let argv_base = stack_init.init_stack(UserAppInfo {
             args,
@@ -188,8 +188,7 @@ impl Process {
             let mut user_sp = Thread::alloc_user_stack(0, &mut inner.memory_set);
             inner.memory_set.flush_tlb(None);
 
-            // TODO: 这边其实不需要这样。因为此时的页表就是该进程的页表
-            let mut stack_init = UserStackInit::new(user_sp, inner.memory_set.page_table());
+            let mut stack_init = UserStackInit::new(user_sp, None);
             let argc = args.len();
             let argv_base = stack_init.init_stack(UserAppInfo {
                 args,

@@ -39,9 +39,9 @@ pub const AT_RANDOM: u8 = 25;
 pub struct UserStackInit<'a> {
     /// 用户地址空间的 sp
     user_sp: usize,
-    /// `user_sp` 经过页表翻译得到的虚拟地址
+    /// `user_sp` 在内核中的虚拟地址
     user_sp_kernel_va: usize,
-    user_pt: &'a PageTable,
+    user_pt: Option<&'a PageTable>,
 }
 
 pub struct UserAppInfo {
@@ -51,7 +51,8 @@ pub struct UserAppInfo {
 }
 
 impl<'a> UserStackInit<'a> {
-    pub fn new(user_sp: usize, user_pt: &'a PageTable) -> Self {
+    /// 如果 `user_pt` 不为 `None`，则使用该 `PageTable` 转换的地址
+    pub fn new(user_sp: usize, user_pt: Option<&'a PageTable>) -> Self {
         // 用户 sp 最初应该是对齐到页边界的
         debug_assert!(user_sp % PAGE_SIZE == 0);
         Self {
@@ -119,12 +120,16 @@ impl<'a> UserStackInit<'a> {
 
     /// `user_sp` 和 `user_sp_kernel_va` 向下移动，如果跨越页边界，则重新翻译 `user_sp_kernel_va`
     fn sp_down(&mut self, len: usize) {
-        if self.user_sp % PAGE_SIZE == 0 {
-            self.user_sp -= len;
-            self.user_sp_kernel_va = self.user_pt.trans_va(VirtAddr(self.user_sp)).unwrap().0;
+        self.user_sp -= len;
+        if let Some(page_table) = self.user_pt {
+            if (self.user_sp + len) % PAGE_SIZE == 0 {
+                self.user_sp_kernel_va = page_table.trans_va(VirtAddr(self.user_sp)).unwrap().0;
+            } else {
+                self.user_sp_kernel_va -= len;
+            }
         } else {
-            self.user_sp -= len;
-            self.user_sp_kernel_va -= len;
+            // 不需要翻译，也就是目前就在该用户进程的内核态中，比如 `sys_execve()` 时
+            self.user_sp_kernel_va = self.user_sp
         }
     }
 
