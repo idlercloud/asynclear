@@ -19,7 +19,7 @@ pub fn set_kernel_trap_entry() {
 /// Kernel trap handler
 #[no_mangle]
 pub extern "C" fn kernel_trap_handler() {
-    let _enter = trace_span!("kirq").entered();
+    let _enter = debug_span!("kirq").entered();
     match scause::read().cause() {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             trace!("timer interrupt");
