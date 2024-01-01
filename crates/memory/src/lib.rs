@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(alloc_error_handler)]
 #![feature(assert_matches)]
 #![feature(step_trait)]
 

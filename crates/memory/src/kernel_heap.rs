@@ -11,11 +11,6 @@ use klocks::SpinNoIrqMutex;
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap(SpinNoIrqMutex::new(Heap::<32>::new()));
 
-#[alloc_error_handler]
-pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
-    panic!("Heap allocation error, layout = {:?}", layout);
-}
-
 pub struct LockedHeap<const ORDER: usize>(SpinNoIrqMutex<Heap<ORDER>>);
 
 unsafe impl<const ORDER: usize> GlobalAlloc for LockedHeap<ORDER> {
