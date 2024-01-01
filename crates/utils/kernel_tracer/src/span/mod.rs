@@ -55,7 +55,6 @@ impl Span {
         let id = KERNLE_TRACER.slab.lock().insert(span_data);
         let id = NonZeroU32::new(id as u32 + 1).unwrap();
         #[cfg(feature = "profiling")]
-        #[cfg(feature = "profiling")]
         KERNLE_TRACER
             .profiling_events
             .lock()

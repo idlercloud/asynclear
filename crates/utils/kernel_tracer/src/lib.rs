@@ -17,8 +17,6 @@ pub use span::{instrument::Instrument, Span};
 #[cfg(feature = "profiling")]
 pub use span::ProfilingEvent;
 
-use core::{fmt::Write, ops::DerefMut};
-
 use alloc::vec::Vec;
 use klocks::{Lazy, Once, SpinNoIrqMutex};
 use slab::Slab;
@@ -43,9 +41,6 @@ pub struct KernelTracer {
     #[cfg(feature = "profiling")]
     pub profiling_events: SpinNoIrqMutex<Vec<span::ProfilingEvent>>,
 }
-
-pub static CONSOLE_WRITER: Once<fn() -> &'static dyn DerefMut<Target = (dyn Write + Send + Sync)>> =
-    Once::new();
 
 pub trait Log {
     fn log_to_console(&self, record: &Record<'_>);
