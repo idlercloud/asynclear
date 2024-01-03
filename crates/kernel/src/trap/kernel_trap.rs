@@ -22,6 +22,7 @@ pub extern "C" fn kernel_trap_handler() {
     let _enter = debug_span!("kirq").entered();
     match scause::read().cause() {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            // TODO: 想办法通知线程让出 hart
             trace!("timer interrupt");
             timer::check_timer();
             riscv_time::set_next_trigger();
