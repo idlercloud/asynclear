@@ -23,7 +23,7 @@ impl ProfilingArgs {
         let mut lines = BufReader::new(File::open(self.input).unwrap())
             .lines()
             .enumerate();
-        while let Some((_, line)) = lines.next() {
+        for (_, line) in &mut lines {
             let line = line.unwrap();
             if line == "<Profiling Report>" {
                 break;
@@ -34,7 +34,7 @@ impl ProfilingArgs {
         json["displayTimeUnit"] = Value::String("ns".to_string());
         let mut trace_events = Vec::new();
         let mut spans = Vec::new();
-        while let Some((line_num, line)) = lines.next() {
+        for (line_num, line) in lines {
             let line = line.unwrap();
             let Some(pos) = line.find(':') else {
                 break;
