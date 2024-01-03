@@ -76,7 +76,29 @@ sudo make install
 
 ### vscode 配置
 
-若使用 vscode + rust-analyzer，建议将以下设置加入 vscode 设置：`"rust-analyzer.check.overrideCommand": ["cargo", "check", "--workspace", "--message-format=json", "--bins", "--target", "riscv64imac-unknown-none-elf", "--exclude", "xtask"],`。注意，在这种情况下，由于 xtask 目录被排除，vscode 中只会为 xtask 提供基本的补全、跳转，错误信息不会显示。
+若使用 vscode + rust-analyzer，建议将以下设置加入 vscode 设置：
+
+```json
+"rust-analyzer.cargo.features": ["profiling"],
+"rust-analyzer.check.overrideCommand": [
+    "cargo",
+    "check",
+    "--message-format=json",
+    /* for kernel and user apps */
+    "--target",
+    "riscv64imac-unknown-none-elf",
+    "--package",
+    "kernel",
+    "--"
+    "--package",
+    "user",
+    /* for xtask */
+    // "--package",
+    // "xtask",
+],
+```
+
+由于一些限制，不能同时检查 kernel 和 xtask，若需开发 xtask，将上面的部分注释，再将 xtask 部分取消注释
 
 可以通过调整添加 vscode 设置使 unsafe 块显示为血红色：
 
@@ -188,7 +210,7 @@ sudo make install
 - [ ] Testing
 - [ ] 栈回溯（基于 span）
 - [x] Logging（日志事件、span 上下文）
-- [ ] Profiling（可视化）
+- [x] Profiling（通过 <https://ui.perfetto.dev> 可视化）
 
 ### 比较独立的工作
 

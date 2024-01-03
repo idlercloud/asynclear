@@ -9,15 +9,7 @@ edition.workspace = true
 [dependencies]
 compact_str.workspace = true
 pin-project.workspace = true
-# TODO: 如果 kernel_tracer 做成 facade 库的形式，这些依赖应该可以统统干掉
-riscv_time = { path = "../../arch/riscv_time", optional = true }
-riscv_guard = { path = "../../arch/riscv_guard" }
 klocks = { path = "../../utils/klocks" }
-slab = { version = "0.4", default-features = false }
 
 [lints]
 workspace = true
-
-[features]
-default = []
-profiling = ["riscv_time"]

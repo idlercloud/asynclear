@@ -8,7 +8,6 @@ use core::{
 };
 
 use compact_str::CompactString;
-use riscv_guard::NoIrqGuard;
 
 use crate::{Level, KERNLE_TRACER};
 
@@ -18,8 +17,14 @@ use self::loggable::Loggable;
 pub struct SpanId(NonZeroU32);
 
 impl SpanId {
-    pub fn as_slab_index(&self) -> usize {
-        self.0.get() as usize - 1
+    #[inline]
+    pub const fn from_non_zero_u32(id: NonZeroU32) -> Self {
+        Self(id)
+    }
+
+    #[inline]
+    pub fn to_u32(&self) -> u32 {
+        self.0.get()
     }
 }
 
@@ -36,31 +41,26 @@ impl Span {
         name: &'static str,
         kvs: Option<&'a [(&'static str, &'a dyn Loggable)]>,
     ) -> Self {
-        let kvs = kvs.map(|kvs| {
-            let mut kvs_str = CompactString::new("");
-            // this will not panic because
-            // the macro implementation guarantee the array size > 0
-            write!(kvs_str, "{}=", kvs[0].0).unwrap();
-            kvs[0].1.log(&mut kvs_str);
-            let mut i = 1;
-            while i < kvs.len() {
-                write!(kvs_str, " {}=", kvs[i].0).unwrap();
-                kvs[i].1.log(&mut kvs_str);
-                i += 1;
-            }
-            kvs_str
-        });
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            let kvs = kvs.map(|kvs| {
+                let mut kvs_str = CompactString::new("");
+                // this will not panic because
+                // the macro implementation guarantee the array size > 0
+                write!(kvs_str, "{}=", kvs[0].0).unwrap();
+                kvs[0].1.log(&mut kvs_str);
+                let mut i = 1;
+                while i < kvs.len() {
+                    write!(kvs_str, " {}=", kvs[i].0).unwrap();
+                    kvs[i].1.log(&mut kvs_str);
+                    i += 1;
+                }
+                kvs_str
+            });
 
-        let span_data = SpanData { level, name, kvs };
-        let id = KERNLE_TRACER.slab.lock().insert(span_data);
-        let id = NonZeroU32::new(id as u32 + 1).unwrap();
-        #[cfg(feature = "profiling")]
-        KERNLE_TRACER
-            .profiling_events
-            .lock()
-            .push(ProfilingEvent::SetName { id: id.get(), name });
-        Span {
-            id: Some(SpanId(id)),
+            let id = tracer.new_span(SpanAttr { level, name, kvs });
+            Span { id: Some(id) }
+        } else {
+            Self::disabled()
         }
     }
 
@@ -69,33 +69,19 @@ impl Span {
     }
 
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
-        if let Some(id) = &self.id {
-            let _guard = NoIrqGuard::new();
-            KERNLE_TRACER.span_stack.lock().push(id.clone());
-            #[cfg(feature = "profiling")]
-            KERNLE_TRACER
-                .profiling_events
-                .lock()
-                .push(ProfilingEvent::Enter {
-                    id: id.0.get(),
-                    instant: riscv_time::get_time_ns() as u64,
-                });
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            if let Some(id) = &self.id {
+                tracer.enter(id);
+            }
         }
         RefEnterGuard { span: self }
     }
 
     pub fn entered(self) -> OwnedEnterGuard {
-        if let Some(id) = &self.id {
-            let _guard = NoIrqGuard::new();
-            KERNLE_TRACER.span_stack.lock().push(id.clone());
-            #[cfg(feature = "profiling")]
-            KERNLE_TRACER
-                .profiling_events
-                .lock()
-                .push(ProfilingEvent::Enter {
-                    id: id.0.get(),
-                    instant: riscv_time::get_time_ns() as u64,
-                });
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            if let Some(id) = &self.id {
+                tracer.enter(id);
+            }
         }
         OwnedEnterGuard { span: self }
     }
@@ -104,8 +90,10 @@ impl Span {
 impl Drop for Span {
     #[inline]
     fn drop(&mut self) {
-        if let Some(id) = &self.id {
-            KERNLE_TRACER.slab.lock().remove(id.as_slab_index());
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            if let Some(id) = self.id.take() {
+                tracer.drop_span(id);
+            }
         }
     }
 }
@@ -120,10 +108,10 @@ impl !Send for RefEnterGuard<'_> {}
 
 impl Drop for RefEnterGuard<'_> {
     fn drop(&mut self) {
-        if let Some(id) = &self.span.id {
-            let _span_id = KERNLE_TRACER.span_stack.lock().pop();
-            // 维持一个栈结构，因此退出的 id 应当与进入的 id 保持一致
-            debug_assert_eq!(_span_id.as_ref(), Some(id));
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            if let Some(id) = &self.span.id {
+                tracer.exit(id);
+            }
         }
     }
 }
@@ -138,28 +126,21 @@ impl !Send for OwnedEnterGuard {}
 
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {
-        if let Some(id) = &self.span.id {
-            #[cfg(feature = "profiling")]
-            KERNLE_TRACER
-                .profiling_events
-                .lock()
-                .push(ProfilingEvent::Exit {
-                    instant: riscv_time::get_time_ns() as u64,
-                });
-            let _span_id = KERNLE_TRACER.span_stack.lock().pop();
-            // 维持一个栈结构，因此退出的 id 应当与进入的 id 保持一致
-            debug_assert_eq!(_span_id.as_ref(), Some(id));
+        if let Some(tracer) = KERNLE_TRACER.get() {
+            if let Some(id) = &self.span.id {
+                tracer.exit(id);
+            }
         }
     }
 }
 
-pub struct SpanData {
+pub struct SpanAttr {
     name: &'static str,
     level: Level,
     kvs: Option<CompactString>,
 }
 
-impl SpanData {
+impl SpanAttr {
     pub fn level(&self) -> Level {
         self.level
     }
@@ -171,11 +152,4 @@ impl SpanData {
     pub fn kvs(&self) -> Option<&str> {
         self.kvs.as_deref()
     }
-}
-
-#[cfg(feature = "profiling")]
-pub enum ProfilingEvent {
-    SetName { id: u32, name: &'static str },
-    Enter { id: u32, instant: u64 },
-    Exit { instant: u64 },
 }

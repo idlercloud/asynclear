@@ -3,6 +3,7 @@
 mod build;
 mod cmd_util;
 mod ktest;
+mod profiling;
 mod qemu;
 mod tool;
 mod variables;
@@ -11,6 +12,7 @@ use build::BuildArgs;
 use clap::{Parser, Subcommand};
 use const_format::formatcp;
 use ktest::KtestArgs;
+use profiling::ProfilingArgs;
 use qemu::QemuArgs;
 use tool::{AsmArgs, FatProbeArgs};
 use variables::TARGET_ARCH;
@@ -38,6 +40,7 @@ enum Commands {
     FatProbe(FatProbeArgs),
     /// 准备项目的开发环境，运行一次即可
     Env,
+    Profiling(ProfilingArgs),
 }
 
 fn main() {
@@ -52,5 +55,6 @@ fn main() {
         Qemu(args) => args.run(),
         FatProbe(args) => args.probe(),
         Env => tool::prepare_env(),
+        Profiling(args) => args.analyze(),
     }
 }

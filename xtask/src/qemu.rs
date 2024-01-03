@@ -32,8 +32,8 @@ impl QemuArgs {
         fs::create_dir_all("logs").unwrap();
         let date_time = Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap());
         let log_file_name = format!("logs/{}.ansi", date_time.format("%Y-%m-%d %H_%M_%S"));
-        // 预留 512KB 的日志空间
-        const LOG_PRESERVED_SIZE: u64 = 512 * 1024;
+        // 预留 40MiB 的日志空间
+        const LOG_PRESERVED_SIZE: u64 = 40 * 1024 * 1024;
         {
             let mut log_file = File::create(&log_file_name).unwrap();
             log_file.set_len(LOG_PRESERVED_SIZE).unwrap();

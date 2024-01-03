@@ -41,10 +41,18 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                     (*cx).user_regs[14],
                 ],
             )
-            .instrument(info_span!(
-                "syscall",
-                name = defines::syscall::name(syscall_id)
-            ))
+            .instrument({
+                let pid = crate::hart::curr_process().pid();
+                // TODO: 由于目前 WAIT4 实现原因，忽略 INITPROC 的 SCHED_YIELD 和 WAIT4
+                if pid == 1
+                    && (syscall_id == defines::syscall::SCHED_YIELD
+                        || syscall_id == defines::syscall::WAIT4)
+                {
+                    trace_span!("syscall", name = defines::syscall::name(syscall_id))
+                } else {
+                    info_span!("syscall", name = defines::syscall::name(syscall_id))
+                }
+            })
             .await;
 
             // 线程应当退出

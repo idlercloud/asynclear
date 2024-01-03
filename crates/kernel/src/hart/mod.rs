@@ -3,9 +3,10 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 use crossbeam_utils::CachePadded;
 use defines::{config::HART_NUM, trap_context::TrapContext};
+use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
 use riscv::register::sstatus;
 
@@ -26,6 +27,7 @@ pub struct Hart {
     //TODO: 内核线程是不是会不太一样？
     /// 当前 hart 上正在运行的线程。
     thread: Option<Arc<Thread>>,
+    pub span_stack: Vec<SpanId>,
 }
 
 impl Hart {
@@ -33,6 +35,7 @@ impl Hart {
         Hart {
             hart_id: 0,
             thread: None,
+            span_stack: Vec::new(),
         }
     }
 
@@ -82,7 +85,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // log 实现依赖于 uart 和 virtio_block
         // 内核测试中不开启日志
         #[cfg(not(feature = "ktest"))]
-        crate::log_impl::init();
+        crate::tracer::init();
 
         info!("Init hart {hart_id} started",);
         INIT_FINISHED.store(true, Ordering::SeqCst);

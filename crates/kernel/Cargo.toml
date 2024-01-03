@@ -12,6 +12,7 @@ bitflags.workspace = true
 sbi-rt.workspace = true
 pin-project.workspace = true
 riscv_time = { path = "../arch/riscv_time" }
+riscv_guard = { path = "../arch/riscv_guard" }
 drivers_hal = { path = "../drivers/drivers_hal" }
 executor = { path = "../executor" }
 memory = { path = "../memory" }
@@ -24,11 +25,12 @@ uart_console = { path = "../utils/uart_console" }
 macros = { path = "../utils/macros" }
 crossbeam-utils = { version = "0.8", default-features = false }
 anstyle = { version = "1.0", default-features = false }
+slab = { version = "0.4", default-features = false }
 
 [features]
 default = []
 # 是否使用 `span` 进行性能分析
-profiling = ["kernel_tracer/profiling"]
+profiling = []
 ktest = []
 
 [lints]

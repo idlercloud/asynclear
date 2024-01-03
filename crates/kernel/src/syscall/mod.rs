@@ -93,13 +93,8 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     };
     match ret {
         Ok(ret) => {
-            // 读入标准输入、写入标准输出、写入标准错误、INITPROC 和 shell 都不关心
-            if !((id == READ || id == READV) && args[0] == 0
-                || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
-                || id == PPOLL)
-                && curr_pid != 1
-                && curr_pid != 2
-            {
+            // TODO: 由于目前 WAIT4 实现原因，忽略 INITPROC 的 SCHED_YIELD 和 WAIT4
+            if !((id == SCHED_YIELD || id == WAIT4) && curr_pid == 1) {
                 info!("return {ret} = {ret:#x}",);
             }
             ret

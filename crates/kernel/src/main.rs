@@ -15,10 +15,10 @@ use crate::process::INITPROC;
 
 mod hart;
 mod lang_items;
-mod log_impl;
 mod process;
 mod syscall;
 mod thread;
+mod tracer;
 mod trap;
 
 pub fn kernel_loop() -> ! {
@@ -28,8 +28,9 @@ pub fn kernel_loop() -> ! {
 
     info!("Exit kernel loop");
 
+    let _guard = riscv_guard::NoIrqGuard::new();
     #[cfg(feature = "profiling")]
-    log_impl::report_profiling();
+    tracer::report_profiling();
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }
