@@ -3,5 +3,6 @@
 !/res/assets
 !/res/rustsbi-qemu.bin
 !/res/fat32_origin.img
+!/res/images
 /logs
 /.vscode/settings.json
