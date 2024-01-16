@@ -10,17 +10,19 @@ use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use anstyle::{AnsiColor, Reset, Style};
 use drivers_hal::DiskDriver;
-use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer, KERNLE_TRACER};
-use klocks::{Lazy, Once, SpinNoIrqMutex};
+use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
+use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
 use uart_console::STDOUT;
 
 use crate::hart::{local_hart, local_hart_mut};
 
-static KERNEL_TRACER_IMPL: Once<KernelTracerImpl> = Once::new();
+#[cfg(not(feature = "ktest"))]
+static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
 
+#[cfg(not(feature = "ktest"))]
 pub fn init() {
-    KERNLE_TRACER.call_once(|| {
+    kernel_tracer::KERNLE_TRACER.call_once(|| {
         KERNEL_TRACER_IMPL.call_once(|| {
             // TODO: 改造 KernelLogImpl 使其适应多核；并且可以用于栈展开
             KernelTracerImpl {
