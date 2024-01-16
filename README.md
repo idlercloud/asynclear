@@ -225,13 +225,13 @@ sudo make install
 
 按优先级排列：
 
-- [ ] 内核线程
-- [ ] 多核
-- [ ] kernel_tracer（Profiling 可视化）
 - [ ] 用户指针检查通过内核异常来做
-- [ ] CoW、Lazy Page，顺便重构 memory 模块
-- [ ] RCU
+- [ ] 多核异步调度 executor
 - [ ] 信号机制
+- [ ] 改进 WAIT4 的实现（可能依赖于信号机制和多核调度）
+- [ ] 内核线程
+- [ ] RCU
+- [ ] CoW、Lazy Page，顺便重构 memory 模块
 - [ ] async-task 和 embassy 的原理
 - [ ] kernel 内容能否放入 huge page？
 - [ ] 虚拟文件系统和页缓存
