@@ -106,6 +106,7 @@ pub struct SpinNoIrqMutex<T: ?Sized> {
 pub struct SpinNoIrqMutexGuard<'a, T: ?Sized> {
     // 要控制一下析构顺序，先释放锁再开中断
     spin_guard: ManuallyDrop<spin::mutex::SpinMutexGuard<'a, T>>,
+    // 测试情况下一般不是跑在 riscv 上，因此无法使用 guard
     #[cfg(not(test))]
     _no_irq_guard: riscv_guard::NoIrqGuard,
 }
