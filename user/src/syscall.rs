@@ -1,4 +1,4 @@
-use defines::syscall::*;
+use defines::{structs::UtsName, syscall::*};
 
 #[inline(always)]
 pub fn syscall3(id: usize, args: [usize; 3]) -> isize {
@@ -137,4 +137,9 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
 
 pub fn sys_gettid() -> isize {
     syscall3(GETTID, [0; 3])
+}
+
+/// 返回系统信息，返回值为 0
+pub fn sys_uname(utsname: *mut UtsName) -> isize {
+    syscall3(UNAME, [utsname as _, 0, 0])
 }
