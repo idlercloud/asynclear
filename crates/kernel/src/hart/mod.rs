@@ -8,7 +8,6 @@ use crossbeam_utils::CachePadded;
 use defines::{config::HART_NUM, trap_context::TrapContext};
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
-use riscv::register::sstatus;
 
 use crate::{process::Process, thread::Thread};
 
@@ -111,8 +110,6 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
     let _enter = info_span!("hart", id = hart_id).entered();
 
     // 允许在内核态下访问用户数据
-    // TODO: 这个应该做成只在需要访问时设置，以防止意外
-    unsafe { sstatus::set_sum() };
     crate::trap::init();
 
     crate::kernel_loop();

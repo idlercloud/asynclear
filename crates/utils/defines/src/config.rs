@@ -62,3 +62,6 @@ pub const HART_START_ADDR: usize = 0x8020_0000;
 
 /// 内核并发任务上限
 pub const TASK_LIMIT: usize = 128;
+
+/// 用户路径名最大长度
+pub const MAX_PATHNAME_LEN: usize = 4 * PAGE_SIZE;

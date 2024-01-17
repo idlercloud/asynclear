@@ -1,5 +1,5 @@
 [package]
-name = "filesystem"
+name = "user_check"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,9 +7,11 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-user_check = { path = "../arch/user_check" }
-qemu_uart = { path = "../drivers/qemu_uart" }
-defines = { path = "../utils/defines" }
+riscv.workspace = true
+riscv_guard = { path = "../riscv_guard" }
+defines = { path = "../../utils/defines" }
+kernel_tracer = { path = "../../utils/kernel_tracer" }
+misc = { path = "../../utils/misc" }
 
 [lints]
 workspace = true

@@ -1,6 +1,5 @@
 mod init_stack;
 mod inner;
-mod user_ptr;
 
 use alloc::{
     collections::BTreeMap,
@@ -25,8 +24,6 @@ use self::{
     init_stack::{UserAppInfo, UserStackInit, AT_PAGESZ},
     inner::ProcessInner,
 };
-
-pub use self::user_ptr::*;
 
 // FIXME: 暂时而言应用是嵌入内核的。之后需要修复
 static TMP_FS: &[(&str, &[u8])] = macros::gen_tmp_fs!();

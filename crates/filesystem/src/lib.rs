@@ -6,41 +6,40 @@ use core::{
     task::{Context, Poll},
 };
 
-use defines::user_ptr::UserMut;
+use defines::error::Result;
 use qemu_uart::TTY;
+use user_check::UserCheck;
 
 pub struct TtyFuture {
-    user_buf: UserMut<[u8]>,
+    user_buf: UserCheck<u8>,
+    len: usize,
 }
 
 impl TtyFuture {
-    pub fn new(user_buf: UserMut<[u8]>) -> Self {
-        Self { user_buf }
+    pub fn new(user_buf: UserCheck<u8>, len: usize) -> Self {
+        Self { user_buf, len }
     }
 }
 
 impl Future for TtyFuture {
-    type Output = usize;
+    type Output = Result<usize>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;
-        let user_buf_len = unsafe { (*self.user_buf.raw()).len() };
+        let mut user_buf = self.user_buf.check_slice_mut(self.len)?;
         loop {
-            if cnt >= user_buf_len {
+            if cnt >= user_buf.len() {
                 break;
             }
             if let Some(byte) = tty.get_byte() {
-                // FIXME: 如果引入换页，这里是有问题的
-                unsafe {
-                    (*self.user_buf.raw())[cnt] = byte;
-                }
+                user_buf[cnt] = byte;
                 cnt += 1;
             } else {
                 break;
             }
         }
         if cnt > 0 {
-            Poll::Ready(cnt)
+            Poll::Ready(Ok(cnt))
         } else {
             tty.register_waker(cx.waker().clone());
             Poll::Pending

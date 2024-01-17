@@ -1,7 +1,6 @@
 use defines::error::Result;
 use filesystem::TtyFuture;
-
-use crate::process::{check_slice, check_slice_mut};
+use user_check::UserCheck;
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///
@@ -64,13 +63,13 @@ use crate::process::{check_slice, check_slice_mut};
 /// - `buf: *mut u8` 指定用户缓冲区，若无效则返回 `EINVAL`
 /// - `len` 指定至多读取的字节数
 pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
-    let buf = check_slice_mut(buf as *mut u8, len)?;
+    let buf = UserCheck::new(buf as _);
     debug!("fd = {fd}, len = {len}");
     // let file = prepare_io(fd, true)?;
     // let nread = file.read(buf);
     // Ok(nread as isize)
     if fd == 0 {
-        return Ok(TtyFuture::new(buf).await as isize);
+        return Ok(TtyFuture::new(buf, len).await? as isize);
     }
     todo!("[blocked] sys_read full support")
 }
@@ -82,12 +81,12 @@ pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
 /// - `buf: *const u8` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
 /// - `len` 指定至多写入的字节数
 pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
-    let buf = check_slice(buf as *const u8, len)?;
+    let buf = UserCheck::new(buf as _).check_slice(len)?;
     // let file = prepare_io(fd, false)?;
     // let nwrite = file.write(buf);
     // Ok(nwrite as isize)
     if fd == 1 || fd == 2 {
-        let s = core::str::from_utf8(unsafe { &*buf.as_raw() }).unwrap();
+        let s = core::str::from_utf8(&*buf).unwrap();
         print!("{s}");
         return Ok(s.len() as isize);
     }

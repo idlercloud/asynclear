@@ -554,6 +554,7 @@ version = "0.1.0"
 dependencies = [
  "defines",
  "qemu_uart",
+ "user_check",
 ]
 
 [[package]]
@@ -725,6 +726,7 @@ dependencies = [
  "sbi-rt",
  "slab",
  "uart_console",
+ "user_check",
 ]
 
 [[package]]
@@ -802,6 +804,10 @@ dependencies = [
  "klocks",
  "riscv",
 ]
+
+[[package]]
+name = "misc"
+version = "0.1.0"
 
 [[package]]
 name = "num-traits"
@@ -1229,10 +1235,20 @@ checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 name = "user"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.1",
  "buddy_system_allocator",
  "defines",
  "spin",
+]
+
+[[package]]
+name = "user_check"
+version = "0.1.0"
+dependencies = [
+ "defines",
+ "kernel_tracer",
+ "misc",
+ "riscv",
+ "riscv_guard",
 ]
 
 [[package]]
