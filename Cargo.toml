@@ -6,9 +6,9 @@ members = [
   "crates/drivers/*",
   "crates/arch/*",
   "crates/utils/*",
+  "crates/filesystem",
   "xtask",
   "user",
-  "crates/filesystem",
 ]
 exclude = ["crates/dependencies"]
 resolver = "2"
@@ -34,6 +34,10 @@ goblin = { version = "0.7", default-features = false, features = [
   "elf32",
   "elf64",
   "endian_fd",
+] }
+spin = { version = "0.9", default-features = false, features = [
+  "lazy",
+  "spin_mutex",
 ] }
 sbi-rt = { version = "0.0.3-rc.2", features = ["legacy"] }
 event-listener = { version = "4.0", default-features = false }

@@ -11,7 +11,6 @@ mod syscall;
 extern crate alloc;
 
 use alloc::vec::Vec;
-use bitflags::bitflags;
 use buddy_system_allocator::LockedHeap;
 
 pub use self::console::{flush, STDIN, STDOUT};
@@ -72,87 +71,6 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
 #[no_mangle]
 fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
-}
-
-bitflags! {
-    pub struct OpenFlags: u32 {
-        const RDONLY = 0;
-        const WRONLY = 1 << 0;
-        const RDWR = 1 << 1;
-        const CREATE = 1 << 9;
-        const TRUNC = 1 << 10;
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Default)]
-pub struct TimeVal {
-    pub sec: usize,
-    pub usec: usize,
-}
-
-impl TimeVal {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum TaskStatus {
-    UnInit,
-    Ready,
-    Running,
-    Exited,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct SyscallInfo {
-    pub id: usize,
-    pub times: usize,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct Stat {
-    /// ID of device containing file
-    pub dev: u64,
-    /// inode number
-    pub ino: u64,
-    /// file type and mode
-    pub mode: StatMode,
-    /// number of hard links
-    pub nlink: u32,
-    /// unused pad
-    pad: [u64; 7],
-}
-
-impl Stat {
-    pub fn new() -> Self {
-        Stat {
-            dev: 0,
-            ino: 0,
-            mode: StatMode::NULL,
-            nlink: 0,
-            pad: [0; 7],
-        }
-    }
-}
-
-impl Default for Stat {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-bitflags! {
-    #[derive(Debug)]
-    pub struct StatMode: u32 {
-        const NULL  = 0;
-        /// directory
-        const DIR   = 0o040000;
-        /// ordinary regular file
-        const FILE  = 0o100000;
-    }
 }
 
 // const AT_FDCWD: isize = -100;

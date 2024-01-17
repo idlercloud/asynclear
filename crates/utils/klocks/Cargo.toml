@@ -8,10 +8,7 @@ edition.workspace = true
 
 [dependencies]
 event-listener.workspace = true
-spin = { version = "0.9", default-features = false, features = [
-  "lazy",
-  "spin_mutex",
-] }
+spin.workspace = true
 
 [target.riscv64imac-unknown-none-elf.dependencies]
 riscv_time = { path = "../../arch/riscv_time" }
