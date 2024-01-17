@@ -89,7 +89,8 @@ sudo make install
     "riscv64imac-unknown-none-elf",
     "--package",
     "kernel",
-    "--"
+    "--features",
+    "profiling",
     "--package",
     "user",
     /* for xtask */
