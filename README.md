@@ -208,8 +208,9 @@ sudo make install
 
 ### 基础设施
 
-- [ ] Testing
-- [ ] 栈回溯（基于 span）
+- [x] Testing
+- [ ] Benchmark
+- [x] 栈回溯（基于 span）
 - [x] Logging（日志事件、span 上下文）
 - [x] Profiling（通过 <https://ui.perfetto.dev> 可视化）
 
@@ -226,7 +227,6 @@ sudo make install
 
 按优先级排列：
 
-- [ ] 用户指针检查通过内核异常来做
 - [ ] 多核异步调度 executor
 - [ ] 信号机制
 - [ ] 改进 WAIT4 的实现（可能依赖于信号机制和多核调度）
