@@ -8,7 +8,7 @@ use user::{exec, sys_uname, test_main, write, STDOUT};
 pub fn main() -> i32 {
     test_main("test_syscall_efault", || {
         let invalid = unsafe {
-            let invalid = core::slice::from_raw_parts(core::ptr::null(), 1);
+            let invalid = core::slice::from_raw_parts(core::ptr::NonNull::dangling().as_ptr(), 1);
             core::str::from_utf8_unchecked(invalid)
         };
         // 测试 `check_cstr()`

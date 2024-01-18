@@ -86,7 +86,7 @@ pub async fn sys_write(fd: usize, buf: usize, len: usize) -> Result {
     // let nwrite = file.write(buf);
     // Ok(nwrite as isize)
     if fd == 1 || fd == 2 {
-        let s = core::str::from_utf8(&*buf).unwrap();
+        let s = core::str::from_utf8(&buf).unwrap();
         print!("{s}");
         return Ok(s.len() as isize);
     }
