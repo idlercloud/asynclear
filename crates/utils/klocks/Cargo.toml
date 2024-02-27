@@ -15,7 +15,7 @@ riscv_time = { path = "../../arch/riscv_time" }
 riscv_guard = { path = "../../arch/riscv_guard" }
 
 [dev-dependencies]
-smol = "1.3"
+smol = "2"
 
 [lints]
 workspace = true

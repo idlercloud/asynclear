@@ -6,7 +6,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use event_listener::{Event, EventListener};
+use event_listener::{listener, Event};
 use spin::mutex::SpinMutexGuard;
 
 pub struct SleepMutex<T: ?Sized> {
@@ -52,18 +52,14 @@ impl<T: ?Sized> SleepMutex<T> {
 
     #[cold]
     async fn acquire_slow(&self) -> SleepMutexGuard<'_, T> {
-        let mut listener = EventListener::new();
-        let mut listener = core::pin::pin!(listener);
         loop {
+            listener!(self.lock_ops => listener);
             // 在这中间有可能锁被释放了
-            listener.as_mut().listen(&self.lock_ops);
             // 因此建立起监听之后要重新试着拿一下锁
             if let Some(guard) = self.try_lock() {
                 return guard;
             }
-            debug_assert!(listener.is_listening());
-            listener.as_mut().await;
-            debug_assert!(!listener.is_listening());
+            listener.await;
             // 被唤醒之后试着拿锁（是否有可能失败？）
             if let Some(guard) = self.try_lock() {
                 return guard;

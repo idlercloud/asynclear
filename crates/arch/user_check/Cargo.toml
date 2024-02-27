@@ -8,10 +8,10 @@ edition.workspace = true
 
 [dependencies]
 riscv.workspace = true
+scopeguard.workspace = true
 riscv_guard = { path = "../riscv_guard" }
 defines = { path = "../../utils/defines" }
 kernel_tracer = { path = "../../utils/kernel_tracer" }
-misc = { path = "../../utils/misc" }
 
 [lints]
 workspace = true

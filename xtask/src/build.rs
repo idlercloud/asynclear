@@ -18,7 +18,7 @@ pub struct BuildArgs {
     #[clap(long, default_value_t = String::from("INFO"))]
     clog: String,
     /// 文件日志级别
-    #[clap(long, default_value_t = String::from("DEBUG"))]
+    #[clap(long, default_value_t = String::from("NONE"))]
     flog: String,
     /// `span` 过滤器级别
     #[clap(long, default_value_t = String::from("DEBUG"))]
@@ -31,18 +31,6 @@ impl BuildArgs {
     pub fn build(&self) {
         Self::build_user_apps();
         self.build_kernel();
-    }
-
-    pub fn build_for_test() {
-        let args = Self {
-            release: false,
-            profiling: false,
-            clog: String::from("NONE"),
-            flog: String::from("NONE"),
-            slog: String::from("NONE"),
-            ktest: true,
-        };
-        args.build();
     }
 
     fn build_user_apps() {

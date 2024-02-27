@@ -1,10 +1,5 @@
-use std::{
-    fs::{self, File},
-    io::{Read, Write},
-};
-
-use chrono::{FixedOffset, Utc};
 use clap::Parser;
+use scopeguard::defer;
 
 use crate::{build::BuildArgs, cmd_util::Cmd, tool, variables::SBI_PATH, KERNEL_BIN_PATH};
 
@@ -29,17 +24,9 @@ impl QemuArgs {
         tool::prepare_os();
 
         println!("Running qemu...");
-        fs::create_dir_all("logs").unwrap();
-        let date_time = Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap());
-        let log_file_name = format!("logs/{}.ansi", date_time.format("%Y-%m-%d %H_%M_%S"));
-        // 预留 40MiB 的日志空间
-        const LOG_PRESERVED_SIZE: u64 = 40 * 1024 * 1024;
-        {
-            let mut log_file = File::create(&log_file_name).unwrap();
-            log_file.set_len(LOG_PRESERVED_SIZE).unwrap();
-            let placeholder = vec![b' '; LOG_PRESERVED_SIZE as usize];
-            log_file.write_all(&placeholder).unwrap();
-        }
+        let log_file_name = tool::prepare_log_file(false);
+
+        defer! {}
 
         Self::base_qemu()
             .args(["-smp", &self.smp.to_string()])
@@ -54,23 +41,6 @@ impl QemuArgs {
             .optional_arg(self.debug.then_some("-s"))
             .optional_arg(self.debug.then_some("-S"))
             .invoke();
-
-        let mut log_file = File::options()
-            .read(true)
-            .write(true)
-            .open(&log_file_name)
-            .unwrap();
-        let mut log_bytes = Vec::with_capacity(LOG_PRESERVED_SIZE as usize);
-        #[allow(clippy::verbose_file_reads)]
-        log_file.read_to_end(&mut log_bytes).unwrap();
-        let mut len = LOG_PRESERVED_SIZE;
-        for byte in log_bytes.into_iter().rev() {
-            if byte != b' ' {
-                break;
-            }
-            len -= 1;
-        }
-        log_file.set_len(len).unwrap();
     }
 
     pub fn base_qemu() -> Cmd {

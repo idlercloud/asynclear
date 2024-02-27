@@ -5,16 +5,19 @@ use std::{
 };
 
 use clap::Parser;
+use scopeguard::defer;
 
 use crate::{
     build::{BuildArgs, USER_BINS},
     qemu::QemuArgs,
-    tool,
+    tool::{self, cleanup_log_file, prepare_log_file},
 };
 
 /// 运行内核集成测试
 #[derive(Parser)]
 pub struct KtestArgs {
+    #[clap(flatten)]
+    build: BuildArgs,
     /// Hart 数量（SMP 代表 Symmetrical Multiple Processor）.
     #[clap(long, default_value_t = 2)]
     smp: u8,
@@ -27,13 +30,26 @@ pub struct KtestArgs {
 
 impl KtestArgs {
     pub fn run_test(self) {
-        BuildArgs::build_for_test();
+        self.build.build();
         tool::prepare_os();
 
         println!("Running qemu...");
 
+        let log_file_name = prepare_log_file(true);
+        defer! {
+            cleanup_log_file(&log_file_name);
+        }
+
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
+            .args([
+                "-drive",
+                &format!("file={log_file_name},if=none,format=raw,id=x0"),
+            ])
+            .args([
+                "-device",
+                "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
+            ])
             .spawn();
         let stdin = child.stdin.as_mut().unwrap();
         let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
@@ -66,9 +82,8 @@ impl KtestArgs {
                     }
                 }
                 while need_clean {
-                    println!("clean");
                     let line = lines.next().unwrap().unwrap();
-                    println!("{line}");
+                    println!("[consume rest] {line}");
                     if line.contains("exited with code") {
                         need_clean = false;
                     }

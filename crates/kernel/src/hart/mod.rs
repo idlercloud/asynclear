@@ -82,8 +82,6 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // drivers 依赖于 mmio 映射（其实也许可以放在 boot page table 里？）
         drivers_hal::init();
         // log 实现依赖于 uart 和 virtio_block
-        // 内核测试中不开启日志
-        #[cfg(not(feature = "ktest"))]
         crate::tracer::init();
 
         info!("Init hart {hart_id} started",);

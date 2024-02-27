@@ -15,9 +15,9 @@ use defines::{
     config::{MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS},
     error::{errno, Result},
 };
-use misc::Deferred;
 use riscv::register::stvec::{self, TrapMode};
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
+use scopeguard::defer;
 
 pub struct UserCheck<T> {
     addr: usize,
@@ -163,7 +163,9 @@ impl UserCheck<u8> {
 
         let _access_user_guard = AccessUserGuard::new();
         {
-            let _deferred = Deferred::new(set_kernel_trap_entry);
+            defer! {
+                set_kernel_trap_entry();
+            }
             loop {
                 if try_read_user_byte(va) != 0 {
                     return Err(errno::EFAULT);

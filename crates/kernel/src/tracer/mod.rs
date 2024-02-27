@@ -17,10 +17,8 @@ use uart_console::STDOUT;
 
 use crate::hart::{local_hart, local_hart_mut};
 
-#[cfg(not(feature = "ktest"))]
 static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
 
-#[cfg(not(feature = "ktest"))]
 pub fn init() {
     kernel_tracer::KERNLE_TRACER.call_once(|| {
         KERNEL_TRACER_IMPL.call_once(|| {
@@ -94,7 +92,7 @@ fn span_id_to_slab_index(span_id: &SpanId) -> usize {
 }
 
 impl KernelTracerImpl {
-    fn write_log(&self, writer: &mut impl Write, record: &Record<'_>) {
+    fn write_log(&self, mut writer: impl Write, record: &Record<'_>) {
         // 开头部分，即日志级别，如 `[ INFO]`
         let color = match record.level() {
             Level::Error => AnsiColor::Red,         // Red

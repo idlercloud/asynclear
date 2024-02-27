@@ -1,7 +1,8 @@
+use chrono::{FixedOffset, Utc};
 use clap::Parser;
 use fatfs::{FileSystem, FsOptions};
 use std::fs::{self, File};
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use tap::Tap;
 
@@ -141,4 +142,47 @@ pub fn prepare_os() {
     // Pack filesystem
     println!("Packing filesystem...");
     tool::pack(&USER_BINS);
+}
+
+// 预留 40MiB 的日志空间
+const LOG_PRESERVED_SIZE: u64 = 40 * 1024 * 1024;
+
+pub fn prepare_log_file(is_test: bool) -> String {
+    fs::create_dir_all("logs").unwrap();
+    let date_time = Utc::now().with_timezone(&FixedOffset::east_opt(8 * 3600).unwrap());
+    let log_file_name = format!(
+        "logs/{}{}.ansi",
+        if is_test { "test " } else { "" },
+        date_time.format("%Y-%m-%d %H_%M_%S")
+    );
+
+    let mut log_file = File::create(&log_file_name).unwrap();
+    log_file.set_len(LOG_PRESERVED_SIZE).unwrap();
+    let placeholder = vec![b' '; LOG_PRESERVED_SIZE as usize];
+    log_file.write_all(&placeholder).unwrap();
+    log_file_name
+}
+
+pub fn cleanup_log_file(log_file_name: &str) {
+    let mut log_file = File::options()
+        .read(true)
+        .write(true)
+        .open(log_file_name)
+        .unwrap();
+    let mut log_bytes = Vec::with_capacity(LOG_PRESERVED_SIZE as usize);
+    #[allow(clippy::verbose_file_reads)]
+    log_file.read_to_end(&mut log_bytes).unwrap();
+    let mut len = LOG_PRESERVED_SIZE;
+    for byte in log_bytes.into_iter().rev() {
+        if byte != b' ' {
+            break;
+        }
+        len -= 1;
+    }
+    if len == 0 {
+        drop(log_file);
+        let _ = fs::remove_file(log_file_name);
+    } else {
+        log_file.set_len(len).unwrap();
+    }
 }
