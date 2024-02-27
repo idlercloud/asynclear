@@ -5,11 +5,17 @@ use core::{
 
 use alloc::{sync::Arc, vec::Vec};
 use crossbeam_utils::CachePadded;
-use defines::{config::HART_NUM, trap_context::TrapContext};
+use defines::{
+    config::{HART_NUM, HART_START_ADDR},
+    trap_context::TrapContext,
+};
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
 
-use crate::{process::Process, thread::Thread};
+use crate::{
+    process::{Process, INITPROC},
+    thread::{self, Thread},
+};
 
 core::arch::global_asm!(include_str!("entry.S"));
 
@@ -84,16 +90,17 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
 
-        info!("Init hart {hart_id} started",);
+        thread::spawn_user_thread(INITPROC.lock_inner_with(|inner| inner.main_thread()));
+        info!("Init hart {hart_id} started");
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
         // 将下面的代码取消注释即可启动多核
-        // for i in 0..HART_NUM {
-        //     if i == hart_id {
-        //         continue;
-        //     }
-        //     utils::arch::hart_start(i, utils::config::HART_START_ADDR);
-        // }
+        for i in 0..HART_NUM {
+            if i == hart_id {
+                continue;
+            }
+            sbi_rt::hart_start(i, HART_START_ADDR, 0);
+        }
     } else {
         while !INIT_FINISHED.load(Ordering::SeqCst) {
             core::hint::spin_loop();

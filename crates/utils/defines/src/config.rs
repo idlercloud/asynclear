@@ -38,7 +38,7 @@ pub const LOW_ADDRESS_END: usize = 0x40_0000_0000;
 pub const CLOCK_FREQ: usize = 10_000_000;
 
 /// 每秒的 Tick 数。即理想状况下每秒触发定时器中断的次数
-pub const TICKS_PER_SEC: usize = 20;
+pub const TICKS_PER_SEC: usize = 1;
 
 /// I/O 映射的起始地址和长度
 pub const MMIO: &[(usize, usize)] = &[

@@ -47,13 +47,15 @@ where
     })
 }
 
-/// 返回执行任务的个数
-pub fn run_utils_idle() -> usize {
-    let mut completed = 0;
-    while let Some(task) = TASK_QUEUE.fetch_task() {
-        trace!("Schedule new task");
-        task.run();
-        completed += 1;
+pub fn run_utils_idle(should_shutdown: fn() -> bool) {
+    loop {
+        while let Some(task) = TASK_QUEUE.fetch_task() {
+            trace!("Schedule new task");
+            task.run();
+        }
+        if should_shutdown() {
+            break;
+        }
+        sbi_rt::hart_suspend(sbi_rt::Retentive, 0, 0);
     }
-    completed
 }

@@ -1,6 +1,7 @@
 use core::{
     future::Future,
     pin::Pin,
+    sync::atomic::Ordering,
     task::{Context, Poll},
 };
 
@@ -11,9 +12,9 @@ use alloc::{
 use compact_str::CompactString;
 
 use crate::{
-    hart::{local_hart, local_hart_mut},
+    hart::{curr_process, local_hart, local_hart_mut},
     process::INITPROC,
-    trap,
+    trap, SHUTDOWN,
 };
 
 use super::{inner::ThreadStatus, Thread};
@@ -21,13 +22,13 @@ use super::{inner::ThreadStatus, Thread};
 pub fn spawn_user_thread(thread: Arc<Thread>) {
     let (runnable, task) = executor::spawn(UserThreadFuture::new(
         Arc::clone(&thread),
-        user_thread_loop(thread),
+        user_thread_loop(),
     ));
     runnable.schedule();
     task.detach();
 }
 
-async fn user_thread_loop(thread: Arc<Thread>) {
+async fn user_thread_loop() {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
@@ -37,26 +38,18 @@ async fn user_thread_loop(thread: Arc<Thread>) {
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
         let next_op = trap::user_trap_handler().await;
 
-        if next_op.is_break()
-            || thread
-                .process
-                .upgrade()
-                .unwrap()
-                .lock_inner(|inner| inner.zombie_exit_code.is_some())
-        {
+        if next_op.is_break() || curr_process().lock_inner_with(|inner| inner.exit_code.is_some()) {
             break;
         }
     }
-
-    exit_thread(thread);
 }
 
 // 这里对线程的引用应该是最后几个了，剩下应该只在 Hart 相关的结构中存有
-fn exit_thread(thread: Arc<Thread>) {
+fn exit_thread(thread: &Thread) {
     let process = thread.process.upgrade().unwrap();
 
     debug!("one thread exits");
-    let children = process.lock_inner(|process_inner| {
+    let children = process.lock_inner_with(|process_inner| {
         process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
@@ -71,16 +64,20 @@ fn exit_thread(thread: Arc<Thread>) {
         if process_inner.threads.is_empty() {
             info!("all threads exit");
             // 如果进程尚未被标记为僵尸，则将线程的退出码赋予给它
-            if process_inner.zombie_exit_code.is_none() {
-                process_inner.zombie_exit_code = Some(exit_code);
+            if process_inner.exit_code.is_none() {
+                process_inner.exit_code = Some(exit_code);
             }
             process_inner.cwd = CompactString::new("");
             // 根页表以及内核相关的部分要留着
             process_inner.memory_set.recycle_user_pages();
-            process_inner.parent = Weak::new();
             process_inner.threads = BTreeMap::new();
             process_inner.tid_allocator.release();
 
+            // 通知父进程自己退出了
+            if let Some(parent) = process_inner.parent.upgrade() {
+                parent.wait4_event.notify(1);
+            }
+            process_inner.parent = Weak::new();
             Some(core::mem::take(&mut process_inner.children))
         } else {
             None
@@ -90,10 +87,13 @@ fn exit_thread(thread: Arc<Thread>) {
     if let Some(children) = children {
         if process.pid() == 1 {
             assert_eq!(children.len(), 0);
+            SHUTDOWN.store(true, Ordering::SeqCst);
         } else {
-            INITPROC.lock_inner(|initproc_inner| {
+            INITPROC.lock_inner_with(|initproc_inner| {
                 for child in children {
-                    child.lock_inner(|child_inner| child_inner.parent = Arc::downgrade(&INITPROC));
+                    child.lock_inner_with(|child_inner| {
+                        child_inner.parent = Arc::downgrade(&INITPROC)
+                    });
                     initproc_inner.children.push(child);
                 }
             });
@@ -125,7 +125,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
             (*local_hart_mut()).replace_thread(Some(Arc::clone(&self.thread)));
         }
         let process = self.thread.process.upgrade().unwrap();
-        process.lock_inner(|inner| inner.memory_set.activate());
+        process.lock_inner_with(|inner| inner.memory_set.activate());
         let pid = process.pid();
         let tid = self.thread.tid;
         let _enter = info_span!("task", pid = pid, tid = tid).entered();
@@ -134,7 +134,12 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
             inner.thread_status = ThreadStatus::Running;
         });
 
-        let ret = self.project().future.poll(cx);
+        let project = self.project();
+        let ret = project.future.poll(cx);
+
+        if ret.is_ready() {
+            exit_thread(project.thread);
+        }
 
         // 该进程退出运行态。不过页表不会切换
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成

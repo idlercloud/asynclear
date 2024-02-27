@@ -30,9 +30,9 @@ pub struct ProcessInner {
     /* 进程 */
     pub parent: Weak<Process>,
     pub children: Vec<Arc<Process>>,
-    /// 若为 Some，则代表进程已经是僵尸
-    pub zombie_exit_code: Option<i8>,
-    /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`)
+    /// 若为 Some，则代表进程已经退出，但不一定回收了资源变为僵尸
+    pub exit_code: Option<i8>,
+    /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`）
     pub cwd: CompactString,
 
     /* 文件 */
@@ -68,10 +68,10 @@ impl ProcessInner {
 
     /// 标记进程已退出。但是不会回收资源。
     ///
-    /// 一般而言，所有线程都退出后，会调用 `become_zombie` 真正变为僵尸进程
+    /// 一般而言，所有线程都退出后，会真正清理资源，变为僵尸进程
     pub fn mark_exit(&mut self, exit_code: i8) {
-        assert_eq!(self.zombie_exit_code, None);
-        self.zombie_exit_code = Some(exit_code);
+        assert_eq!(self.exit_code, None);
+        self.exit_code = Some(exit_code);
     }
 
     // /// 设置用户堆顶。失败返回原来的 brk，成功则返回新的 brk

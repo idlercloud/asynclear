@@ -8,10 +8,11 @@ edition.workspace = true
 
 [dependencies]
 heapless.workspace = true
+sbi-rt.workspace = true
 defines = { path = "../utils/defines" }
 klocks = { path = "../utils/klocks" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
-async-task = { version = "4.5", default-features = false }
+async-task = { version = "4.7", default-features = false }
 
 [lints]
 workspace = true

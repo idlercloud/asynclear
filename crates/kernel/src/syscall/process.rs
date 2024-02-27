@@ -1,6 +1,6 @@
 //! Process management syscalls
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 use compact_str::CompactString;
 use defines::{
     constant::{MICRO_PER_SEC, NANO_PER_SEC},
@@ -14,7 +14,6 @@ use crate::{
     hart::{curr_process, local_hart},
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
-    thread::ThreadStatus,
 };
 
 // TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
@@ -51,7 +50,7 @@ pub fn sys_getpid() -> Result {
 
 /// 返回当前进程的父进程的 id，永不失败
 pub fn sys_getppid() -> Result {
-    Ok(curr_process().lock_inner(|inner| inner.parent.upgrade().unwrap().pid() as isize))
+    Ok(curr_process().lock_inner_with(|inner| inner.parent.upgrade().unwrap().pid() as isize))
 }
 
 /// 创建子任务，通过 flags 进行精确控制。父进程返回子进程 pid，子进程返回 0。
@@ -146,18 +145,21 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
     }
 
     // 尝试寻找符合条件的子进程
-    // TODO: 这里的逻辑感觉可以重写下。process inner 也可以不用设为 pub
     loop {
-        {
+        // 尝试找到一个符合条件，且已经是僵尸的子进程
+        let listener = {
+            // 用块是因为 rust 目前不够聪明。
+            // inner 是个 Guard，不 Send，因此不能包含在 future 中
+            // 但在同一块作用域中，即使 drop inner，也依然会导致 future 不 send，非常麻烦
+            // 这也导致 listener 不得不堆分配，而暂时无法用栈上的 listener
             let process = curr_process();
-            let mut inner = process.inner.lock();
-            // 是否有符合 pid 要求的子进程
+            let mut inner = process.lock_inner();
             let mut has_proper_child = false;
             let mut child_index = None;
             for (index, child) in inner.children.iter().enumerate() {
                 if pid == -1 || child.pid() == pid as usize {
                     has_proper_child = true;
-                    if child.lock_inner(|inner| inner.zombie_exit_code.is_some()) {
+                    if child.lock_inner_with(|inner| inner.threads.is_empty()) {
                         child_index = Some(index);
                     }
                 }
@@ -168,31 +170,28 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
             }
 
             if let Some(index) = child_index {
-                let mut child = inner.children.remove(index);
-                // TODO: 下面这个假设是对的吗？
-                // 此时理论上子进程只在当前进程的子进程列表中保存了
-                let child = Arc::get_mut(&mut child).unwrap();
+                let child = inner.children.remove(index);
+                drop(inner);
                 let found_pid = child.pid();
-                let exit_code = child.lock_inner(|inner| inner.zombie_exit_code.unwrap());
+                let exit_code = child.lock_inner_with(|inner| inner.exit_code.unwrap());
                 let wstatus = wstatus as *mut i32;
                 if !wstatus.is_null() {
-                    // 因为 `check_ptr_mut` 里面会用，所以得 drop
-                    drop(inner);
                     let mut wstatus = UserCheck::new(wstatus).check_ptr_mut()?;
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
                     *wstatus = (exit_code as i32) << 8;
                 }
                 return Ok(found_pid as isize);
             }
+
             // 否则视 `options` 而定
             if options.contains(WaitFlags::WNOHANG) {
                 return Ok(0);
             }
-        }
+            process.wait4_event.listen()
+        };
+
         trace!("no proper child exited");
-        unsafe {
-            (*local_hart()).curr_thread().yield_now().await;
-        }
+        listener.await;
     }
 }
 
@@ -229,12 +228,6 @@ pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> Result {
     ts.sec = us / NANO_PER_SEC;
     ts.nsec = us % NANO_PER_SEC;
     Ok(0)
-}
-
-#[derive(Clone, Copy)]
-pub struct TaskInfo {
-    pub status: ThreadStatus,
-    pub time: usize,
 }
 
 pub fn sys_setpriority(_prio: isize) -> Result {
@@ -326,7 +319,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
         let process = curr_process();
         info!("pid: {}", process.pid());
         // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
-        return process.lock_inner(|inner| {
+        return process.lock_inner_with(|inner| {
             inner.memory_set.try_map(
                 VirtAddr(addr).vpn()..VirtAddr(addr + len).vpn(),
                 prot.into(),

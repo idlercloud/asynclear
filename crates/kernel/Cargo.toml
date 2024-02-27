@@ -11,6 +11,7 @@ goblin.workspace = true
 bitflags.workspace = true
 sbi-rt.workspace = true
 pin-project.workspace = true
+event-listener.workspace = true
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
 user_check = { path = "../arch/user_check" }

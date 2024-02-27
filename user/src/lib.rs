@@ -156,7 +156,7 @@ pub fn wait(exit_code: &mut i32) -> isize {
 pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
     loop {
         match sys_waitpid(pid as isize, exit_code as *mut _) {
-            -11 | 0 => {
+            0 => {
                 sys_yield();
             }
             n => {

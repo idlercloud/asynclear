@@ -18,8 +18,8 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     if (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
         || id == PPOLL
-        || curr_pid == 1
-        || curr_pid == 2
+    // || curr_pid == 1
+    // || curr_pid == 2
     {
         trace!("args {args:x?}",);
     } else {
@@ -94,8 +94,13 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     match ret {
         Ok(ret) => {
             // TODO: 由于目前 WAIT4 实现原因，忽略 INITPROC 的 SCHED_YIELD 和 WAIT4
-            if !((id == SCHED_YIELD || id == WAIT4) && curr_pid == 1) {
-                info!("return {ret} = {ret:#x}",);
+            if !(id == SCHED_YIELD && curr_pid == 1) {
+                // shell 的 stdin 和 stdout 以较低等级输出
+                if (id == READ || id == WRITE) && curr_pid == 2 {
+                    trace!("return {ret} = {ret:#x}");
+                } else {
+                    info!("return {ret} = {ret:#x}",);
+                }
             }
             ret
         }

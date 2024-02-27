@@ -11,7 +11,7 @@ extern crate uart_console;
 extern crate kernel_tracer;
 extern crate alloc;
 
-use crate::process::INITPROC;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 mod hart;
 mod lang_items;
@@ -21,13 +21,13 @@ mod thread;
 mod tracer;
 mod trap;
 
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
 pub fn kernel_loop() -> ! {
     info!("Enter kernel loop");
-    thread::spawn_user_thread(INITPROC.lock_inner(|inner| inner.main_thread()));
-    executor::run_utils_idle();
+    executor::run_utils_idle(|| SHUTDOWN.load(Ordering::SeqCst));
 
     info!("Exit kernel loop");
-
     let _guard = riscv_guard::NoIrqGuard::new();
     #[cfg(feature = "profiling")]
     tracer::report_profiling();

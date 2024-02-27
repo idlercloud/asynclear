@@ -112,7 +112,7 @@ pub fn sys_execve(path: &str, args: &[*const u8]) -> isize {
 }
 
 pub fn sys_waitpid(pid: isize, xstatus: *mut i32) -> isize {
-    syscall6(WAIT4, [pid as usize, xstatus as usize, 1, 0, 0, 0])
+    syscall6(WAIT4, [pid as usize, xstatus as usize, 0, 0, 0, 0])
 }
 
 pub fn sys_set_priority(prio: isize) -> isize {

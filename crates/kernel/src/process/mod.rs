@@ -13,9 +13,10 @@ use defines::{
     error::{errno, Result},
     trap_context::TrapContext,
 };
+use event_listener::Event;
 use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
-use klocks::{Lazy, SpinMutex};
+use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
 
 use crate::thread::{self, Thread};
@@ -52,7 +53,8 @@ pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
 
 pub struct Process {
     pid: usize,
-    pub inner: SpinMutex<ProcessInner>,
+    pub wait4_event: Event,
+    inner: SpinMutex<ProcessInner>,
 }
 
 impl Process {
@@ -94,13 +96,14 @@ impl Process {
             trap_context.user_regs[10] = argv_base;
             Process {
                 pid: PID_ALLOCATOR.lock().alloc(),
+                wait4_event: Event::new(),
                 inner: SpinMutex::new(ProcessInner {
                     name: process_name,
                     memory_set,
                     heap_range: brk..brk,
                     parent: Weak::new(),
                     children: Vec::new(),
-                    zombie_exit_code: None,
+                    exit_code: None,
                     cwd: CompactString::from_static_str("/"),
                     tid_allocator,
                     threads: BTreeMap::from([(
@@ -118,7 +121,7 @@ impl Process {
     ///
     /// `stack` 若不为 0 则指定新进程的栈顶
     pub fn fork(self: &Arc<Self>, stack: usize) -> Arc<Self> {
-        let child = self.lock_inner(|inner| {
+        let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             let child = Arc::new_cyclic(|weak_child| {
                 // // 复制文件描述符表
@@ -133,13 +136,14 @@ impl Process {
                 trap_context.user_regs[9] = 0;
                 Self {
                     pid: PID_ALLOCATOR.lock().alloc(),
+                    wait4_event: Event::new(),
                     inner: SpinMutex::new(ProcessInner {
                         name: inner.name.clone(),
                         memory_set: MemorySet::from_existed_user(&inner.memory_set),
                         heap_range: inner.heap_range.clone(),
                         parent: Arc::downgrade(self),
                         children: Vec::new(),
-                        zombie_exit_code: None,
+                        exit_code: None,
                         cwd: inner.cwd.clone(),
                         tid_allocator: inner.tid_allocator.clone(),
                         threads: BTreeMap::from([(
@@ -158,7 +162,7 @@ impl Process {
             child
         });
         // 子进程的主线程可以加入调度队列中了
-        child.lock_inner(|inner| thread::spawn_user_thread(inner.main_thread()));
+        child.lock_inner_with(|inner| thread::spawn_user_thread(inner.main_thread()));
         child
     }
 
@@ -175,7 +179,7 @@ impl Process {
             errno::ENOENT
         })?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        self.lock_inner(|inner| {
+        self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
@@ -207,8 +211,12 @@ impl Process {
         Ok(())
     }
 
+    pub fn lock_inner(&self) -> SpinMutexGuard<'_, ProcessInner> {
+        self.inner.lock()
+    }
+
     /// 锁 inner 然后进行操作。这应该是访问 inner 的唯一方式
-    pub fn lock_inner<T>(&self, f: impl FnOnce(&mut ProcessInner) -> T) -> T {
+    pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut ProcessInner) -> T) -> T {
         f(&mut self.inner.lock())
     }
 
@@ -232,6 +240,5 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 /// 其他线程在进入内核时会检查对应的进程是否为 zombie 从而决定是否退出
 pub fn exit_process(process: Arc<Process>, exit_code: i8) {
     info!("Process exits with code {exit_code}");
-    process.lock_inner(|inner| inner.mark_exit(exit_code));
-    // TODO: 要不要修改为等待线程完全退出
+    process.lock_inner_with(|inner| inner.mark_exit(exit_code));
 }
