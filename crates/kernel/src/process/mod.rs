@@ -1,12 +1,7 @@
 mod init_stack;
 mod inner;
 
-use alloc::{
-    collections::BTreeMap,
-    sync::{Arc, Weak},
-    vec,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use compact_str::CompactString;
 use defines::{
     config::PAGE_SIZE,
@@ -18,6 +13,7 @@ use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
+use triomphe::Arc;
 
 use crate::thread::{self, Thread};
 
@@ -83,35 +79,36 @@ impl Process {
             envs: Vec::new(),
             auxv: vec![(AT_PAGESZ, PAGE_SIZE)],
         });
-        user_sp = stack_init.user_sp();
 
-        let process = Arc::new_cyclic(|process| {
-            let brk = elf_end.vpn_ceil().page_start();
-            let mut tid_allocator = RecycleAllocator::new();
-            let tid = tid_allocator.alloc();
-            // 第一个线程，主线程，tid 为 0
-            assert_eq!(tid, 0);
-            let mut trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
-            trap_context.user_regs[9] = argc;
-            trap_context.user_regs[10] = argv_base;
-            Process {
-                pid: PID_ALLOCATOR.lock().alloc(),
-                wait4_event: Event::new(),
-                inner: SpinMutex::new(ProcessInner {
-                    name: process_name,
-                    memory_set,
-                    heap_range: brk..brk,
-                    parent: Weak::new(),
-                    children: Vec::new(),
-                    exit_code: None,
-                    cwd: CompactString::from_static_str("/"),
-                    tid_allocator,
-                    threads: BTreeMap::from([(
-                        tid,
-                        Arc::new(Thread::new(Weak::clone(process), tid, trap_context)),
-                    )]),
-                }),
-            }
+        user_sp = stack_init.user_sp();
+        let brk = elf_end.vpn_ceil().page_start();
+        let mut tid_allocator = RecycleAllocator::new();
+        let tid = tid_allocator.alloc();
+        // 第一个线程，主线程，tid 为 0
+        assert_eq!(tid, 0);
+        let mut trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
+        trap_context.user_regs[9] = argc;
+        trap_context.user_regs[10] = argv_base;
+        let process = Arc::new(Process {
+            pid: PID_ALLOCATOR.lock().alloc(),
+            wait4_event: Event::new(),
+            inner: SpinMutex::new(ProcessInner {
+                name: process_name,
+                memory_set,
+                heap_range: brk..brk,
+                parent: None,
+                children: Vec::new(),
+                exit_code: None,
+                cwd: CompactString::from_static_str("/"),
+                tid_allocator,
+                threads: BTreeMap::new(),
+            }),
+        });
+        process.lock_inner_with(|inner| {
+            inner.threads.insert(
+                tid,
+                Arc::new(Thread::new(Arc::clone(&process), tid, trap_context)),
+            );
         });
 
         Ok(process)
@@ -123,39 +120,40 @@ impl Process {
     pub fn fork(self: &Arc<Self>, stack: usize) -> Arc<Self> {
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
-            let child = Arc::new_cyclic(|weak_child| {
-                // // 复制文件描述符表
-                // let new_fd_table = parent_inner.fd_table.clone();
-                let parent_main_thread = inner.main_thread();
-                let mut trap_context =
-                    parent_main_thread.lock_inner(|inner| inner.trap_context.clone());
-                if stack != 0 {
-                    trap_context.user_regs[1] = stack;
-                }
-                // 子进程 fork 后返回值为 0
-                trap_context.user_regs[9] = 0;
-                Self {
-                    pid: PID_ALLOCATOR.lock().alloc(),
-                    wait4_event: Event::new(),
-                    inner: SpinMutex::new(ProcessInner {
-                        name: inner.name.clone(),
-                        memory_set: MemorySet::from_existed_user(&inner.memory_set),
-                        heap_range: inner.heap_range.clone(),
-                        parent: Arc::downgrade(self),
-                        children: Vec::new(),
-                        exit_code: None,
-                        cwd: inner.cwd.clone(),
-                        tid_allocator: inner.tid_allocator.clone(),
-                        threads: BTreeMap::from([(
-                            parent_main_thread.tid(),
-                            Arc::new(Thread::new(
-                                Weak::clone(weak_child),
-                                parent_main_thread.tid(),
-                                trap_context,
-                            )),
-                        )]),
-                    }),
-                }
+            // // 复制文件描述符表
+            // let new_fd_table = parent_inner.fd_table.clone();
+            let parent_main_thread = inner.main_thread();
+            let mut trap_context =
+                parent_main_thread.lock_inner_with(|inner| inner.trap_context.clone());
+            if stack != 0 {
+                trap_context.user_regs[1] = stack;
+            }
+            // 子进程 fork 后返回值为 0
+            trap_context.user_regs[9] = 0;
+            let child = Arc::new(Self {
+                pid: PID_ALLOCATOR.lock().alloc(),
+                wait4_event: Event::new(),
+                inner: SpinMutex::new(ProcessInner {
+                    name: inner.name.clone(),
+                    memory_set: MemorySet::from_existed_user(&inner.memory_set),
+                    heap_range: inner.heap_range.clone(),
+                    parent: Some(Arc::clone(&self)),
+                    children: Vec::new(),
+                    exit_code: None,
+                    cwd: inner.cwd.clone(),
+                    tid_allocator: inner.tid_allocator.clone(),
+                    threads: BTreeMap::new(),
+                }),
+            });
+            child.lock_inner_with(|inner| {
+                inner.threads.insert(
+                    parent_main_thread.tid(),
+                    Arc::new(Thread::new(
+                        Arc::clone(&child),
+                        parent_main_thread.tid(),
+                        trap_context,
+                    )),
+                )
             });
             // 新进程添入原进程的子进程表
             inner.children.push(Arc::clone(&child));
@@ -201,7 +199,7 @@ impl Process {
             });
             user_sp = stack_init.user_sp();
 
-            inner.main_thread().lock_inner(|inner| {
+            inner.main_thread().lock_inner_with(|inner| {
                 inner.trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
                 inner.trap_context.user_regs[9] = argc;
                 inner.trap_context.user_regs[10] = argv_base;
@@ -238,7 +236,7 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 /// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，仅仅只是标记该进程为 zombie
 ///
 /// 其他线程在进入内核时会检查对应的进程是否为 zombie 从而决定是否退出
-pub fn exit_process(process: Arc<Process>, exit_code: i8) {
+pub fn exit_process(process: &Process, exit_code: i8) {
     info!("Process exits with code {exit_code}");
     process.lock_inner_with(|inner| inner.mark_exit(exit_code));
 }

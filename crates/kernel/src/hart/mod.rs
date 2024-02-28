@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
 use crossbeam_utils::CachePadded;
 use defines::{
     config::{HART_NUM, HART_START_ADDR},
@@ -11,6 +11,7 @@ use defines::{
 };
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
+use triomphe::Arc;
 
 use crate::{
     process::{Process, INITPROC},
@@ -53,7 +54,7 @@ impl Hart {
         self.thread
             .as_ref()
             .expect("Only user task has trap context")
-            .lock_inner(|inner| &mut inner.trap_context as _)
+            .lock_inner_with(|inner| &mut inner.trap_context as _)
     }
 
     pub fn replace_thread(&mut self, new_thread: Option<Arc<Thread>>) -> Option<Arc<Thread>> {
@@ -64,8 +65,8 @@ impl Hart {
         self.thread.as_ref().unwrap()
     }
 
-    pub fn curr_process(&self) -> Arc<Process> {
-        self.curr_thread().process.upgrade().unwrap()
+    pub fn curr_process(&self) -> &Process {
+        &self.curr_thread().process
     }
 }
 
@@ -86,7 +87,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         }
         KERNEL_SPACE.activate();
         // drivers 依赖于 mmio 映射（其实也许可以放在 boot page table 里？）
-        drivers_hal::init();
+        drivers::init();
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
 
@@ -155,10 +156,11 @@ fn clear_bss() {
 ///
 /// 需保证由不同 hart 调用
 unsafe fn set_local_hart(hart_id: usize) {
-    let hart = unsafe { &mut HARTS[hart_id] };
-    hart.hart_id = hart_id;
-    let hart_addr = hart as *const _ as usize;
-    unsafe { asm!("mv tp, {}", in(reg) hart_addr) };
+    unsafe {
+        let hart_ptr = core::ptr::addr_of_mut!(HARTS[hart_id]);
+        (*hart_ptr).hart_id = hart_id;
+        asm!("mv tp, {}", in(reg) hart_ptr as usize);
+    }
 }
 
 pub fn local_hart() -> *const Hart {
@@ -175,8 +177,4 @@ pub fn local_hart_mut() -> *mut Hart {
         asm!("mv {}, tp", out(reg) tp);
     }
     tp as *mut Hart
-}
-
-pub fn curr_process() -> Arc<Process> {
-    unsafe { (*local_hart()).curr_process() }
 }

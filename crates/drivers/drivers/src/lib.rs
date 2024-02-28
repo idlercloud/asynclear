@@ -1,5 +1,3 @@
-// TODO: 虽然名字是 hal，实际上却只是各种 drivers 的一个聚合罢了
-
 #![no_std]
 #![allow(incomplete_features)]
 #![feature(strict_provenance)]

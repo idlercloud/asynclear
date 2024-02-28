@@ -26,6 +26,7 @@ fatfs = { path = "crates/dependencies/rust-fatfs" }
 # "alloc",
 # "lfn",
 # ] }
+extend = "1.2"
 pin-project = "1.1"
 bitflags = "2.4"
 tap = "1"
@@ -43,6 +44,7 @@ sbi-rt = { version = "0.0.3", features = ["legacy"] }
 event-listener = { version = "5.1", default-features = false }
 heapless = "0.8"
 scopeguard = { version = "1.2", default-features = false }
+triomphe = { version = "0.1.11", default-features = false }
 
 [profile.dev]
 opt-level = 1

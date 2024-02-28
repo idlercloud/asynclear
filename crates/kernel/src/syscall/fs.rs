@@ -64,7 +64,11 @@ use user_check::UserCheck;
 /// - `len` 指定至多读取的字节数
 pub async fn sys_read(fd: usize, buf: usize, len: usize) -> Result {
     let buf = UserCheck::new(buf as _);
-    debug!("fd = {fd}, len = {len}");
+    if fd == 0 {
+        trace!("read stdin, len = {len}");
+    } else {
+        debug!("fd = {fd}, len = {len}");
+    }
     // let file = prepare_io(fd, true)?;
     // let nread = file.read(buf);
     // Ok(nread as isize)

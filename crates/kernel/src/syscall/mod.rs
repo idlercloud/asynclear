@@ -10,16 +10,13 @@ use process::*;
 // use sync::*;
 use thread::*;
 
-use crate::{hart::curr_process, process::exit_process};
+use crate::{hart::local_hart, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
-    let curr_pid = curr_process().pid();
-    // 读入标准输入、写入标准输出、写入标准错误、INITPROC 和 shell 都不关心
+    let curr_pid = unsafe { (*local_hart()).curr_process().pid() };
+    // 读入标准输入、写入标准输出、写入标准错误都不关心
     if (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
-        || id == PPOLL
-    // || curr_pid == 1
-    // || curr_pid == 2
     {
         trace!("args {args:x?}",);
     } else {
@@ -87,20 +84,19 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         ),
         _ => {
             error!("Unsupported syscall id: {id}");
-            exit_process(curr_process(), -10);
+            unsafe {
+                exit_process((*local_hart()).curr_process(), -10);
+            }
             Ok(0)
         }
     };
     match ret {
         Ok(ret) => {
-            // TODO: 由于目前 WAIT4 实现原因，忽略 INITPROC 的 SCHED_YIELD 和 WAIT4
-            if !(id == SCHED_YIELD && curr_pid == 1) {
-                // shell 的 stdin 和 stdout 以较低等级输出
-                if (id == READ || id == WRITE) && curr_pid == 2 {
-                    trace!("return {ret} = {ret:#x}");
-                } else {
-                    info!("return {ret} = {ret:#x}",);
-                }
+            // shell 的 stdin 和 stdout 以较低等级输出
+            if (id == READ || id == WRITE) && curr_pid == 2 {
+                trace!("return {ret} = {ret:#x}");
+            } else {
+                info!("return {ret} = {ret:#x}",);
             }
             ret
         }

@@ -4,7 +4,7 @@ mod timer;
 use core::ops::ControlFlow;
 
 use defines::{error::errno, trap_context::TrapContext};
-use drivers_hal::{InterruptSource, Plic, UART0};
+use drivers::{InterruptSource, Plic, UART0};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
@@ -41,18 +41,10 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                     (*cx).user_regs[14],
                 ],
             )
-            .instrument({
-                let pid = crate::hart::curr_process().pid();
-                // TODO: 由于目前 WAIT4 实现原因，忽略 INITPROC 的 SCHED_YIELD 和 WAIT4
-                if pid == 1
-                    && (syscall_id == defines::syscall::SCHED_YIELD
-                        || syscall_id == defines::syscall::WAIT4)
-                {
-                    trace_span!("syscall", name = defines::syscall::name(syscall_id))
-                } else {
-                    info_span!("syscall", name = defines::syscall::name(syscall_id))
-                }
-            })
+            .instrument(info_span!(
+                "syscall",
+                name = defines::syscall::name(syscall_id)
+            ))
             .await;
 
             // 线程应当退出

@@ -11,7 +11,7 @@ use memory::VirtAddr;
 use user_check::UserCheck;
 
 use crate::{
-    hart::{curr_process, local_hart},
+    hart::local_hart,
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
 };
@@ -23,7 +23,7 @@ pub fn sys_exit(exit_code: i32) -> Result {
     unsafe {
         (*local_hart())
             .curr_thread()
-            .lock_inner(|inner| inner.exit_code = (exit_code & 0xff) as i8);
+            .lock_inner_with(|inner| inner.exit_code = (exit_code & 0xff) as i8);
     };
     Err(errno::BREAK)
 }
@@ -45,12 +45,18 @@ pub async fn sys_sched_yield() -> Result {
 
 /// 返回当前进程 id，永不失败
 pub fn sys_getpid() -> Result {
-    Ok(curr_process().pid() as isize)
+    let pid = unsafe { (*local_hart()).curr_process().pid() as isize };
+    Ok(pid)
 }
 
 /// 返回当前进程的父进程的 id，永不失败
 pub fn sys_getppid() -> Result {
-    Ok(curr_process().lock_inner_with(|inner| inner.parent.upgrade().unwrap().pid() as isize))
+    let ppid = unsafe {
+        (*local_hart())
+            .curr_process()
+            .lock_inner_with(|inner| inner.parent.as_ref().map(|p| p.pid()).unwrap_or(0) as isize)
+    };
+    Ok(ppid)
 }
 
 /// 创建子任务，通过 flags 进行精确控制。父进程返回子进程 pid，子进程返回 0。
@@ -84,8 +90,7 @@ pub fn sys_clone(
         error!("CloneFlags unsupported: {clone_flags:?}");
         return Err(errno::UNSUPPORTED);
     }
-    let current_process = curr_process();
-    let new_process = current_process.fork(user_stack);
+    let new_process = unsafe { (*local_hart()).curr_thread().process.fork(user_stack) };
     Ok(new_process.pid() as isize)
 }
 
@@ -110,10 +115,13 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
         }
     }
     // 执行新进程
-    let process = curr_process();
 
     let argc = arg_vec.len();
-    process.exec(CompactString::from(&*pathname), arg_vec)?;
+    unsafe {
+        (*local_hart())
+            .curr_process()
+            .exec(CompactString::from(&*pathname), arg_vec)?;
+    }
     Ok(argc as isize)
 }
 
@@ -152,7 +160,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
             // inner 是个 Guard，不 Send，因此不能包含在 future 中
             // 但在同一块作用域中，即使 drop inner，也依然会导致 future 不 send，非常麻烦
             // 这也导致 listener 不得不堆分配，而暂时无法用栈上的 listener
-            let process = curr_process();
+            let process = unsafe { (*local_hart()).curr_process() };
             let mut inner = process.lock_inner();
             let mut has_proper_child = false;
             let mut child_index = None;
@@ -316,7 +324,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
             error!("fd must be -1 and offset must be 0 for anonyous mapping");
             return Err(errno::EPERM);
         }
-        let process = curr_process();
+        let process = unsafe { (*local_hart()).curr_process() };
         info!("pid: {}", process.pid());
         // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
         return process.lock_inner_with(|inner| {

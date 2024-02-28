@@ -135,8 +135,10 @@ impl<T> UserCheck<T> {
         unsafe {
             stvec::write(trap_from_access_user as usize, TrapMode::Direct);
         }
-        // FIXME: 这里其实可以构造特殊情况，如 user_addr_start == 0, user_addr_end 溢出等，应当修复
-        let user_addr_end = user_addr_start + len * core::mem::size_of::<T>();
+        let Some(user_addr_end) = user_addr_start.checked_add(len * core::mem::size_of::<T>())
+        else {
+            return false;
+        };
         let mut va = user_addr_start;
         while va < user_addr_end {
             if !access_ok(va) {

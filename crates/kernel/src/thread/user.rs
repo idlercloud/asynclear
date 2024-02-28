@@ -5,14 +5,12 @@ use core::{
     task::{Context, Poll},
 };
 
-use alloc::{
-    collections::BTreeMap,
-    sync::{Arc, Weak},
-};
+use alloc::collections::BTreeMap;
 use compact_str::CompactString;
+use triomphe::Arc;
 
 use crate::{
-    hart::{curr_process, local_hart, local_hart_mut},
+    hart::{local_hart, local_hart_mut},
     process::INITPROC,
     trap, SHUTDOWN,
 };
@@ -38,7 +36,13 @@ async fn user_thread_loop() {
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
         let next_op = trap::user_trap_handler().await;
 
-        if next_op.is_break() || curr_process().lock_inner_with(|inner| inner.exit_code.is_some()) {
+        if next_op.is_break()
+            || unsafe {
+                (*local_hart())
+                    .curr_process()
+                    .lock_inner_with(|inner| inner.exit_code.is_some())
+            }
+        {
             break;
         }
     }
@@ -46,14 +50,13 @@ async fn user_thread_loop() {
 
 // 这里对线程的引用应该是最后几个了，剩下应该只在 Hart 相关的结构中存有
 fn exit_thread(thread: &Thread) {
-    let process = thread.process.upgrade().unwrap();
-
-    debug!("one thread exits");
+    debug!("thread exits");
+    let process = &*thread.process;
     let children = process.lock_inner_with(|process_inner| {
         process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
-        let exit_code = thread.lock_inner(|thread_inner| {
+        let exit_code = thread.lock_inner_with(|thread_inner| {
             thread_inner.thread_status = ThreadStatus::Terminated;
             thread_inner.exit_code
         });
@@ -74,10 +77,9 @@ fn exit_thread(thread: &Thread) {
             process_inner.tid_allocator.release();
 
             // 通知父进程自己退出了
-            if let Some(parent) = process_inner.parent.upgrade() {
+            if let Some(parent) = process_inner.parent.take() {
                 parent.wait4_event.notify(1);
             }
-            process_inner.parent = Weak::new();
             Some(core::mem::take(&mut process_inner.children))
         } else {
             None
@@ -92,7 +94,7 @@ fn exit_thread(thread: &Thread) {
             INITPROC.lock_inner_with(|initproc_inner| {
                 for child in children {
                     child.lock_inner_with(|child_inner| {
-                        child_inner.parent = Arc::downgrade(&INITPROC)
+                        child_inner.parent = Some(Arc::clone(&INITPROC))
                     });
                     initproc_inner.children.push(child);
                 }
@@ -124,13 +126,13 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         unsafe {
             (*local_hart_mut()).replace_thread(Some(Arc::clone(&self.thread)));
         }
-        let process = self.thread.process.upgrade().unwrap();
+        let process = &self.thread.process;
         process.lock_inner_with(|inner| inner.memory_set.activate());
         let pid = process.pid();
         let tid = self.thread.tid;
         let _enter = info_span!("task", pid = pid, tid = tid).entered();
         trace!("User task running");
-        self.thread.lock_inner(|inner| {
+        self.thread.lock_inner_with(|inner| {
             inner.thread_status = ThreadStatus::Running;
         });
 

@@ -1,13 +1,10 @@
 use core::ops::Range;
 
-use alloc::{
-    collections::BTreeMap,
-    sync::{Arc, Weak},
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
 use idallocator::RecycleAllocator;
 use memory::{MemorySet, VirtAddr};
+use triomphe::Arc;
 
 use crate::thread::Thread;
 
@@ -28,7 +25,7 @@ pub struct ProcessInner {
     pub heap_range: Range<VirtAddr>,
 
     /* 进程 */
-    pub parent: Weak<Process>,
+    pub parent: Option<Arc<Process>>,
     pub children: Vec<Arc<Process>>,
     /// 若为 Some，则代表进程已经退出，但不一定回收了资源变为僵尸
     pub exit_code: Option<i8>,

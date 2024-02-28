@@ -8,8 +8,8 @@ use core::{fmt::Write, num::NonZeroU32};
 #[cfg(feature = "profiling")]
 use {alloc::vec::Vec, profiling::ProfilingEvent};
 
-use anstyle::{AnsiColor, Reset, Style};
-use drivers_hal::DiskDriver;
+use anstyle::{AnsiColor, Reset};
+use drivers::DiskDriver;
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
@@ -93,18 +93,24 @@ fn span_id_to_slab_index(span_id: &SpanId) -> usize {
 
 impl KernelTracerImpl {
     fn write_log(&self, mut writer: impl Write, record: &Record<'_>) {
+        #[extend::ext]
+        impl Level {
+            fn output_color(self) -> AnsiColor {
+                match self {
+                    Level::Error => AnsiColor::Red,
+                    Level::Warn => AnsiColor::BrightYellow,
+                    Level::Info => AnsiColor::Blue,
+                    Level::Debug => AnsiColor::Green,
+                    Level::Trace => AnsiColor::BrightBlack,
+                }
+            }
+        }
         // 开头部分，即日志级别，如 `[ INFO]`
-        let color = match record.level() {
-            Level::Error => AnsiColor::Red,         // Red
-            Level::Warn => AnsiColor::BrightYellow, // BrightYellow
-            Level::Info => AnsiColor::Blue,         // Blue
-            Level::Debug => AnsiColor::Green,       // Green
-            Level::Trace => AnsiColor::BrightBlack, // BrightBlack
-        };
+        let log_color = record.level().output_color();
         write!(
             writer,
             "{}[{:>5}]{}",
-            color.render_fg(),
+            log_color.render_fg(),
             record.level(),
             Reset.render()
         )
@@ -116,17 +122,16 @@ impl KernelTracerImpl {
             let slab = self.slab.lock();
             let stack = unsafe { &(*local_hart()).span_stack };
 
-            const SPAN_NAME_COLOR: Style = AnsiColor::White.on_default().bold();
-
             for id in stack.iter() {
                 let id = span_id_to_slab_index(id);
                 let span_attr = slab.get(id).unwrap();
+                let span_style = span_attr.level().output_color().on_default().bold();
                 has_span = true;
 
                 write!(
                     writer,
                     "-{}{}{}",
-                    SPAN_NAME_COLOR.render(),
+                    span_style.render(),
                     span_attr.name(),
                     Reset.render()
                 )

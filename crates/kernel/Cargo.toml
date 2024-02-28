@@ -12,10 +12,12 @@ bitflags.workspace = true
 sbi-rt.workspace = true
 pin-project.workspace = true
 event-listener.workspace = true
+triomphe.workspace = true
+extend.workspace = true
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
 user_check = { path = "../arch/user_check" }
-drivers_hal = { path = "../drivers/drivers_hal" }
+drivers = { path = "../drivers/drivers" }
 executor = { path = "../executor" }
 memory = { path = "../memory" }
 filesystem = { path = "../filesystem" }

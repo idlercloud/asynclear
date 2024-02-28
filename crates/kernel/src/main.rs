@@ -4,6 +4,7 @@
 #![feature(inline_const)]
 #![feature(format_args_nl)]
 #![feature(const_binary_heap_constructor)]
+#![feature(arbitrary_self_types)]
 
 #[macro_use]
 extern crate uart_console;

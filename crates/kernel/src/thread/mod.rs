@@ -1,11 +1,11 @@
 mod inner;
 mod user;
 
-use alloc::sync::Weak;
 use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::trap_context::TrapContext;
 use klocks::SpinMutex;
 use memory::{MapPermission, MemorySet, VirtAddr};
+use triomphe::Arc;
 
 use crate::process::Process;
 
@@ -18,12 +18,12 @@ pub use self::user::spawn_user_thread;
 pub struct Thread {
     tid: usize,
     // TODO: 其实也不是一定要用 Weak。完全可以手动释放
-    pub process: Weak<Process>,
+    pub process: Arc<Process>,
     inner: SpinMutex<ThreadInner>,
 }
 
 impl Thread {
-    pub fn new(process: Weak<Process>, tid: usize, trap_context: TrapContext) -> Self {
+    pub fn new(process: Arc<Process>, tid: usize, trap_context: TrapContext) -> Self {
         Self {
             tid,
             process,
@@ -40,7 +40,7 @@ impl Thread {
     }
 
     /// 锁 inner 然后进行操作。这应该是访问 inner 的唯一方式
-    pub fn lock_inner<T>(&self, f: impl FnOnce(&mut ThreadInner) -> T) -> T {
+    pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut ThreadInner) -> T) -> T {
         f(&mut self.inner.lock())
     }
 
