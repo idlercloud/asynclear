@@ -228,14 +228,12 @@ sudo make install
 按优先级排列：
 
 - [ ] 信号机制
-- [ ] 改进 WAIT4 的实现（可能依赖于信号机制和多核调度）
 - [ ] 内核线程
 - [ ] RCU
 - [ ] CoW、Lazy Page，顺便重构 memory 模块
 - [ ] async-task 和 embassy 的原理
 - [ ] kernel 内容能否放入 huge page？
 - [ ] 虚拟文件系统和页缓存
-- [ ] 思考 `Future` 和 `Send`
 
 ## 参考资料
 
