@@ -1,6 +1,7 @@
 mod inner;
 mod user;
 
+use atomic::{Atomic, Ordering};
 use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::trap_context::TrapContext;
 use klocks::SpinMutex;
@@ -11,13 +12,16 @@ use crate::process::Process;
 
 use self::inner::ThreadInner;
 
-pub use self::inner::ThreadStatus;
 pub use self::user::spawn_user_thread;
 
 /// 进程控制块
 pub struct Thread {
     tid: usize,
-    // TODO: 其实也不是一定要用 Weak。完全可以手动释放
+    pub status: Atomic<ThreadStatus>,
+    /// 线程的退出码，在 `sys_exit` 时被设置。
+    ///
+    /// 如果它是进程中的最后一个线程，则将进程退出码设置为它。
+    pub exit_code: Atomic<i8>,
     pub process: Arc<Process>,
     inner: SpinMutex<ThreadInner>,
 }
@@ -26,12 +30,10 @@ impl Thread {
     pub fn new(process: Arc<Process>, tid: usize, trap_context: TrapContext) -> Self {
         Self {
             tid,
+            exit_code: Atomic::new(0),
+            status: Atomic::new(ThreadStatus::Ready),
             process,
-            inner: SpinMutex::new(ThreadInner {
-                exit_code: 0,
-                thread_status: ThreadStatus::Ready,
-                trap_context,
-            }),
+            inner: SpinMutex::new(ThreadInner { trap_context }),
         }
     }
 
@@ -80,7 +82,18 @@ impl Thread {
     }
 
     pub async fn yield_now(&self) {
-        self.inner.lock().thread_status = ThreadStatus::Ready;
+        self.status.store(ThreadStatus::Ready, Ordering::SeqCst);
         executor::yield_now().await;
     }
 }
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ThreadStatus {
+    Ready,
+    Running,
+    // Sleeping, // TODO: `Sleeping`` 怎么设置
+    Terminated,
+}
+
+unsafe impl bytemuck::NoUninit for ThreadStatus {}

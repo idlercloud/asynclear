@@ -5,6 +5,8 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+atomic.workspace = true
+bytemuck.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
 goblin.workspace = true

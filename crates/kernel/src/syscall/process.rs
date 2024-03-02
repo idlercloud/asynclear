@@ -1,6 +1,7 @@
 //! Process management syscalls
 
 use alloc::vec::Vec;
+use atomic::Ordering;
 use compact_str::CompactString;
 use defines::{
     constant::{MICRO_PER_SEC, NANO_PER_SEC},
@@ -23,7 +24,8 @@ pub fn sys_exit(exit_code: i32) -> Result {
     unsafe {
         (*local_hart())
             .curr_thread()
-            .lock_inner_with(|inner| inner.exit_code = (exit_code & 0xff) as i8);
+            .exit_code
+            .store((exit_code & 0xff) as i8, Ordering::SeqCst);
     };
     Err(errno::BREAK)
 }

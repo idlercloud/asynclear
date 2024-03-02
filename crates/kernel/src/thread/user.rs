@@ -12,10 +12,11 @@ use triomphe::Arc;
 use crate::{
     hart::{local_hart, local_hart_mut},
     process::INITPROC,
+    thread::ThreadStatus,
     trap, SHUTDOWN,
 };
 
-use super::{inner::ThreadStatus, Thread};
+use super::Thread;
 
 pub fn spawn_user_thread(thread: Arc<Thread>) {
     let (runnable, task) = executor::spawn(UserThreadFuture::new(
@@ -56,10 +57,10 @@ fn exit_thread(thread: &Thread) {
         process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
-        let exit_code = thread.lock_inner_with(|thread_inner| {
-            thread_inner.thread_status = ThreadStatus::Terminated;
-            thread_inner.exit_code
-        });
+        thread
+            .status
+            .store(ThreadStatus::Terminated, Ordering::SeqCst);
+        let exit_code = thread.exit_code.load(Ordering::SeqCst);
 
         // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
         // 如果父进程不 wait 的话，就一直存活着，并占用 pid 等资源
@@ -132,9 +133,13 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         let tid = self.thread.tid;
         let _enter = info_span!("task", pid = pid, tid = tid).entered();
         trace!("User task running");
-        self.thread.lock_inner_with(|inner| {
-            inner.thread_status = ThreadStatus::Running;
-        });
+        let prev_status = self
+            .thread
+            .status
+            .swap(ThreadStatus::Running, Ordering::SeqCst);
+        if prev_status == ThreadStatus::Running {
+            panic!("Run user task twice simultaneously")
+        }
 
         let project = self.project();
         let ret = project.future.poll(cx);

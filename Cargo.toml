@@ -26,6 +26,8 @@ fatfs = { path = "crates/dependencies/rust-fatfs" }
 # "alloc",
 # "lfn",
 # ] }
+atomic = "0.6"
+bytemuck = "1.13"
 extend = "1.2"
 pin-project = "1.1"
 bitflags = "2.4"
