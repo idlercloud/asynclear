@@ -51,10 +51,11 @@ pub fn sys_getpid() -> Result {
 
 /// 返回当前进程的父进程的 id，永不失败
 pub fn sys_getppid() -> Result {
+    // INITPROC(pid=1) 没有父进程，返回 0
     let ppid = unsafe {
         (*local_hart())
             .curr_process()
-            .lock_inner_with(|inner| inner.parent.as_ref().map(|p| p.pid()).unwrap_or(0) as isize)
+            .lock_inner_with(|inner| inner.parent.as_ref().map_or(0, |p| p.pid()) as isize)
     };
     Ok(ppid)
 }

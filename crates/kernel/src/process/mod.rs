@@ -137,7 +137,7 @@ impl Process {
                     name: inner.name.clone(),
                     memory_set: MemorySet::from_existed_user(&inner.memory_set),
                     heap_range: inner.heap_range.clone(),
-                    parent: Some(Arc::clone(&self)),
+                    parent: Some(Arc::clone(self)),
                     children: Vec::new(),
                     exit_code: None,
                     cwd: inner.cwd.clone(),

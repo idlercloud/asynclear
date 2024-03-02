@@ -355,13 +355,13 @@ impl MemorySet {
 #[derive(Debug, Clone)]
 pub enum MapType {
     /// 线性映射，即物理地址到虚地址有一个固定的 offset。
-    /// 内核中这个量是 PA_TO_VA 即 0xFFFF_FFFF_0000_0000
+    /// 内核中这个量是 `PA_TO_VA` 即 `0xFFFF_FFFF_0000_0000`
     Linear { offset: usize },
     /// 需要分配物理页帧
     Framed {
         /// 这些保存的物理页帧用于存放实际的内存数据
         ///
-        /// 而 PageTable 所拥有的的物理页仅用于存放页表节点数据，因此不会冲突
+        /// 而 `PageTable` 所拥有的的物理页仅用于存放页表节点数据，因此不会冲突
         data_frames: BTreeMap<VirtPageNum, Arc<FrameTracker>>,
     },
 }

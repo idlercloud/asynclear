@@ -94,7 +94,7 @@ fn exit_thread(thread: &Thread) {
             INITPROC.lock_inner_with(|initproc_inner| {
                 for child in children {
                     child.lock_inner_with(|child_inner| {
-                        child_inner.parent = Some(Arc::clone(&INITPROC))
+                        child_inner.parent = Some(Arc::clone(&INITPROC));
                     });
                     initproc_inner.children.push(child);
                 }

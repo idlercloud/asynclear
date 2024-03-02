@@ -11,6 +11,12 @@ pub struct RecycleAllocator {
     recycled: Vec<usize>,
 }
 
+impl Default for RecycleAllocator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RecycleAllocator {
     /// 默认从 0 开始分配
     pub const fn new() -> Self {
