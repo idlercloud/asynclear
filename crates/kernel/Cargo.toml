@@ -23,6 +23,7 @@ drivers = { path = "../drivers/drivers" }
 executor = { path = "../executor" }
 memory = { path = "../memory" }
 filesystem = { path = "../filesystem" }
+signal = { path = "../signal" }
 idallocator = { path = "../utils/idallocator" }
 defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }

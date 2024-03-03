@@ -1,0 +1,12 @@
+[package]
+name = "signal"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+num_enum = "0.7"
+
+[lints]
+workspace = true

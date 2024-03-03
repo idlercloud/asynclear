@@ -35,6 +35,9 @@ pub struct ProcessInner {
     /* 文件 */
     // pub fd_table: Vec<Option<Arc<File>>>,
 
+    /* 信号 */
+    // pub signal_handlers:
+
     /* 线程 */
     pub tid_allocator: RecycleAllocator,
     pub threads: BTreeMap<usize, Arc<Thread>>,
