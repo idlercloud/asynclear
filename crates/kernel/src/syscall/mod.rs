@@ -1,6 +1,7 @@
 mod flags;
 mod fs;
 mod process;
+mod signal;
 mod sync;
 mod thread;
 
@@ -8,7 +9,9 @@ use defines::{error::errno, syscall::*};
 use fs::*;
 use process::*;
 // use sync::*;
+use signal::*;
 use thread::*;
+use user_check::{UserCheck, UserCheckMut};
 
 use crate::{hart::local_hart, process::exit_process};
 
@@ -44,8 +47,8 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // CLOSE => sys_close(args[0]),
         // PIPE2 => sys_pipe2(args[0] as _),
         // GETDENTS64 => sys_getdents64(args[0], args[1] as _, args[2]),
-        READ => sys_read(args[0], args[1] as _, args[2]).await,
-        WRITE => sys_write(args[0], args[1], args[2]).await,
+        READ => sys_read(args[0], UserCheckMut::new(args[1] as _), args[2]).await,
+        WRITE => sys_write(args[0], UserCheck::new(args[1] as _), args[2]).await,
         // READV => sys_readv(args[0], args[1] as _, args[2]),
         // WRITEV => sys_writev(args[0], args[1] as _, args[2]),
         // PPOLL => sys_ppoll(),
@@ -57,7 +60,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // SLEEP => sys_sleep(args[0] as _),
         CLOCK_GETTIME => sys_clock_gettime(args[0] as _, args[1] as _),
         SCHED_YIELD => sys_sched_yield().await,
-        // SIGACTION => sys_sigaction(args[0], args[1] as _, args[2] as _),
+        RT_SIGACTION => sys_rt_sigaction(args[0], args[1] as _, args[2] as _),
         // SIGPROCMASK => sys_sigprocmask(args[0], args[1] as _, args[2] as _, args[3]),
         SETPRIORITY => sys_setpriority(args[0] as _),
         TIMES => sys_times(args[0] as _),
@@ -72,7 +75,15 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         MUNMAP => sys_munmap(args[0], args[1]),
         CLONE => sys_clone(args[0], args[1], args[2], args[3], args[4]),
         EXECVE => sys_execve(args[0] as _, args[1] as _, args[2] as _),
-        WAIT4 => sys_wait4(args[0] as _, args[1] as _, args[2], args[3]).await,
+        WAIT4 => {
+            sys_wait4(
+                args[0] as _,
+                UserCheckMut::new(args[1] as _),
+                args[2],
+                args[3],
+            )
+            .await
+        }
         GET_TIME => sys_get_time_of_day(args[0] as _, args[1]),
         MMAP => sys_mmap(
             args[0],

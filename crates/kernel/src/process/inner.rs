@@ -4,6 +4,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
 use idallocator::RecycleAllocator;
 use memory::{MemorySet, VirtAddr};
+use signal::SignalHandlers;
 use triomphe::Arc;
 
 use crate::thread::Thread;
@@ -36,7 +37,7 @@ pub struct ProcessInner {
     // pub fd_table: Vec<Option<Arc<File>>>,
 
     /* 信号 */
-    // pub signal_handlers:
+    pub signal_handlers: SignalHandlers,
 
     /* 线程 */
     pub tid_allocator: RecycleAllocator,

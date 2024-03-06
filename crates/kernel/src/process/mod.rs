@@ -13,6 +13,7 @@ use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
+use signal::SignalHandlers;
 use triomphe::Arc;
 
 use crate::thread::{self, Thread};
@@ -100,6 +101,7 @@ impl Process {
                 children: Vec::new(),
                 exit_code: None,
                 cwd: CompactString::from_static_str("/"),
+                signal_handlers: SignalHandlers::new(),
                 tid_allocator,
                 threads: BTreeMap::new(),
             }),
@@ -141,6 +143,7 @@ impl Process {
                     children: Vec::new(),
                     exit_code: None,
                     cwd: inner.cwd.clone(),
+                    signal_handlers: inner.signal_handlers.clone(),
                     tid_allocator: inner.tid_allocator.clone(),
                     threads: BTreeMap::new(),
                 }),

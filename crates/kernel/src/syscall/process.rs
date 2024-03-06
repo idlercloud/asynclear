@@ -9,12 +9,13 @@ use defines::{
     structs::{TimeSpec, TimeVal, UtsName},
 };
 use memory::VirtAddr;
-use user_check::UserCheck;
+use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
     hart::local_hart,
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
+    thread::BlockingFuture,
 };
 
 // TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
@@ -105,13 +106,13 @@ pub fn sys_clone(
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
 pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> Result {
     assert!(envp.is_null(), "envp 暂时尚未支持");
-    let pathname = UserCheck::new(pathname as _).check_cstr()?;
+    let pathname = UserCheck::new(pathname).check_cstr()?;
     trace!("pathname: {}", &*pathname);
     // 收集参数列表
     let mut arg_vec: Vec<CompactString> = Vec::new();
     unsafe {
         while *argv != 0 {
-            let arg_str_ptr = UserCheck::new(argv as *mut usize).check_ptr()?;
+            let arg_str_ptr = UserCheck::new(argv).check_ptr()?;
             let arg_str = UserCheck::new(*arg_str_ptr as _).check_cstr()?;
             arg_vec.push(CompactString::from(&*arg_str));
             argv = argv.add(1);
@@ -143,7 +144,12 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
 /// - `wstatus: *mut i32` 指向一个 int，若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
 /// - `options` 控制等待方式，详细查看 [`WaitFlags`]，目前只支持 `WNOHANG`
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
-pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize) -> Result {
+pub async fn sys_wait4(
+    pid: isize,
+    wstatus: UserCheckMut<i32>,
+    options: usize,
+    rusage: usize,
+) -> Result {
     assert!(
         pid == -1 || pid > 0,
         "pid < -1 和 pid == 0，也就是等待进程组，目前还不支持"
@@ -185,9 +191,8 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
                 drop(inner);
                 let found_pid = child.pid();
                 let exit_code = child.lock_inner_with(|inner| inner.exit_code.unwrap());
-                let wstatus = wstatus as *mut i32;
                 if !wstatus.is_null() {
-                    let mut wstatus = UserCheck::new(wstatus).check_ptr_mut()?;
+                    let mut wstatus = wstatus.check_ptr_mut()?;
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
                     *wstatus = (exit_code as i32) << 8;
                 }
@@ -202,7 +207,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
         };
 
         trace!("no proper child exited");
-        listener.await;
+        BlockingFuture::new(listener).await;
     }
 }
 
@@ -214,7 +219,7 @@ pub async fn sys_wait4(pid: isize, wstatus: usize, options: usize, rusage: usize
 pub fn sys_get_time_of_day(tv: *mut TimeVal, _tz: usize) -> Result {
     // 根据 man 所言，时区参数 tz 已经过时了，通常应当是 NULL。
     assert_eq!(_tz, 0);
-    let mut tv = UserCheck::new(tv).check_ptr_mut()?;
+    let mut tv = UserCheckMut::new(tv).check_ptr_mut()?;
     let us = riscv_time::get_time_us();
     tv.sec = us / MICRO_PER_SEC;
     tv.usec = us % MICRO_PER_SEC;
@@ -234,7 +239,7 @@ const CLOCK_REALTIME: usize = 0;
 pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> Result {
     // TODO: 目前只考虑挂钟时间
     assert_eq!(_clock_id, CLOCK_REALTIME);
-    let mut ts = UserCheck::new(ts).check_ptr_mut()?;
+    let mut ts = UserCheckMut::new(ts).check_ptr_mut()?;
     let us = riscv_time::get_time_ns();
     ts.sec = us / NANO_PER_SEC;
     ts.nsec = us % NANO_PER_SEC;
@@ -267,7 +272,7 @@ pub struct Tms {
 /// - `EFAULT` `tms` 指向非法地址
 pub fn sys_times(tms: *mut Tms) -> Result {
     let ticks = riscv::register::time::read();
-    let mut tms = UserCheck::new(tms).check_ptr_mut()?;
+    let mut tms = UserCheckMut::new(tms).check_ptr_mut()?;
     tms.tms_utime = ticks / 4;
     tms.tms_stime = ticks / 4;
     tms.tms_cutime = ticks / 4;
@@ -460,7 +465,7 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> Result {
 
 /// 返回系统信息，返回值为 0
 pub fn sys_uname(utsname: *mut UtsName) -> Result {
-    let mut utsname = UserCheck::new(utsname).check_ptr_mut()?;
+    let mut utsname = UserCheckMut::new(utsname).check_ptr_mut()?;
     *utsname = UtsName::default();
     Ok(0)
 }

@@ -57,9 +57,7 @@ fn exit_thread(thread: &Thread) {
         process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
-        thread
-            .status
-            .store(ThreadStatus::Terminated, Ordering::SeqCst);
+        thread.set_status(ThreadStatus::Terminated);
         let exit_code = thread.exit_code.load(Ordering::SeqCst);
 
         // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
@@ -155,6 +153,36 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
             (*local_hart_mut()).replace_thread(None);
         }
 
+        ret
+    }
+}
+
+/// 在 Pending 时会将线程标记为 `Blocking` 的 Future
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project::pin_project]
+pub struct BlockingFuture<F> {
+    #[pin]
+    future: F,
+}
+
+impl<F> BlockingFuture<F> {
+    pub fn new(future: F) -> Self {
+        Self { future }
+    }
+}
+
+impl<F: Future> Future for BlockingFuture<F> {
+    type Output = F::Output;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let pinned = self.project().future;
+        let ret = pinned.poll(cx);
+        if ret.is_pending() {
+            unsafe {
+                (*local_hart())
+                    .curr_thread()
+                    .set_status(ThreadStatus::Blocking);
+            }
+        }
         ret
     }
 }

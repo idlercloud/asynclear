@@ -12,7 +12,7 @@ use crate::process::Process;
 
 use self::inner::ThreadInner;
 
-pub use self::user::spawn_user_thread;
+pub use self::user::{spawn_user_thread, BlockingFuture};
 
 /// 进程控制块
 pub struct Thread {
@@ -82,8 +82,12 @@ impl Thread {
     }
 
     pub async fn yield_now(&self) {
-        self.status.store(ThreadStatus::Ready, Ordering::SeqCst);
+        self.set_status(ThreadStatus::Ready);
         executor::yield_now().await;
+    }
+
+    pub fn set_status(&self, status: ThreadStatus) {
+        self.status.store(status, Ordering::SeqCst);
     }
 }
 
@@ -92,7 +96,7 @@ impl Thread {
 pub enum ThreadStatus {
     Ready,
     Running,
-    // Sleeping, // TODO: `Sleeping`` 怎么设置
+    Blocking,
     Terminated,
 }
 

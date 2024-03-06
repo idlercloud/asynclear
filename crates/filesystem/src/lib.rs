@@ -8,15 +8,16 @@ use core::{
 
 use defines::error::Result;
 use qemu_uart::TTY;
-use user_check::UserCheck;
+use user_check::UserCheckMut;
 
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TtyFuture {
-    user_buf: UserCheck<u8>,
+    user_buf: UserCheckMut<u8>,
     len: usize,
 }
 
 impl TtyFuture {
-    pub fn new(user_buf: UserCheck<u8>, len: usize) -> Self {
+    pub fn new(user_buf: UserCheckMut<u8>, len: usize) -> Self {
         Self { user_buf, len }
     }
 }
