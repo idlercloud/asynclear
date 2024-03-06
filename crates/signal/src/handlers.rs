@@ -1,3 +1,5 @@
+use crate::Signal;
+
 use super::SignalAction;
 use defines::config::SIGSET_SIZE;
 
@@ -17,5 +19,13 @@ impl SignalHandlers {
 
     pub fn clear(&mut self) {
         self.actions.fill(SignalAction::new());
+    }
+
+    pub fn action(&self, signal: Signal) -> &SignalAction {
+        &self.actions[signal as usize]
+    }
+
+    pub fn action_mut(&mut self, signal: Signal) -> &mut SignalAction {
+        &mut self.actions[signal as usize]
     }
 }
