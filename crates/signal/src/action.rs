@@ -9,13 +9,13 @@ const SIG_DFL: usize = 0;
 const SIG_IGN: usize = 1;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SignalAction {
+    /// singal handler 的地址
     handler: usize,
-    flags: SignalActionFlags,
-    /// restorer 不是给用户应用使用的，POSIX 根本没有指定这个字段。
-    restorer: usize,
     mask: SignalSet,
+    flags: SignalActionFlags,
+    restorer: usize,
 }
 
 impl SignalAction {

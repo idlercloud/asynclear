@@ -11,9 +11,31 @@ pub use receiver::SignalReceiver;
 use bitflags::bitflags;
 use num_enum::TryFromPrimitive;
 
+// TODO: 参考 <https://man7.org/linux/man-pages/man7/signal.7.html> 和 <https://man7.org/linux/man-pages/man2/rt_sigaction.2.html> 完善 signal 相关文档
+
+// 这里只考虑了 64 位！
+
+/// `SingalSet` 也即 `sigset_t`，总大小 1024 bits。
+///
+/// 实际上可能只会用到 32 或 64 bits。
+///
+/// 详见 [Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
+#[derive(Clone, Debug)]
+pub struct SignalSet {
+    flags: [SignalFlag; 16],
+}
+
+impl SignalSet {
+    pub const fn empty() -> Self {
+        Self {
+            flags: [SignalFlag::empty(); 16],
+        }
+    }
+}
+
 bitflags! {
     #[derive(Clone, Copy, Debug)]
-    pub struct SignalSet: u64 {
+    pub struct SignalFlag: u64 {
         const SIGDEF = 1 << 0;
         const SIGHUP = 1 << 1;
         const SIGINT = 1 << 2;

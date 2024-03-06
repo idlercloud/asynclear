@@ -1,20 +1,20 @@
-use super::SignalSet;
+use super::SignalFlag;
 
 pub struct SignalReceiver {
-    pub mask: SignalSet,
-    received: SignalSet,
+    pub mask: SignalFlag,
+    received: SignalFlag,
 }
 
 impl SignalReceiver {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            mask: SignalSet::empty(),
-            received: SignalSet::empty(),
+            mask: SignalFlag::empty(),
+            received: SignalFlag::empty(),
         }
     }
     pub fn clear(&mut self) {
-        self.mask = SignalSet::empty();
-        self.received = SignalSet::empty();
+        self.mask = SignalFlag::empty();
+        self.received = SignalFlag::empty();
     }
 }

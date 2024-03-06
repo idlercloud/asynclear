@@ -41,7 +41,7 @@ declare_syscall_id!(
     CLOCK_GETTIME,      113,
     SCHED_YIELD,        124,
     // KILL,               129,
-    // SIGACTION,          134,
+    RT_SIGACTION,          134,
     // SIGPROCMASK,        135,
     SETPRIORITY,        140,
     TIMES,              153,

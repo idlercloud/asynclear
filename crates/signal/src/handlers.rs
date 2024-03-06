@@ -1,5 +1,5 @@
-use super::{Signal, SignalAction};
-use utils::config::SIGSET_SIZE;
+use super::SignalAction;
+use defines::config::SIGSET_SIZE;
 
 /// 由进程持有
 #[derive(Clone)]
@@ -14,15 +14,8 @@ impl SignalHandlers {
             actions: [DEFAULT_ACTION; SIGSET_SIZE],
         }
     }
+
     pub fn clear(&mut self) {
         self.actions.fill(SignalAction::new());
-    }
-    pub fn action(&self, signal: Signal) -> SignalAction {
-        // signal < SIGSET_SIZE 必然成立，所以不会 panic
-        self.actions[signal as usize]
-    }
-    pub fn set_action(&mut self, signal: Signal, new_action: SignalAction) {
-        // signal < SIGSET_SIZE 必然成立，所以不会 panic
-        self.actions[signal as usize] = new_action;
     }
 }
