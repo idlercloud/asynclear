@@ -125,10 +125,15 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     extern "C" {
         fn __return_to_user(cx: *mut TrapContext);
     }
-    // 对内核来说，调用 __return_to_user 返回内核态就好像一次函数调用
-    // 因此编译器会将 Caller Saved 的寄存器保存下来
-    // 但是 Called Saved 的寄存器很快会被覆盖，因此需要在 TrapContext 上保存下来
-    unsafe { __return_to_user(trap_context) }
+
+    unsafe {
+        // (*local_hart()).curr_thread().lock_inner_with(|inner| inner);
+
+        // 对内核来说，调用 __return_to_user 返回内核态就好像一次函数调用
+        // 因此编译器会将 Caller Saved 的寄存器保存下来
+        // 但是 Called Saved 的寄存器很快会被覆盖，因此需要在 TrapContext 上保存下来
+        __return_to_user(trap_context);
+    }
 }
 
 pub fn init() {

@@ -6,6 +6,7 @@ use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::trap_context::TrapContext;
 use klocks::SpinMutex;
 use memory::{MapPermission, MemorySet, VirtAddr};
+use signal::SignalFlag;
 use triomphe::Arc;
 
 use crate::process::Process;
@@ -33,7 +34,11 @@ impl Thread {
             exit_code: Atomic::new(0),
             status: Atomic::new(ThreadStatus::Ready),
             process,
-            inner: SpinMutex::new(ThreadInner { trap_context }),
+            inner: SpinMutex::new(ThreadInner {
+                trap_context,
+                signal_mask: SignalFlag::empty(),
+                pending_signal: SignalFlag::empty(),
+            }),
         }
     }
 

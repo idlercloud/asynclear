@@ -21,6 +21,7 @@ use num_enum::TryFromPrimitive;
 ///
 /// 详见 [Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
 #[derive(Clone, Debug)]
+#[repr(C)]
 pub struct SignalSet {
     flags: [SignalFlag; 16],
 }
@@ -31,7 +32,17 @@ impl SignalSet {
             flags: [SignalFlag::empty(); 16],
         }
     }
+
+    pub fn flag(&self) -> SignalFlag {
+        self.flags[0]
+    }
+
+    pub fn flag_mut(&mut self) -> &mut SignalFlag {
+        &mut self.flags[0]
+    }
 }
+
+// TODO: 出于简单性，暂时只考虑标准信号，后续有需要实时信号再添加
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -68,38 +79,38 @@ bitflags! {
         const SIGIO = 1 << 29;
         const SIGPWR = 1 << 30;
         const SIGSYS = 1 << 31;
-        const SIGRTMIN = 1 << 32;
-        const SIGRT1 = 1 << 33;
-        const SIGRT2 = 1 << 34;
-        const SIGRT3 = 1 << 35;
-        const SIGRT4 = 1 << 36;
-        const SIGRT5 = 1 << 37;
-        const SIGRT6 = 1 << 38;
-        const SIGRT7 = 1 << 39;
-        const SIGRT8 = 1 << 40;
-        const SIGRT9 = 1 << 41;
-        const SIGRT10 = 1 << 42;
-        const SIGRT11 = 1 << 43;
-        const SIGRT12 = 1 << 44;
-        const SIGRT13 = 1 << 45;
-        const SIGRT14 = 1 << 46;
-        const SIGRT15 = 1 << 47;
-        const SIGRT16 = 1 << 48;
-        const SIGRT17 = 1 << 49;
-        const SIGRT18 = 1 << 50;
-        const SIGRT19 = 1 << 51;
-        const SIGRT20 = 1 << 52;
-        const SIGRT21 = 1 << 53;
-        const SIGRT22 = 1 << 54;
-        const SIGRT23 = 1 << 55;
-        const SIGRT24 = 1 << 56;
-        const SIGRT25 = 1 << 57;
-        const SIGRT26 = 1 << 58;
-        const SIGRT27 = 1 << 59;
-        const SIGRT28 = 1 << 60;
-        const SIGRT29 = 1 << 61;
-        const SIGRT30 = 1 << 62;
-        const SIGRT31 = 1 << 63;
+        // const SIGRTMIN = 1 << 32;
+        // const SIGRT1 = 1 << 33;
+        // const SIGRT2 = 1 << 34;
+        // const SIGRT3 = 1 << 35;
+        // const SIGRT4 = 1 << 36;
+        // const SIGRT5 = 1 << 37;
+        // const SIGRT6 = 1 << 38;
+        // const SIGRT7 = 1 << 39;
+        // const SIGRT8 = 1 << 40;
+        // const SIGRT9 = 1 << 41;
+        // const SIGRT10 = 1 << 42;
+        // const SIGRT11 = 1 << 43;
+        // const SIGRT12 = 1 << 44;
+        // const SIGRT13 = 1 << 45;
+        // const SIGRT14 = 1 << 46;
+        // const SIGRT15 = 1 << 47;
+        // const SIGRT16 = 1 << 48;
+        // const SIGRT17 = 1 << 49;
+        // const SIGRT18 = 1 << 50;
+        // const SIGRT19 = 1 << 51;
+        // const SIGRT20 = 1 << 52;
+        // const SIGRT21 = 1 << 53;
+        // const SIGRT22 = 1 << 54;
+        // const SIGRT23 = 1 << 55;
+        // const SIGRT24 = 1 << 56;
+        // const SIGRT25 = 1 << 57;
+        // const SIGRT26 = 1 << 58;
+        // const SIGRT27 = 1 << 59;
+        // const SIGRT28 = 1 << 60;
+        // const SIGRT29 = 1 << 61;
+        // const SIGRT30 = 1 << 62;
+        // const SIGRT31 = 1 << 63;
     }
 }
 
@@ -139,36 +150,48 @@ pub enum Signal {
     SIGIO = 29,
     SIGPWR = 30,
     SIGSYS = 31,
-    SIGRTMIN = 32,
-    SIGRT1 = 33,
-    SIGRT2 = 34,
-    SIGRT3 = 35,
-    SIGRT4 = 36,
-    SIGRT5 = 37,
-    SIGRT6 = 38,
-    SIGRT7 = 39,
-    SIGRT8 = 40,
-    SIGRT9 = 41,
-    SIGRT10 = 42,
-    SIGRT11 = 43,
-    SIGRT12 = 44,
-    SIGRT13 = 45,
-    SIGRT14 = 46,
-    SIGRT15 = 47,
-    SIGRT16 = 48,
-    SIGRT17 = 49,
-    SIGRT18 = 50,
-    SIGRT19 = 51,
-    SIGRT20 = 52,
-    SIGRT21 = 53,
-    SIGRT22 = 54,
-    SIGRT23 = 55,
-    SIGRT24 = 56,
-    SIGRT25 = 57,
-    SIGRT26 = 58,
-    SIGRT27 = 59,
-    SIGRT28 = 60,
-    SIGRT29 = 61,
-    SIGRT30 = 62,
-    SIGRT31 = 63,
+    // SIGRTMIN = 32,
+    // SIGRT1 = 33,
+    // SIGRT2 = 34,
+    // SIGRT3 = 35,
+    // SIGRT4 = 36,
+    // SIGRT5 = 37,
+    // SIGRT6 = 38,
+    // SIGRT7 = 39,
+    // SIGRT8 = 40,
+    // SIGRT9 = 41,
+    // SIGRT10 = 42,
+    // SIGRT11 = 43,
+    // SIGRT12 = 44,
+    // SIGRT13 = 45,
+    // SIGRT14 = 46,
+    // SIGRT15 = 47,
+    // SIGRT16 = 48,
+    // SIGRT17 = 49,
+    // SIGRT18 = 50,
+    // SIGRT19 = 51,
+    // SIGRT20 = 52,
+    // SIGRT21 = 53,
+    // SIGRT22 = 54,
+    // SIGRT23 = 55,
+    // SIGRT24 = 56,
+    // SIGRT25 = 57,
+    // SIGRT26 = 58,
+    // SIGRT27 = 59,
+    // SIGRT28 = 60,
+    // SIGRT29 = 61,
+    // SIGRT30 = 62,
+    // SIGRT31 = 63,
+}
+
+#[derive(Debug, TryFromPrimitive)]
+#[repr(usize)]
+#[allow(clippy::upper_case_acronyms)]
+pub enum SigprocmaskHow {
+    /// 掩蔽传入的信号集，即新掩码是传入值和旧的并集
+    SIGBLOCK = 0,
+    /// 取消掩蔽传入的信号集
+    SIGUNBLOCK = 1,
+    /// 将掩码设置为传入的信号集，即直接赋值
+    SIGSETMASK = 2,
 }

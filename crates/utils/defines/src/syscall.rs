@@ -42,7 +42,7 @@ declare_syscall_id!(
     SCHED_YIELD,        124,
     // KILL,               129,
     RT_SIGACTION,          134,
-    // SIGPROCMASK,        135,
+    RT_SIGPROCMASK,        135,
     SETPRIORITY,        140,
     TIMES,              153,
     SETPGID,            154,
