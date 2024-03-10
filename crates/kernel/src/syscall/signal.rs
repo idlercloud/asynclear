@@ -2,7 +2,7 @@ use defines::{
     config::SIGSET_SIZE_BYTES,
     error::{errno, Result},
 };
-use signal::{Signal, SignalAction, SignalSet, SigprocmaskHow};
+use signal::{KSignalAction, Signal, SignalAction, SignalActionFlags, SignalSet, SigprocmaskHow};
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::hart::local_hart;
@@ -36,7 +36,7 @@ pub fn sys_rt_sigaction(
 
         unsafe {
             (*local_hart()).curr_process().lock_inner_with(|inner| {
-                old_act_ptr.clone_from(inner.signal_handlers.action(signal));
+                *old_act_ptr = SignalAction::from(inner.signal_handlers.action(signal));
             });
         }
     }
@@ -44,12 +44,15 @@ pub fn sys_rt_sigaction(
     if !act.is_null() {
         trace!("write sigaction from {act:p}");
         let act_ptr = UserCheck::new(act).check_ptr()?;
+        if !act_ptr.flags.contains(SignalActionFlags::SA_RESTORER) {
+            // `SA_RESTORER` 表示传入的 restore 字段是有用的
+            // 一般而言这个字段由 libc 填写，用于 signal handler 执行结束之后调用 `sys_sigreturn`
+            // 如果没有填写，则 os 需要自己手动做一个 trampoline
+            todo!("[low] sig trampoline does not impl")
+        }
         unsafe {
             (*local_hart()).curr_process().lock_inner_with(|inner| {
-                inner
-                    .signal_handlers
-                    .action_mut(signal)
-                    .clone_from(&act_ptr);
+                *inner.signal_handlers.action_mut(signal) = KSignalAction::from(&*act_ptr);
             });
         }
     }

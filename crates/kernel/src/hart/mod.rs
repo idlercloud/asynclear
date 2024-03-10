@@ -5,10 +5,7 @@ use core::{
 
 use alloc::vec::Vec;
 use crossbeam_utils::CachePadded;
-use defines::{
-    config::{HART_NUM, HART_START_ADDR},
-    trap_context::TrapContext,
-};
+use defines::config::{HART_NUM, HART_START_ADDR};
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
 use triomphe::Arc;
@@ -47,14 +44,6 @@ impl Hart {
 
     pub fn hart_id(&self) -> usize {
         self.hart_id
-    }
-
-    #[track_caller]
-    pub fn trap_context(&self) -> *mut TrapContext {
-        self.thread
-            .as_ref()
-            .expect("Only user task has trap context")
-            .lock_inner_with(|inner| &mut inner.trap_context as _)
     }
 
     pub fn replace_thread(&mut self, new_thread: Option<Arc<Thread>>) -> Option<Arc<Thread>> {

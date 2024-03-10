@@ -13,7 +13,7 @@ use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
-use signal::SignalHandlers;
+use signal::{SignalFlag, SignalHandlers};
 use triomphe::Arc;
 
 use crate::thread::{self, Thread};
@@ -109,7 +109,12 @@ impl Process {
         process.lock_inner_with(|inner| {
             inner.threads.insert(
                 tid,
-                Arc::new(Thread::new(Arc::clone(&process), tid, trap_context)),
+                Arc::new(Thread::new(
+                    Arc::clone(&process),
+                    tid,
+                    trap_context,
+                    SignalFlag::empty(),
+                )),
             );
         });
 
@@ -125,8 +130,8 @@ impl Process {
             // // 复制文件描述符表
             // let new_fd_table = parent_inner.fd_table.clone();
             let parent_main_thread = inner.main_thread();
-            let mut trap_context =
-                parent_main_thread.lock_inner_with(|inner| inner.trap_context.clone());
+            let (mut trap_context, signal_mask) = parent_main_thread
+                .lock_inner_with(|inner| (inner.trap_context.clone(), inner.signal_mask));
             if stack != 0 {
                 trap_context.user_regs[1] = stack;
             }
@@ -155,6 +160,7 @@ impl Process {
                         Arc::clone(&child),
                         parent_main_thread.tid(),
                         trap_context,
+                        signal_mask,
                     )),
                 )
             });
@@ -167,7 +173,7 @@ impl Process {
         child
     }
 
-    /// 根据 `path` 加载一个新的 ELF 文件并执行。目前要求原进程仅有一个线程
+    /// 根据 `path` 加载一个新的 ELF 文件并执行。目前要求原进程仅有一个线程并且没有子进程
     pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> Result<()> {
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
@@ -181,6 +187,7 @@ impl Process {
         })?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         self.lock_inner_with(|inner| {
+            // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
@@ -192,6 +199,7 @@ impl Process {
             };
             let mut user_sp = Thread::alloc_user_stack(0, &mut inner.memory_set);
             inner.memory_set.flush_tlb(None);
+            inner.signal_handlers = SignalHandlers::new();
 
             let mut stack_init = UserStackInit::new(user_sp, None);
             let argc = args.len();

@@ -1,31 +1,72 @@
+use crate::SignalFlag;
+
 use super::SignalSet;
 use bitflags::bitflags;
 
-#[allow(unused)]
-const SIG_ERR: usize = -1_isize as usize;
-#[allow(unused)]
-const SIG_DFL: usize = 0;
-#[allow(unused)]
-const SIG_IGN: usize = 1;
-
+/// 跨越 syscall 边界的结构体，仅用于和 Linux 定义一致
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SignalAction {
     /// singal handler 的地址
+    pub handler: usize,
+    /// 信号处理程序运行期间，额外的掩码
+    pub mask: SignalSet,
+    pub flags: SignalActionFlags,
+    pub restorer: usize,
+}
+
+impl From<&KSignalAction> for SignalAction {
+    fn from(value: &KSignalAction) -> Self {
+        Self {
+            handler: value.handler,
+            mask: SignalSet::with_flag(value.mask),
+            flags: value.flags,
+            restorer: value.restorer,
+        }
+    }
+}
+
+/// 内核中真正存储的 signal action。它无需是 `#[repr(C)]`，而且 mask 只存了实际需要的
+#[derive(Clone, Debug)]
+pub struct KSignalAction {
+    /// singal handler 的地址
     handler: usize,
-    mask: SignalSet,
+    mask: SignalFlag,
     flags: SignalActionFlags,
     restorer: usize,
 }
 
-impl SignalAction {
+impl From<&SignalAction> for KSignalAction {
+    fn from(value: &SignalAction) -> Self {
+        Self {
+            handler: value.handler,
+            mask: value.mask.flag(),
+            flags: value.flags,
+            restorer: value.restorer,
+        }
+    }
+}
+
+impl KSignalAction {
     pub const fn new() -> Self {
         Self {
             handler: 0,
+            mask: SignalFlag::empty(),
             flags: SignalActionFlags::empty(),
             restorer: 0,
-            mask: SignalSet::empty(),
         }
+    }
+
+    pub fn handler(&self) -> usize {
+        self.handler
+    }
+
+    pub fn mask(&self) -> SignalFlag {
+        self.mask
+    }
+
+    pub fn flag(&self) -> SignalActionFlags {
+        self.flags
     }
 }
 
@@ -35,10 +76,10 @@ bitflags! {
         // const SA_NOCLDSTOP = 1;
         // const SA_NOCLDWAIT = 2;
         // const SA_SIGINFO = 4;
-        // const SA_ONSTACK = 0x08000000;
-        // const SA_RESTART = 0x10000000;
-        // const SA_NODEFER = 0x40000000;
-        // const SA_RESETHAND = 0x80000000;
-        const SA_RESTORER = 0x04000000;
+        const SA_RESTORER = 0x04_000_000;
+        // const SA_ONSTACK = 0x08_000_000;
+        // const SA_RESTART = 0x10_000_000;
+        const SA_NODEFER  = 0x40_000_000;
+        // const SA_RESETHAND = 0x80_000_000;
     }
 }

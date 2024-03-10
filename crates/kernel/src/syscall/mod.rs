@@ -95,9 +95,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         ),
         _ => {
             error!("Unsupported syscall id: {id}");
-            unsafe {
-                exit_process((*local_hart()).curr_process(), -10);
-            }
+            exit_process(unsafe { (*local_hart()).curr_process() }, -10);
             Ok(0)
         }
     };

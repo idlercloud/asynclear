@@ -11,8 +11,13 @@ use riscv::register::{
     sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
+use signal::{DefaultHandler, Signal, SignalActionFlags, SignalFlag, SIG_DFL, SIG_ERR, SIG_IGN};
 
-use crate::{hart::local_hart, process, syscall};
+use crate::{
+    hart::local_hart,
+    process::{self, exit_process},
+    syscall,
+};
 
 core::arch::global_asm!(include_str!("trap.S"));
 
@@ -24,39 +29,45 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
 
     let scause = scause::read();
     match scause.cause() {
-        Trap::Exception(Exception::UserEnvCall) => unsafe {
-            sstatus::set_sie();
-            let mut cx = (*local_hart()).trap_context();
-            // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
-            (*cx).sepc += 4;
-            let syscall_id = (*cx).user_regs[16];
-            let result = syscall::syscall(
-                syscall_id,
-                [
-                    (*cx).user_regs[9],
-                    (*cx).user_regs[10],
-                    (*cx).user_regs[11],
-                    (*cx).user_regs[12],
-                    (*cx).user_regs[13],
-                    (*cx).user_regs[14],
-                ],
-            )
-            .instrument(info_span!(
-                "syscall",
-                name = defines::syscall::name(syscall_id)
-            ))
-            .await;
+        Trap::Exception(Exception::UserEnvCall) => {
+            // syscall 过程中可以发生内核中断
+            unsafe {
+                sstatus::set_sie();
+            }
+            let (syscall_id, syscall_args) = {
+                let thread = unsafe { (*local_hart()).curr_thread() };
+                thread.lock_inner_with(|inner| {
+                    // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
+                    inner.trap_context.sepc += 4;
+                    let user_regs = &mut inner.trap_context.user_regs;
+                    let syscall_id = user_regs[16];
+                    let syscall_args = [
+                        user_regs[9],
+                        user_regs[10],
+                        user_regs[11],
+                        user_regs[12],
+                        user_regs[13],
+                        user_regs[14],
+                    ];
+                    (syscall_id, syscall_args)
+                })
+            };
+            let result = syscall::syscall(syscall_id, syscall_args)
+                .instrument(info_span!(
+                    "syscall",
+                    name = defines::syscall::name(syscall_id)
+                ))
+                .await;
 
             // 线程应当退出
             if result == errno::BREAK.as_isize() {
                 ControlFlow::Break(())
             } else {
-                // 如果调用了 sys_exec，那么 trap_context 有可能发生了变化，因此要重新调用一下
-                cx = (*local_hart()).trap_context();
-                (*cx).user_regs[9] = result as usize;
+                let thread = unsafe { (*local_hart()).curr_thread() };
+                thread.lock_inner_with(|inner| inner.trap_context.user_regs[9] = result as usize);
                 ControlFlow::Continue(())
             }
-        },
+        }
 
         Trap::Exception(
             Exception::StoreFault
@@ -65,28 +76,36 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             | Exception::InstructionPageFault
             | Exception::LoadFault
             | Exception::LoadPageFault,
-        ) => unsafe {
-            let cx = (*local_hart()).trap_context();
-            info!("regs: {:x?}", (*cx).user_regs);
+        ) => {
+            let (user_regs, sepc) = unsafe {
+                (*local_hart()).curr_thread().lock_inner_with(|inner| {
+                    (inner.trap_context.user_regs, inner.trap_context.sepc)
+                })
+            };
+            info!("regs: {:x?}", user_regs);
             error!(
                 "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
                 scause.cause(),
                 stval::read(),
-                (*cx).sepc,
+                sepc,
             );
-            process::exit_process((*local_hart()).curr_process(), -2);
+            process::exit_process(unsafe { (*local_hart()).curr_process() }, -2);
             ControlFlow::Break(())
-        },
-        Trap::Exception(Exception::IllegalInstruction) => unsafe {
-            let cx = (*local_hart()).trap_context();
-            info!("regs: {:x?}", (*cx).user_regs);
+        }
+        Trap::Exception(Exception::IllegalInstruction) => {
+            let (user_regs, sepc) = unsafe {
+                (*local_hart()).curr_thread().lock_inner_with(|inner| {
+                    (inner.trap_context.user_regs, inner.trap_context.sepc)
+                })
+            };
+            info!("regs: {:x?}", user_regs);
             error!(
                 "IllegalInstruction(pc={:#x}) in application, core dumped.",
-                (*cx).sepc,
+                sepc,
             );
-            process::exit_process((*local_hart()).curr_process(), -3);
+            process::exit_process(unsafe { (*local_hart()).curr_process() }, -3);
             ControlFlow::Break(())
-        },
+        }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             trace!("timer interrupt");
             riscv_time::set_next_trigger();
@@ -122,18 +141,67 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     }
     trace!("enter user mode");
     set_user_trap_entry();
+
+    check_signal();
+
     extern "C" {
         fn __return_to_user(cx: *mut TrapContext);
     }
 
     unsafe {
-        // (*local_hart()).curr_thread().lock_inner_with(|inner| inner);
-
         // 对内核来说，调用 __return_to_user 返回内核态就好像一次函数调用
         // 因此编译器会将 Caller Saved 的寄存器保存下来
         // 但是 Called Saved 的寄存器很快会被覆盖，因此需要在 TrapContext 上保存下来
         __return_to_user(trap_context);
     }
+}
+
+/// 如果进程因为信号被终止了，则返回 true
+pub fn check_signal() -> bool {
+    let pendings = unsafe {
+        (*local_hart())
+            .curr_thread()
+            .lock_inner_with(|inner| inner.pending_signal.intersection(!inner.signal_mask))
+    };
+
+    if let Ok(first_pending) = Signal::try_from(pendings.bits().trailing_zeros() as u8) {
+        debug!("handle signal {first_pending:?}");
+        let action = unsafe {
+            (*local_hart())
+                .curr_process()
+                .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone())
+        };
+
+        let handler = match action.handler() {
+            SIG_ERR => todo!("[low] may be there is no `SIG_ERR`"),
+            SIG_DFL => match first_pending.default_handler() {
+                DefaultHandler::Terminate | DefaultHandler::CoreDump => {
+                    exit_process(
+                        unsafe { (*local_hart()).curr_process() },
+                        (first_pending as i8).wrapping_add_unsigned(128),
+                    );
+                    // TODO:[low] 要处理 CoreDump
+                    return true;
+                }
+                DefaultHandler::Ignore => return false,
+                _ => todo!(),
+            },
+            SIG_IGN => return false,
+            handler => handler,
+        };
+
+        let old_mask = unsafe {
+            (*(local_hart())).curr_thread().lock_inner_with(|inner| {
+                let mut new_mask = inner.signal_mask.union(action.mask());
+                if !action.flag().contains(SignalActionFlags::SA_NODEFER) {
+                    new_mask.set(SignalFlag::from(first_pending), true);
+                }
+                core::mem::replace(&mut inner.signal_mask, new_mask)
+            });
+        };
+    }
+
+    false
 }
 
 pub fn init() {

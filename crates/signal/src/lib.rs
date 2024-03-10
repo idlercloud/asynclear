@@ -1,17 +1,35 @@
+//! 参考：<https://man7.org/linux/man-pages/man7/signal.7.html>
+//!
+//! signal action 是属于进程的，而线程可以有各自的掩码和待处理信号
+//!
+//! `fork` 会继承父进程的 signal action 和线程的掩码，但是线程的待处理信号会置空。
+//!
+//! 而 `execve` 会将 signal action 置为默认值（可能与 linux 不同），但是线程掩码和待处理信号保留
+//!
+//! 信号处理的过程：
+//!
+//! 1. 将该信号从线程的待处理信号集中移除
+//! 2. ？
+
+// TODO: 参考 <https://man7.org/linux/man-pages/man7/signal.7.html> 和 <https://man7.org/linux/man-pages/man2/rt_sigaction.2.html> 完善 signal 相关文档
+
 #![no_std]
 
 mod action;
 mod handlers;
 mod receiver;
 
-pub use action::SignalAction;
+pub use action::{KSignalAction, SignalAction, SignalActionFlags};
+pub use handlers::DefaultHandler;
 pub use handlers::SignalHandlers;
 pub use receiver::SignalReceiver;
 
+pub const SIG_ERR: usize = -1isize as usize;
+pub const SIG_DFL: usize = 0;
+pub const SIG_IGN: usize = 1;
+
 use bitflags::bitflags;
 use num_enum::TryFromPrimitive;
-
-// TODO: 参考 <https://man7.org/linux/man-pages/man7/signal.7.html> 和 <https://man7.org/linux/man-pages/man2/rt_sigaction.2.html> 完善 signal 相关文档
 
 // 这里只考虑了 64 位！
 
@@ -33,6 +51,12 @@ impl SignalSet {
         }
     }
 
+    pub fn with_flag(flag: SignalFlag) -> Self {
+        let mut flags = [SignalFlag::empty(); 16];
+        flags[0] = flag;
+        Self { flags }
+    }
+
     pub fn flag(&self) -> SignalFlag {
         self.flags[0]
     }
@@ -47,141 +71,98 @@ impl SignalSet {
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct SignalFlag: u64 {
-        const SIGDEF = 1 << 0;
-        const SIGHUP = 1 << 1;
-        const SIGINT = 1 << 2;
-        const SIGQUIT = 1 << 3;
-        const SIGILL = 1 << 4;
-        const SIGTRAP = 1 << 5;
-        const SIGABRT = 1 << 6;
-        const SIGBUS = 1 << 7;
-        const SIGFPE = 1 << 8;
-        const SIGKILL = 1 << 9;
-        const SIGUSR1 = 1 << 10;
-        const SIGSEGV = 1 << 11;
-        const SIGUSR2 = 1 << 12;
-        const SIGPIPE = 1 << 13;
-        const SIGALRM = 1 << 14;
-        const SIGTERM = 1 << 15;
-        const SIGSTKFLT = 1 << 16;
-        const SIGCHLD = 1 << 17;
-        const SIGCONT = 1 << 18;
-        const SIGSTOP = 1 << 19;
-        const SIGTSTP = 1 << 20;
-        const SIGTTIN = 1 << 21;
-        const SIGTTOU = 1 << 22;
-        const SIGURG = 1 << 23;
-        const SIGXCPU = 1 << 24;
-        const SIGXFSZ = 1 << 25;
-        const SIGVTALRM = 1 << 26;
-        const SIGPROF = 1 << 27;
-        const SIGWINCH = 1 << 28;
-        const SIGIO = 1 << 29;
-        const SIGPWR = 1 << 30;
-        const SIGSYS = 1 << 31;
-        // const SIGRTMIN = 1 << 32;
-        // const SIGRT1 = 1 << 33;
-        // const SIGRT2 = 1 << 34;
-        // const SIGRT3 = 1 << 35;
-        // const SIGRT4 = 1 << 36;
-        // const SIGRT5 = 1 << 37;
-        // const SIGRT6 = 1 << 38;
-        // const SIGRT7 = 1 << 39;
-        // const SIGRT8 = 1 << 40;
-        // const SIGRT9 = 1 << 41;
-        // const SIGRT10 = 1 << 42;
-        // const SIGRT11 = 1 << 43;
-        // const SIGRT12 = 1 << 44;
-        // const SIGRT13 = 1 << 45;
-        // const SIGRT14 = 1 << 46;
-        // const SIGRT15 = 1 << 47;
-        // const SIGRT16 = 1 << 48;
-        // const SIGRT17 = 1 << 49;
-        // const SIGRT18 = 1 << 50;
-        // const SIGRT19 = 1 << 51;
-        // const SIGRT20 = 1 << 52;
-        // const SIGRT21 = 1 << 53;
-        // const SIGRT22 = 1 << 54;
-        // const SIGRT23 = 1 << 55;
-        // const SIGRT24 = 1 << 56;
-        // const SIGRT25 = 1 << 57;
-        // const SIGRT26 = 1 << 58;
-        // const SIGRT27 = 1 << 59;
-        // const SIGRT28 = 1 << 60;
-        // const SIGRT29 = 1 << 61;
-        // const SIGRT30 = 1 << 62;
-        // const SIGRT31 = 1 << 63;
+        const SIGHUP    = 1 << (Signal::SIGHUP as u8);
+        const SIGINT    = 1 << (Signal::SIGINT as u8);
+        const SIGQUIT   = 1 << (Signal::SIGQUIT as u8);
+        const SIGILL    = 1 << (Signal::SIGILL as u8);
+        const SIGTRAP   = 1 << (Signal::SIGTRAP as u8);
+        const SIGABRT   = 1 << (Signal::SIGABRT as u8);
+        const SIGBUS    = 1 << (Signal::SIGBUS as u8);
+        const SIGFPE    = 1 << (Signal::SIGFPE as u8);
+        const SIGKILL   = 1 << (Signal::SIGKILL as u8);
+        const SIGUSR1   = 1 << (Signal::SIGUSR1 as u8);
+        const SIGSEGV   = 1 << (Signal::SIGSEGV as u8);
+        const SIGUSR2   = 1 << (Signal::SIGUSR2 as u8);
+        const SIGPIPE   = 1 << (Signal::SIGPIPE as u8);
+        const SIGALRM   = 1 << (Signal::SIGALRM as u8);
+        const SIGTERM   = 1 << (Signal::SIGTERM as u8);
+        const SIGSTKFLT = 1 << (Signal::SIGSTKFLT as u8);
+        const SIGCHLD   = 1 << (Signal::SIGCHLD as u8);
+        const SIGCONT   = 1 << (Signal::SIGCONT as u8);
+        const SIGSTOP   = 1 << (Signal::SIGSTOP as u8);
+        const SIGTSTP   = 1 << (Signal::SIGTSTP as u8);
+        const SIGTTIN   = 1 << (Signal::SIGTTIN as u8);
+        const SIGTTOU   = 1 << (Signal::SIGTTOU as u8);
+        const SIGURG    = 1 << (Signal::SIGURG as u8);
+        const SIGXCPU   = 1 << (Signal::SIGXCPU as u8);
+        const SIGXFSZ   = 1 << (Signal::SIGXFSZ as u8);
+        const SIGVTALRM = 1 << (Signal::SIGVTALRM as u8);
+        const SIGPROF   = 1 << (Signal::SIGPROF as u8);
+        const SIGWINCH  = 1 << (Signal::SIGWINCH as u8);
+        const SIGIO     = 1 << (Signal::SIGIO as u8);
+        const SIGPWR    = 1 << (Signal::SIGPWR as u8);
+        const SIGSYS    = 1 << (Signal::SIGSYS as u8);
     }
 }
 
+impl From<Signal> for SignalFlag {
+    fn from(value: Signal) -> Self {
+        Self::from_bits_truncate(value as u64)
+    }
+}
+
+/// 注意，和 linux 不同，信号的编号从 0 开始而非从 1 开始。因此在一些系统调用上应当将传入的值减 1
 #[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
 #[repr(u8)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum Signal {
-    ERR = 0,
-    SIGHUP = 1,
-    SIGINT = 2,
-    SIGQUIT = 3,
-    SIGILL = 4,
-    SIGTRAP = 5,
-    SIGABRT = 6,
-    SIGBUS = 7,
-    SIGFPE = 8,
-    SIGKILL = 9,
-    SIGUSR1 = 10,
-    SIGSEGV = 11,
-    SIGUSR2 = 12,
-    SIGPIPE = 13,
-    SIGALRM = 14,
-    SIGTERM = 15,
-    SIGSTKFLT = 16,
-    SIGCHLD = 17,
-    SIGCONT = 18,
-    SIGSTOP = 19,
-    SIGTSTP = 20,
-    SIGTTIN = 21,
-    SIGTTOU = 22,
-    SIGURG = 23,
-    SIGXCPU = 24,
-    SIGXFSZ = 25,
-    SIGVTALRM = 26,
-    SIGPROF = 27,
-    SIGWINCH = 28,
-    SIGIO = 29,
-    SIGPWR = 30,
-    SIGSYS = 31,
-    // SIGRTMIN = 32,
-    // SIGRT1 = 33,
-    // SIGRT2 = 34,
-    // SIGRT3 = 35,
-    // SIGRT4 = 36,
-    // SIGRT5 = 37,
-    // SIGRT6 = 38,
-    // SIGRT7 = 39,
-    // SIGRT8 = 40,
-    // SIGRT9 = 41,
-    // SIGRT10 = 42,
-    // SIGRT11 = 43,
-    // SIGRT12 = 44,
-    // SIGRT13 = 45,
-    // SIGRT14 = 46,
-    // SIGRT15 = 47,
-    // SIGRT16 = 48,
-    // SIGRT17 = 49,
-    // SIGRT18 = 50,
-    // SIGRT19 = 51,
-    // SIGRT20 = 52,
-    // SIGRT21 = 53,
-    // SIGRT22 = 54,
-    // SIGRT23 = 55,
-    // SIGRT24 = 56,
-    // SIGRT25 = 57,
-    // SIGRT26 = 58,
-    // SIGRT27 = 59,
-    // SIGRT28 = 60,
-    // SIGRT29 = 61,
-    // SIGRT30 = 62,
-    // SIGRT31 = 63,
+    SIGHUP = 0,
+    SIGINT = 1,
+    SIGQUIT = 2,
+    SIGILL = 3,
+    SIGTRAP = 4,
+    SIGABRT = 5,
+    SIGBUS = 6,
+    SIGFPE = 7,
+    SIGKILL = 8,
+    SIGUSR1 = 9,
+    SIGSEGV = 10,
+    SIGUSR2 = 11,
+    SIGPIPE = 12,
+    SIGALRM = 13,
+    SIGTERM = 14,
+    SIGSTKFLT = 15,
+    SIGCHLD = 16,
+    SIGCONT = 17,
+    SIGSTOP = 18,
+    SIGTSTP = 19,
+    SIGTTIN = 20,
+    SIGTTOU = 21,
+    SIGURG = 22,
+    SIGXCPU = 23,
+    SIGXFSZ = 24,
+    SIGVTALRM = 25,
+    SIGPROF = 26,
+    SIGWINCH = 27,
+    SIGIO = 28,
+    SIGPWR = 29,
+    SIGSYS = 30,
+}
+
+impl Signal {
+    #[allow(clippy::enum_glob_use)]
+    pub fn default_handler(self) -> DefaultHandler {
+        use DefaultHandler::*;
+        use Signal::*;
+        match self {
+            SIGABRT | SIGBUS | SIGILL | SIGQUIT | SIGSEGV | SIGSYS | SIGTRAP | SIGXCPU
+            | SIGXFSZ => CoreDump,
+            SIGCHLD | SIGURG | SIGWINCH => Ignore,
+            SIGSTOP | SIGTSTP | SIGTTIN | SIGTTOU => Stop,
+            SIGCONT => Continue,
+            _ => Terminate,
+        }
+    }
 }
 
 #[derive(Debug, TryFromPrimitive)]

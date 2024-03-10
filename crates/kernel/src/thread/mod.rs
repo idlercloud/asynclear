@@ -28,7 +28,12 @@ pub struct Thread {
 }
 
 impl Thread {
-    pub fn new(process: Arc<Process>, tid: usize, trap_context: TrapContext) -> Self {
+    pub fn new(
+        process: Arc<Process>,
+        tid: usize,
+        trap_context: TrapContext,
+        signal_mask: SignalFlag,
+    ) -> Self {
         Self {
             tid,
             exit_code: Atomic::new(0),
@@ -36,7 +41,7 @@ impl Thread {
             process,
             inner: SpinMutex::new(ThreadInner {
                 trap_context,
-                signal_mask: SignalFlag::empty(),
+                signal_mask,
                 pending_signal: SignalFlag::empty(),
             }),
         }

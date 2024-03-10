@@ -31,7 +31,11 @@ async fn user_thread_loop() {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
-        trap::trap_return(unsafe { (*local_hart()).trap_context() });
+        trap::trap_return(unsafe {
+            (*local_hart())
+                .curr_thread()
+                .lock_inner_with(|inner| &mut inner.trap_context as _)
+        });
 
         trace!("enter kernel mode");
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
