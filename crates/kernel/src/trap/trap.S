@@ -95,6 +95,7 @@ __trap_from_kernel:
     # 只需保存 caller-saved 的寄存器
     # 同时因为内核 trap 完成后必然回到原来的位置，且不会嵌套
     # sepc 和 sstatus 也不用保存
+    # FIXME: 这里似乎应该保证 sp 对齐到 8 字节吧。不过内核中断也许不会出现问题
     addi sp, sp, -16*8
     sd  ra,  0*8(sp)
     sd  t0,  1*8(sp)

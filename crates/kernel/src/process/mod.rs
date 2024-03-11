@@ -2,6 +2,7 @@ mod init_stack;
 mod inner;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
+use atomic::{Atomic, Ordering};
 use compact_str::CompactString;
 use defines::{
     config::PAGE_SIZE,
@@ -51,6 +52,7 @@ pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
 pub struct Process {
     pid: usize,
     pub wait4_event: Event,
+    pub status: Atomic<ProcessStatus>,
     inner: SpinMutex<ProcessInner>,
 }
 
@@ -88,18 +90,18 @@ impl Process {
         // 第一个线程，主线程，tid 为 0
         assert_eq!(tid, 0);
         let mut trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
-        trap_context.user_regs[9] = argc;
-        trap_context.user_regs[10] = argv_base;
+        *trap_context.a0_mut() = argc;
+        *trap_context.a1_mut() = argv_base;
         let process = Arc::new(Process {
             pid: PID_ALLOCATOR.lock().alloc(),
             wait4_event: Event::new(),
+            status: Atomic::new(ProcessStatus::normal()),
             inner: SpinMutex::new(ProcessInner {
                 name: process_name,
                 memory_set,
                 heap_range: brk..brk,
                 parent: None,
                 children: Vec::new(),
-                exit_code: None,
                 cwd: CompactString::from_static_str("/"),
                 signal_handlers: SignalHandlers::new(),
                 tid_allocator,
@@ -133,20 +135,20 @@ impl Process {
             let (mut trap_context, signal_mask) = parent_main_thread
                 .lock_inner_with(|inner| (inner.trap_context.clone(), inner.signal_mask));
             if stack != 0 {
-                trap_context.user_regs[1] = stack;
+                *trap_context.sp_mut() = stack;
             }
             // 子进程 fork 后返回值为 0
-            trap_context.user_regs[9] = 0;
+            *trap_context.a0_mut() = 0;
             let child = Arc::new(Self {
                 pid: PID_ALLOCATOR.lock().alloc(),
                 wait4_event: Event::new(),
+                status: Atomic::new(self.status.load(Ordering::SeqCst)),
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
                     memory_set: MemorySet::from_existed_user(&inner.memory_set),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),
-                    exit_code: None,
                     cwd: inner.cwd.clone(),
                     signal_handlers: inner.signal_handlers.clone(),
                     tid_allocator: inner.tid_allocator.clone(),
@@ -212,8 +214,8 @@ impl Process {
 
             inner.main_thread().lock_inner_with(|inner| {
                 inner.trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
-                inner.trap_context.user_regs[9] = argc;
-                inner.trap_context.user_regs[10] = argv_base;
+                *inner.trap_context.a0_mut() = argc;
+                *inner.trap_context.a1_mut() = argv_base;
             });
         });
 
@@ -232,6 +234,24 @@ impl Process {
     pub fn pid(&self) -> usize {
         self.pid
     }
+
+    pub fn is_normal(&self) -> bool {
+        self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (0 << 8)
+    }
+
+    pub fn is_exited(&self) -> bool {
+        self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (1 << 8)
+    }
+
+    pub fn is_zombie(&self) -> bool {
+        self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (2 << 8)
+    }
+
+    pub fn exit_code(&self) -> i8 {
+        let status = self.status.load(Ordering::SeqCst);
+        assert_ne!(status, ProcessStatus::normal());
+        (status.0 & 0b1111_1111) as i8
+    }
 }
 
 impl Drop for Process {
@@ -244,10 +264,36 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 
 /// 退出进程，终止其所有线程。
 ///
-/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，仅仅只是标记该进程为 zombie
+/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，仅仅只是标记该进程为退出，而不回收资源
 ///
-/// 其他线程在进入内核时会检查对应的进程是否为 zombie 从而决定是否退出
+/// 其他线程在进入内核时会检查对应的进程是否已标记为退出从而决定是否退出
 pub fn exit_process(process: &Process, exit_code: i8) {
     info!("Process exits with code {exit_code}");
-    process.lock_inner_with(|inner| inner.mark_exit(exit_code));
+    let new_status = ProcessStatus::exited(exit_code);
+    let old_status = process.status.swap(new_status, Ordering::SeqCst);
+    assert_eq!(old_status, ProcessStatus::normal());
+}
+
+/// 标记一个进程的状态，其中低 8 位记录 exit code
+///
+/// 高 8 位的可能有如下几种：
+/// - 0: 进程处于正常状态下
+/// - 1: 进程标记为退出，但资源尚未回收
+/// - 2: 进程资源已回收，成为僵尸等待父进程 wait
+#[derive(bytemuck::NoUninit, Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct ProcessStatus(u16);
+
+impl ProcessStatus {
+    pub fn normal() -> Self {
+        Self(0)
+    }
+
+    pub fn exited(exit_code: i8) -> Self {
+        Self((1 << 8) | (exit_code as u8 as u16))
+    }
+
+    pub fn zombie(exit_code: i8) -> Self {
+        Self((2 << 8) | (exit_code as u8 as u16))
+    }
 }

@@ -65,8 +65,12 @@ impl KSignalAction {
         self.mask
     }
 
-    pub fn flag(&self) -> SignalActionFlags {
+    pub fn flags(&self) -> SignalActionFlags {
         self.flags
+    }
+
+    pub fn restorer(&self) -> usize {
+        self.restorer
     }
 }
 

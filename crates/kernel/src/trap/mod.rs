@@ -11,7 +11,10 @@ use riscv::register::{
     sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
-use signal::{DefaultHandler, Signal, SignalActionFlags, SignalFlag, SIG_DFL, SIG_ERR, SIG_IGN};
+use signal::{
+    DefaultHandler, Signal, SignalActionFlags, SignalContext, SignalFlag, SIG_DFL, SIG_ERR, SIG_IGN,
+};
+use user_check::UserCheckMut;
 
 use crate::{
     hart::local_hart,
@@ -171,9 +174,16 @@ pub fn check_signal() -> bool {
                 .curr_process()
                 .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone())
         };
+        trace!(
+            "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
+            action.handler(),
+            action.mask(),
+            action.flags(),
+            action.restorer()
+        );
 
         let handler = match action.handler() {
-            SIG_ERR => todo!("[low] may be there is no `SIG_ERR`"),
+            SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
             SIG_DFL => match first_pending.default_handler() {
                 DefaultHandler::Terminate | DefaultHandler::CoreDump => {
                     exit_process(
@@ -184,21 +194,47 @@ pub fn check_signal() -> bool {
                     return true;
                 }
                 DefaultHandler::Ignore => return false,
-                _ => todo!(),
+                DefaultHandler::Stop | DefaultHandler::Continue => {
+                    todo!("[low] default handler Stop and Continue")
+                }
             },
             SIG_IGN => return false,
             handler => handler,
         };
 
-        let old_mask = unsafe {
-            (*(local_hart())).curr_thread().lock_inner_with(|inner| {
-                let mut new_mask = inner.signal_mask.union(action.mask());
-                if !action.flag().contains(SignalActionFlags::SA_NODEFER) {
-                    new_mask.set(SignalFlag::from(first_pending), true);
-                }
-                core::mem::replace(&mut inner.signal_mask, new_mask)
-            });
+        let thread = unsafe { (*local_hart()).curr_thread() };
+
+        let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
+            let old_mask = inner.signal_mask;
+            let old_trap_context = inner.trap_context.clone();
+            inner.signal_mask.insert(action.mask());
+            if !action.flags().contains(SignalActionFlags::SA_NODEFER) {
+                inner.signal_mask.set(SignalFlag::from(first_pending), true);
+            }
+            let trap_context = &mut inner.trap_context;
+            trap_context.sepc = handler;
+            *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
+            *trap_context.ra_mut() = action.restorer();
+            *trap_context.a0_mut() = first_pending as usize + 1;
+
+            (old_mask, old_trap_context)
+        });
+
+        let signal_context = SignalContext {
+            old_mask,
+            old_trap_context,
         };
+
+        let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
+        let Ok(mut user_ptr) = UserCheckMut::new(sp as *mut SignalContext).check_ptr_mut() else {
+            // TODO:[blocked] 这里其实可以试着补救
+            exit_process(
+                unsafe { (*local_hart()).curr_process() },
+                (first_pending as i8).wrapping_add_unsigned(128),
+            );
+            return true;
+        };
+        *user_ptr = signal_context;
     }
 
     false

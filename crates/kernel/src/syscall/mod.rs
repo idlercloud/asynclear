@@ -62,6 +62,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         SCHED_YIELD => sys_sched_yield().await,
         RT_SIGACTION => sys_rt_sigaction(args[0], args[1] as _, args[2] as _),
         RT_SIGPROCMASK => sys_rt_sigprocmask(args[0], args[1] as _, args[2] as _, args[3]),
+        RT_SIGRETURN => sys_rt_sigreturn(),
         SETPRIORITY => sys_setpriority(args[0] as _),
         TIMES => sys_times(args[0] as _),
         SETPGID => sys_setpgid(args[0], args[1]),

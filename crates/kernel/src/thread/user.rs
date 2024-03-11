@@ -11,7 +11,7 @@ use triomphe::Arc;
 
 use crate::{
     hart::{local_hart, local_hart_mut},
-    process::INITPROC,
+    process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
     trap, SHUTDOWN,
 };
@@ -41,13 +41,7 @@ async fn user_thread_loop() {
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
         let next_op = trap::user_trap_handler().await;
 
-        if next_op.is_break()
-            || unsafe {
-                (*local_hart())
-                    .curr_process()
-                    .lock_inner_with(|inner| inner.exit_code.is_some())
-            }
-        {
+        if next_op.is_break() || unsafe { (*local_hart()).curr_process().is_exited() } {
             break;
         }
     }
@@ -56,23 +50,18 @@ async fn user_thread_loop() {
 // 这里对线程的引用应该是最后几个了，剩下应该只在 Hart 相关的结构中存有
 fn exit_thread(thread: &Thread) {
     debug!("thread exits");
-    let process = &*thread.process;
+    let process = &thread.process;
     let children = process.lock_inner_with(|process_inner| {
         process_inner.threads.remove(&thread.tid);
         process_inner.tid_allocator.dealloc(thread.tid);
         thread.dealloc_user_stack(&mut process_inner.memory_set);
         thread.set_status(ThreadStatus::Terminated);
-        let exit_code = thread.exit_code.load(Ordering::SeqCst);
 
         // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
         // 如果父进程不 wait 的话，就一直存活着，并占用 pid 等资源
         // 但主要的资源是会释放的，比如地址空间、线程控制块等
         if process_inner.threads.is_empty() {
             info!("all threads exit");
-            // 如果进程尚未被标记为僵尸，则将线程的退出码赋予给它
-            if process_inner.exit_code.is_none() {
-                process_inner.exit_code = Some(exit_code);
-            }
             process_inner.cwd = CompactString::new("");
             // 根页表以及内核相关的部分要留着
             process_inner.memory_set.recycle_user_pages();
@@ -88,6 +77,7 @@ fn exit_thread(thread: &Thread) {
             None
         }
     });
+
     // 子进程交由 INITPROC 来处理。如果退出的就是 INITPROC，那么系统退出
     if let Some(children) = children {
         if process.pid() == 1 {
@@ -102,6 +92,13 @@ fn exit_thread(thread: &Thread) {
                     initproc_inner.children.push(child);
                 }
             });
+        }
+
+        let exit_code = thread.exit_code.load(Ordering::SeqCst);
+        // 如果进程尚未被标记为退出（即未主动调用 `exit_process()`），则标记为僵尸并将线程的退出码赋予给它
+        if process.is_normal() {
+            let new_status = ProcessStatus::zombie(exit_code);
+            process.status.store(new_status, Ordering::SeqCst);
         }
     }
 }
@@ -139,8 +136,8 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
             .thread
             .status
             .swap(ThreadStatus::Running, Ordering::SeqCst);
-        if prev_status == ThreadStatus::Running {
-            panic!("Run user task twice simultaneously")
+        if prev_status != ThreadStatus::Ready {
+            panic!("Run unready({prev_status:?}) task")
         }
 
         let project = self.project();

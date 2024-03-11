@@ -20,6 +20,7 @@ mod handlers;
 mod receiver;
 
 pub use action::{KSignalAction, SignalAction, SignalActionFlags};
+use defines::trap_context::TrapContext;
 pub use handlers::DefaultHandler;
 pub use handlers::SignalHandlers;
 pub use receiver::SignalReceiver;
@@ -30,6 +31,11 @@ pub const SIG_IGN: usize = 1;
 
 use bitflags::bitflags;
 use num_enum::TryFromPrimitive;
+
+pub struct SignalContext {
+    pub old_mask: SignalFlag,
+    pub old_trap_context: TrapContext,
+}
 
 // 这里只考虑了 64 位！
 

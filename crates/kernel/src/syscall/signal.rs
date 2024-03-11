@@ -2,10 +2,13 @@ use defines::{
     config::SIGSET_SIZE_BYTES,
     error::{errno, Result},
 };
-use signal::{KSignalAction, Signal, SignalAction, SignalActionFlags, SignalSet, SigprocmaskHow};
+use signal::{
+    KSignalAction, Signal, SignalAction, SignalActionFlags, SignalContext, SignalSet,
+    SigprocmaskHow,
+};
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::hart::local_hart;
+use crate::{hart::local_hart, process::exit_process};
 
 /// 设置当前**进程**在收到特定信号时的行为
 ///
@@ -110,6 +113,24 @@ pub fn sys_rt_sigprocmask(
                 });
         }
     }
+
+    Ok(0)
+}
+
+pub fn sys_rt_sigreturn() -> Result {
+    debug!("sigreturn called");
+    let thread = unsafe { (*local_hart()).curr_thread() };
+    let sp = thread.lock_inner_with(|inner| inner.trap_context.sp());
+    let Ok(user_ptr) = UserCheck::new(sp as *mut SignalContext).check_ptr() else {
+        // TODO:[blocked] 这里其实可以试着补救
+        exit_process(&thread.process, -10);
+        return Err(errno::BREAK);
+    };
+
+    thread.lock_inner_with(|inner| {
+        inner.signal_mask = user_ptr.old_mask;
+        inner.trap_context = user_ptr.old_trap_context.clone();
+    });
 
     Ok(0)
 }

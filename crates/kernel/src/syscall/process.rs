@@ -176,7 +176,7 @@ pub async fn sys_wait4(
             for (index, child) in inner.children.iter().enumerate() {
                 if pid == -1 || child.pid() == pid as usize {
                     has_proper_child = true;
-                    if child.lock_inner_with(|inner| inner.threads.is_empty()) {
+                    if child.is_zombie() {
                         child_index = Some(index);
                     }
                 }
@@ -190,11 +190,11 @@ pub async fn sys_wait4(
                 let child = inner.children.remove(index);
                 drop(inner);
                 let found_pid = child.pid();
-                let exit_code = child.lock_inner_with(|inner| inner.exit_code.unwrap());
+                let exit_code = child.exit_code();
                 if !wstatus.is_null() {
                     let mut wstatus = wstatus.check_ptr_mut()?;
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
-                    *wstatus = (exit_code as i32) << 8;
+                    *wstatus = (exit_code as u8 as i32) << 8;
                 }
                 return Ok(found_pid as isize);
             }

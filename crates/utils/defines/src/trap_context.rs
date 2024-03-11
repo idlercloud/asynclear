@@ -24,8 +24,24 @@ pub struct TrapContext {
 }
 
 impl TrapContext {
-    pub fn set_sp(&mut self, sp: usize) {
-        self.user_regs[1] = sp;
+    pub fn sp(&self) -> usize {
+        self.user_regs[1]
+    }
+
+    pub fn sp_mut(&mut self) -> &mut usize {
+        &mut self.user_regs[1]
+    }
+
+    pub fn a0_mut(&mut self) -> &mut usize {
+        &mut self.user_regs[9]
+    }
+
+    pub fn a1_mut(&mut self) -> &mut usize {
+        &mut self.user_regs[10]
+    }
+
+    pub fn ra_mut(&mut self) -> &mut usize {
+        &mut self.user_regs[0]
     }
 
     /// 用户应用初始化时的 `TrapContext`。
@@ -51,7 +67,7 @@ impl TrapContext {
             kernel_s: [0; 12],
             kernel_tp,
         };
-        cx.set_sp(sp);
+        *cx.sp_mut() = sp;
         cx
     }
 }

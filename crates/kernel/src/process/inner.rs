@@ -28,8 +28,6 @@ pub struct ProcessInner {
     /* 进程 */
     pub parent: Option<Arc<Process>>,
     pub children: Vec<Arc<Process>>,
-    /// 若为 Some，则代表进程已经退出，但不一定回收了资源变为僵尸
-    pub exit_code: Option<i8>,
     /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`）
     pub cwd: CompactString,
 
@@ -65,14 +63,6 @@ impl ProcessInner {
 
     pub fn main_thread(&self) -> Arc<Thread> {
         Arc::clone(self.threads.get(&0).unwrap())
-    }
-
-    /// 标记进程已退出。但是不会回收资源。
-    ///
-    /// 一般而言，所有线程都退出后，会真正清理资源，变为僵尸进程
-    pub fn mark_exit(&mut self, exit_code: i8) {
-        assert_eq!(self.exit_code, None);
-        self.exit_code = Some(exit_code);
     }
 
     // /// 设置用户堆顶。失败返回原来的 brk，成功则返回新的 brk
