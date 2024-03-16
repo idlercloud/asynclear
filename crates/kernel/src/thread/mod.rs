@@ -3,10 +3,10 @@ mod user;
 
 use atomic::{Atomic, Ordering};
 use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
+use defines::structs::KSignalSet;
 use defines::trap_context::TrapContext;
 use klocks::SpinMutex;
 use memory::{MapPermission, MemorySet, VirtAddr};
-use signal::SignalFlag;
 use triomphe::Arc;
 
 use crate::process::Process;
@@ -32,7 +32,7 @@ impl Thread {
         process: Arc<Process>,
         tid: usize,
         trap_context: TrapContext,
-        signal_mask: SignalFlag,
+        signal_mask: KSignalSet,
     ) -> Self {
         Self {
             tid,
@@ -42,7 +42,7 @@ impl Thread {
             inner: SpinMutex::new(ThreadInner {
                 trap_context,
                 signal_mask,
-                pending_signal: SignalFlag::empty(),
+                pending_signal: KSignalSet::empty(),
             }),
         }
     }

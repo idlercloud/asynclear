@@ -1,11 +1,9 @@
 use defines::{
     config::SIGSET_SIZE_BYTES,
     error::{errno, Result},
+    structs::{KSignalAction, KSignalSet, Signal, SignalActionFlags},
 };
-use signal::{
-    KSignalAction, Signal, SignalAction, SignalActionFlags, SignalContext, SignalSet,
-    SigprocmaskHow,
-};
+use signal::{SignalContext, SigprocmaskHow};
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{hart::local_hart, process::exit_process};
@@ -22,8 +20,8 @@ use crate::{hart::local_hart, process::exit_process};
 /// - `EINVAL` 如果 signum 不是除了 `SIGKILL` 和 `SIGSTOP` 之外的有效信号
 pub fn sys_rt_sigaction(
     signum: usize,
-    act: *const SignalAction,
-    old_act: *mut SignalAction,
+    act: *const KSignalAction,
+    old_act: *mut KSignalAction,
 ) -> Result {
     let Ok(signal) = Signal::try_from(signum as u8) else {
         warn!("use unsupported signal {signum}");
@@ -39,7 +37,7 @@ pub fn sys_rt_sigaction(
 
         unsafe {
             (*local_hart()).curr_process().lock_inner_with(|inner| {
-                *old_act_ptr = SignalAction::from(inner.signal_handlers.action(signal));
+                old_act_ptr.clone_from(inner.signal_handlers.action(signal));
             });
         }
     }
@@ -55,7 +53,10 @@ pub fn sys_rt_sigaction(
         }
         unsafe {
             (*local_hart()).curr_process().lock_inner_with(|inner| {
-                *inner.signal_handlers.action_mut(signal) = KSignalAction::from(&*act_ptr);
+                inner
+                    .signal_handlers
+                    .action_mut(signal)
+                    .clone_from(&act_ptr);
             });
         }
     }
@@ -76,8 +77,8 @@ pub fn sys_rt_sigaction(
 /// - `EINVAL` 如果 `how` 参数非法或者内核不支持 `set_size`
 pub fn sys_rt_sigprocmask(
     how: usize,
-    set: *const SignalSet,
-    old_set: *mut SignalSet,
+    set: *const KSignalSet,
+    old_set: *mut KSignalSet,
     set_size: usize,
 ) -> Result {
     if set_size > SIGSET_SIZE_BYTES {
@@ -90,7 +91,7 @@ pub fn sys_rt_sigprocmask(
 
         unsafe {
             (*local_hart()).curr_thread().lock_inner_with(|inner| {
-                old_set_ptr.flag_mut().clone_from(&inner.signal_mask);
+                old_set_ptr.clone_from(&inner.signal_mask);
             });
         }
     }
@@ -102,14 +103,13 @@ pub fn sys_rt_sigprocmask(
     if !set.is_null() {
         debug!("write signal mask from {set:p} with how = {how:?}");
         let set_ptr = UserCheck::new(set).check_ptr()?;
-        let flag = set_ptr.flag();
         unsafe {
             (*local_hart())
                 .curr_thread()
                 .lock_inner_with(|inner| match how {
-                    SigprocmaskHow::SIGBLOCK => inner.signal_mask.insert(flag),
-                    SigprocmaskHow::SIGUNBLOCK => inner.signal_mask.remove(flag),
-                    SigprocmaskHow::SIGSETMASK => inner.signal_mask = flag,
+                    SigprocmaskHow::SIG_BLOCK => inner.signal_mask.insert(*set_ptr),
+                    SigprocmaskHow::SIG_UNBLOCK => inner.signal_mask.remove(*set_ptr),
+                    SigprocmaskHow::SIG_SETMASK => inner.signal_mask = *set_ptr,
                 });
         }
     }

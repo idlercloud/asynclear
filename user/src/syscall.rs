@@ -1,4 +1,8 @@
-use defines::{structs::UtsName, syscall::*};
+use defines::{
+    config::SIGSET_SIZE_BYTES,
+    structs::{KSignalAction, KSignalSet, UtsName},
+    syscall::*,
+};
 
 #[inline(always)]
 pub fn syscall3(id: usize, args: [usize; 3]) -> isize {
@@ -9,6 +13,22 @@ pub fn syscall3(id: usize, args: [usize; 3]) -> isize {
             inlateout("x10") args[0] => ret,
             in("x11") args[1],
             in("x12") args[2],
+            in("x17") id
+        );
+    }
+    ret
+}
+
+#[inline(always)]
+pub fn syscall4(id: usize, args: [usize; 4]) -> isize {
+    let mut ret: isize;
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            inlateout("x10") args[0] => ret,
+            in("x11") args[1],
+            in("x12") args[2],
+            in("x13") args[3],
             in("x17") id
         );
     }
@@ -142,4 +162,19 @@ pub fn sys_gettid() -> isize {
 /// 返回系统信息，返回值为 0
 pub fn sys_uname(utsname: *mut UtsName) -> isize {
     syscall3(UNAME, [utsname as _, 0, 0])
+}
+
+pub fn sys_rt_sigaction(
+    signum: usize,
+    act: *const KSignalAction,
+    old_act: *mut KSignalAction,
+) -> isize {
+    syscall3(RT_SIGACTION, [signum, act as _, old_act as _])
+}
+
+pub fn sys_rt_sigprocmask(how: usize, set: *const KSignalSet, old_set: *mut KSignalSet) -> isize {
+    syscall4(
+        RT_SIGPROCMASK,
+        [how, set as _, old_set as _, SIGSET_SIZE_BYTES],
+    )
 }

@@ -2,6 +2,7 @@
 #![feature(linkage)]
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
+#![feature(naked_functions)]
 
 #[macro_use]
 pub mod console;
@@ -10,8 +11,11 @@ mod syscall;
 
 extern crate alloc;
 
+use core::arch::asm;
+
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
+use defines::structs::{KSignalAction, SignalActionFlags};
 
 pub use self::console::{flush, STDIN, STDOUT};
 pub use self::syscall::*;
@@ -187,6 +191,29 @@ pub fn munmap(start: usize, len: usize) -> isize {
 // pub fn pipe(pipe_fd: &mut [usize]) -> isize {
 //     sys_pipe(pipe_fd)
 // }
+
+pub fn sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignalAction) -> isize {
+    if act.is_null() {
+        sys_rt_sigaction(signum, act, old_act)
+    } else {
+        let mut act = unsafe { (*act).clone() };
+        act.flags |= SignalActionFlags::SA_RESTORER;
+        act.restorer = signal_restorer as usize;
+        sys_rt_sigaction(signum, &act as _, old_act)
+    }
+}
+
+/// 用于 `KSignalAction` 的 restorer 字段。它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
+#[naked]
+unsafe extern "C" fn signal_restorer() {
+    unsafe {
+        asm!(
+            "li a7, 139", // RT_SIGRETURN
+            "ecall",
+            options(noreturn)
+        )
+    }
+}
 
 pub fn gettid() -> isize {
     sys_gettid()

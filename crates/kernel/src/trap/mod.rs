@@ -3,7 +3,11 @@ mod timer;
 
 use core::ops::ControlFlow;
 
-use defines::{error::errno, trap_context::TrapContext};
+use defines::{
+    error::errno,
+    structs::{KSignalSet, Signal, SignalActionFlags},
+    trap_context::TrapContext,
+};
 use drivers::{InterruptSource, Plic, UART0};
 use kernel_tracer::Instrument;
 use riscv::register::{
@@ -11,9 +15,7 @@ use riscv::register::{
     sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
-use signal::{
-    DefaultHandler, Signal, SignalActionFlags, SignalContext, SignalFlag, SIG_DFL, SIG_ERR, SIG_IGN,
-};
+use signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN};
 use user_check::UserCheckMut;
 
 use crate::{
@@ -184,7 +186,7 @@ pub fn check_signal() -> bool {
 
         let handler = match action.handler() {
             SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
-            SIG_DFL => match first_pending.default_handler() {
+            SIG_DFL => match DefaultHandler::new(first_pending) {
                 DefaultHandler::Terminate | DefaultHandler::CoreDump => {
                     exit_process(
                         unsafe { (*local_hart()).curr_process() },
@@ -209,7 +211,7 @@ pub fn check_signal() -> bool {
             let old_trap_context = inner.trap_context.clone();
             inner.signal_mask.insert(action.mask());
             if !action.flags().contains(SignalActionFlags::SA_NODEFER) {
-                inner.signal_mask.set(SignalFlag::from(first_pending), true);
+                inner.signal_mask.set(KSignalSet::from(first_pending), true);
             }
             let trap_context = &mut inner.trap_context;
             trap_context.sepc = handler;

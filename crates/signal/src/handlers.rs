@@ -1,6 +1,6 @@
-use crate::{action::KSignalAction, Signal};
+use crate::Signal;
 
-use defines::config::SIGSET_SIZE;
+use defines::{config::SIGSET_SIZE, structs::KSignalAction};
 
 pub enum DefaultHandler {
     Terminate,
@@ -8,6 +8,22 @@ pub enum DefaultHandler {
     CoreDump,
     Stop,
     Continue,
+}
+
+impl DefaultHandler {
+    #[allow(clippy::enum_glob_use)]
+    pub fn new(signal: Signal) -> Self {
+        use DefaultHandler::*;
+        use Signal::*;
+        match signal {
+            SIGABRT | SIGBUS | SIGILL | SIGQUIT | SIGSEGV | SIGSYS | SIGTRAP | SIGXCPU
+            | SIGXFSZ => CoreDump,
+            SIGCHLD | SIGURG | SIGWINCH => Ignore,
+            SIGSTOP | SIGTSTP | SIGTTIN | SIGTTOU => Stop,
+            SIGCONT => Continue,
+            _ => Terminate,
+        }
+    }
 }
 
 /// 由进程持有

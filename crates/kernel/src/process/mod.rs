@@ -1,12 +1,15 @@
 mod init_stack;
 mod inner;
 
+use core::num::NonZeroUsize;
+
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use atomic::{Atomic, Ordering};
 use compact_str::CompactString;
 use defines::{
     config::PAGE_SIZE,
     error::{errno, Result},
+    structs::{KSignalSet, Signal},
     trap_context::TrapContext,
 };
 use event_listener::Event;
@@ -14,7 +17,7 @@ use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
-use signal::{SignalFlag, SignalHandlers};
+use signal::SignalHandlers;
 use triomphe::Arc;
 
 use crate::thread::{self, Thread};
@@ -53,6 +56,7 @@ pub struct Process {
     pid: usize,
     pub wait4_event: Event,
     pub status: Atomic<ProcessStatus>,
+    pub exit_signal: Option<Signal>,
     inner: SpinMutex<ProcessInner>,
 }
 
@@ -96,6 +100,7 @@ impl Process {
             pid: PID_ALLOCATOR.lock().alloc(),
             wait4_event: Event::new(),
             status: Atomic::new(ProcessStatus::normal()),
+            exit_signal: None,
             inner: SpinMutex::new(ProcessInner {
                 name: process_name,
                 memory_set,
@@ -115,7 +120,7 @@ impl Process {
                     Arc::clone(&process),
                     tid,
                     trap_context,
-                    SignalFlag::empty(),
+                    KSignalSet::empty(),
                 )),
             );
         });
@@ -126,7 +131,11 @@ impl Process {
     /// fork 一个新进程，目前仅支持只有一个主线程的进程。
     ///
     /// `stack` 若不为 0 则指定新进程的栈顶
-    pub fn fork(self: &Arc<Self>, stack: usize) -> Arc<Self> {
+    pub fn fork(
+        self: &Arc<Self>,
+        stack: Option<NonZeroUsize>,
+        exit_signal: Option<Signal>,
+    ) -> Arc<Self> {
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             // // 复制文件描述符表
@@ -134,8 +143,8 @@ impl Process {
             let parent_main_thread = inner.main_thread();
             let (mut trap_context, signal_mask) = parent_main_thread
                 .lock_inner_with(|inner| (inner.trap_context.clone(), inner.signal_mask));
-            if stack != 0 {
-                *trap_context.sp_mut() = stack;
+            if let Some(stack) = stack {
+                *trap_context.sp_mut() = stack.get();
             }
             // 子进程 fork 后返回值为 0
             *trap_context.a0_mut() = 0;
@@ -143,6 +152,7 @@ impl Process {
                 pid: PID_ALLOCATOR.lock().alloc(),
                 wait4_event: Event::new(),
                 status: Atomic::new(self.status.load(Ordering::SeqCst)),
+                exit_signal,
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
                     memory_set: MemorySet::from_existed_user(&inner.memory_set),

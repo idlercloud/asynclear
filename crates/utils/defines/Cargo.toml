@@ -9,6 +9,8 @@ edition.workspace = true
 [dependencies]
 riscv.workspace = true
 compact_str.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
 
 [lints]
 workspace = true

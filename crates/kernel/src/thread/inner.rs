@@ -1,5 +1,4 @@
-use defines::trap_context::TrapContext;
-use signal::SignalFlag;
+use defines::{structs::KSignalSet, trap_context::TrapContext};
 
 pub struct ThreadInner {
     pub trap_context: TrapContext,
@@ -8,6 +7,6 @@ pub struct ThreadInner {
     /// 虽然这里应该是个 [`SignalSet`]，但实际上只有第一个 SignalFlag 被使用
     ///
     /// [`SignalSet`]: signal::SignalSet
-    pub signal_mask: SignalFlag,
-    pub pending_signal: SignalFlag,
+    pub signal_mask: KSignalSet,
+    pub pending_signal: KSignalSet,
 }

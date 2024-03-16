@@ -1,3 +1,7 @@
+mod signal;
+
+pub use signal::*;
+
 /// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65 字节长
 #[repr(C)]
 pub struct UtsName {

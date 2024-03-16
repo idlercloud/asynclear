@@ -1,20 +1,20 @@
-use super::SignalFlag;
+use super::KSignalSet;
 
 pub struct SignalReceiver {
-    pub mask: SignalFlag,
-    received: SignalFlag,
+    pub mask: KSignalSet,
+    received: KSignalSet,
 }
 
 impl SignalReceiver {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            mask: SignalFlag::empty(),
-            received: SignalFlag::empty(),
+            mask: KSignalSet::empty(),
+            received: KSignalSet::empty(),
         }
     }
     pub fn clear(&mut self) {
-        self.mask = SignalFlag::empty();
-        self.received = SignalFlag::empty();
+        self.mask = KSignalSet::empty();
+        self.received = KSignalSet::empty();
     }
 }

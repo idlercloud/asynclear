@@ -441,7 +441,9 @@ checksum = "248e3bacc7dc6baa3b21e405ee045c3047101a49145e7e9eca583ab4c2ca5345"
 name = "defines"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.4.2",
  "compact_str",
+ "num_enum",
  "riscv",
 ]
 
@@ -1046,7 +1048,6 @@ dependencies = [
 name = "signal"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.2",
  "defines",
  "num_enum",
 ]

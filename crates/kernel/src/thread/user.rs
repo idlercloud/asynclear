@@ -19,10 +19,10 @@ use crate::{
 use super::Thread;
 
 pub fn spawn_user_thread(thread: Arc<Thread>) {
-    let (runnable, task) = executor::spawn(UserThreadFuture::new(
-        Arc::clone(&thread),
-        user_thread_loop(),
-    ));
+    let (runnable, task) = executor::spawn_with(
+        UserThreadFuture::new(Arc::clone(&thread), user_thread_loop()),
+        move || thread.set_status(ThreadStatus::Ready),
+    );
     runnable.schedule();
     task.detach();
 }
@@ -70,6 +70,9 @@ fn exit_thread(thread: &Thread) {
 
             // 通知父进程自己退出了
             if let Some(parent) = process_inner.parent.take() {
+                if let Some(exit_signal) = parent.exit_signal {
+                    todo!("[high] add exit_signal support")
+                }
                 parent.wait4_event.notify(1);
             }
             Some(core::mem::take(&mut process_inner.children))

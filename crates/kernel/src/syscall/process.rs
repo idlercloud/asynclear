@@ -1,12 +1,14 @@
 //! Process management syscalls
 
+use core::num::NonZeroUsize;
+
 use alloc::vec::Vec;
 use atomic::Ordering;
 use compact_str::CompactString;
 use defines::{
     constant::{MICRO_PER_SEC, NANO_PER_SEC},
     error::{errno, Result},
-    structs::{TimeSpec, TimeVal, UtsName},
+    structs::{Signal, TimeSpec, TimeVal, UtsName},
 };
 use memory::VirtAddr;
 use user_check::{UserCheck, UserCheckMut};
@@ -69,6 +71,7 @@ pub fn sys_getppid() -> Result {
 ///
 /// 参数：
 /// - `flags` 指定 clone 的方式。具体参看 [`CloneFlags`]
+/// - `user_stack` 指定用户栈的
 pub fn sys_clone(
     flags: usize,
     user_stack: usize,
@@ -85,17 +88,55 @@ pub fn sys_clone(
         error!("undefined CloneFlags: {:#b}", flags & !0xff);
         return Err(errno::UNSUPPORTED);
     };
-    // TODO: 完成 exit_signal
-    // let Ok(_exit_signal) = Signal::try_from(flags as u8) else {
-    //     error!("未定义的信号：{:#b}", flags as u8);
-    //     return Err(errno::UNSUPPORTED);
-    // };
-    if !clone_flags.is_empty() {
-        error!("CloneFlags unsupported: {clone_flags:?}");
-        return Err(errno::UNSUPPORTED);
+    if clone_flags.contains(CloneFlags::CLONE_THREAD) {
+        // 创建线程的情况。这些 flag 应该同时设置
+        assert!(clone_flags.contains(
+            CloneFlags::CLONE_VM
+                | CloneFlags::CLONE_FS
+                | CloneFlags::CLONE_FILES
+                | CloneFlags::CLONE_SIGHAND
+                | CloneFlags::CLONE_THREAD
+                | CloneFlags::CLONE_SYSVSEM
+                | CloneFlags::CLONE_SETTLS
+                | CloneFlags::CLONE_PARENT_SETTID
+                | CloneFlags::CLONE_CHILD_CLEARTID
+        ));
+        if Signal::try_from((flags as u8).wrapping_sub(1)).is_ok() {}
+        todo!("[mid] support create thread");
+    } else {
+        // 创建进程的情况。这些 flag 都不应该设置
+        assert!(!clone_flags.intersects(
+            CloneFlags::CLONE_VM
+                | CloneFlags::CLONE_FS
+                | CloneFlags::CLONE_FILES
+                | CloneFlags::CLONE_SIGHAND
+                | CloneFlags::CLONE_THREAD
+                | CloneFlags::CLONE_SYSVSEM
+                | CloneFlags::CLONE_SETTLS
+                | CloneFlags::CLONE_PARENT_SETTID
+                | CloneFlags::CLONE_CHILD_CLEARTID
+        ));
+        let signum = flags as u8;
+        let mut exit_signal = None;
+        if signum != 0 {
+            let Ok(signal) = Signal::try_from((flags as u8).wrapping_sub(1)) else {
+                error!("undefined signal: {:#b}", flags as u8);
+                return Err(errno::UNSUPPORTED);
+            };
+            if signal != Signal::SIGCHLD {
+                todo!("[low] unsupported signal for exit_signal: {signal:?}");
+            }
+            exit_signal = Some(signal);
+        }
+        let user_stack = NonZeroUsize::new(user_stack);
+        let new_process = unsafe {
+            (*local_hart())
+                .curr_thread()
+                .process
+                .fork(user_stack, exit_signal)
+        };
+        Ok(new_process.pid() as isize)
     }
-    let new_process = unsafe { (*local_hart()).curr_thread().process.fork(user_stack) };
-    Ok(new_process.pid() as isize)
 }
 
 /// 将当前进程的地址空间清空并加载一个特定的可执行文件，返回用户态后开始它的执行。返回参数个数
