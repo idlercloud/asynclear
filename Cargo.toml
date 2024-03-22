@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/kernel", "crates/arch/*", "crates/utils/*", "xtask", "user"]
-exclude = ["crates/dependencies"]
+exclude = ["deps"]
 resolver = "2"
 
 [workspace.package]
@@ -9,9 +9,9 @@ authors = ["cxz888 <idlercloud@gmail.com>"]
 edition = "2021"
 
 [workspace.dependencies]
-riscv = { path = "crates/dependencies/riscv/riscv" }
-buddy_system_allocator = { path = "crates/dependencies/buddy_system_allocator", default-features = false }
-fatfs = { path = "crates/dependencies/rust-fatfs" }
+riscv = { path = "deps/riscv/riscv" }
+buddy_system_allocator = { path = "deps/buddy_system_allocator" }
+fatfs = { path = "deps/rust-fatfs" }
 # fatfs = { path = "crates/dependencies/rust-fatfs", default-features = false, features = [
 # "alloc",
 # "lfn",

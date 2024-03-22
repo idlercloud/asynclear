@@ -103,7 +103,9 @@ pub fn sys_clone(
                 | CloneFlags::CLONE_PARENT_SETTID
                 | CloneFlags::CLONE_CHILD_CLEARTID
         ));
-        if Signal::try_from((flags as u8).wrapping_sub(1)).is_ok() {}
+        if Signal::try_from((flags as u8).wrapping_sub(1)).is_ok() {
+            todo!("[high] check signal for sys_clone");
+        }
         todo!("[mid] support create thread");
     } else {
         // 创建进程的情况。这些 flag 都不应该设置

@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 spin.workspace = true
-buddy_system_allocator = { path = "../crates/dependencies/buddy_system_allocator" }
+buddy_system_allocator.workspace = true
 defines = { path = "../crates/utils/defines" }
 
 [lints]

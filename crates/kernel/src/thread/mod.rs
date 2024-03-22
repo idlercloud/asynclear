@@ -3,7 +3,7 @@ mod user;
 
 use crate::{
     executor,
-    memory::{self, MapPermission, MemorySet, VirtAddr},
+    memory::{MapPermission, MemorySet, VirtAddr},
     trap::TrapContext,
 };
 use atomic::{Atomic, Ordering};
