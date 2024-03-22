@@ -5,22 +5,26 @@ use core::num::NonZeroUsize;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use atomic::{Atomic, Ordering};
+use common::config::PAGE_SIZE;
 use compact_str::CompactString;
 use defines::{
-    config::PAGE_SIZE,
     error::{errno, Result},
-    structs::{KSignalSet, Signal},
-    trap_context::TrapContext,
+    signal::{KSignalSet, Signal},
 };
 use event_listener::Event;
 use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::{MemorySet, KERNEL_SPACE};
-use signal::SignalHandlers;
 use triomphe::Arc;
 
-use crate::thread::{self, Thread};
+use crate::{
+    memory,
+    signal::SignalHandlers,
+    thread::{self, Thread},
+    trap::TrapContext,
+    uart_console::println,
+};
 
 use self::{
     init_stack::{UserAppInfo, UserStackInit, AT_PAGESZ},

@@ -3,6 +3,8 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use crate::uart_console::println;
+
 static PANICKED: AtomicBool = AtomicBool::new(false);
 
 #[panic_handler]

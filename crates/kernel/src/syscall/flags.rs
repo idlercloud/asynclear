@@ -1,5 +1,6 @@
 use bitflags::bitflags;
-use memory::MapPermission;
+
+use crate::memory::MapPermission;
 
 bitflags! {
     #[derive(Clone,Copy,Debug)]

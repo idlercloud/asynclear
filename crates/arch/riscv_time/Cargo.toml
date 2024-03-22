@@ -9,7 +9,7 @@ edition.workspace = true
 [dependencies]
 riscv.workspace = true
 sbi-rt.workspace = true
-defines = { path = "../../utils/defines" }
+common = { path = "../../utils/common" }
 
 [lints]
 workspace = true

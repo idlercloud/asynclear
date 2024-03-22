@@ -4,13 +4,14 @@ use core::{
 };
 
 use alloc::vec::Vec;
+use common::config::{HART_NUM, HART_START_ADDR};
 use crossbeam_utils::CachePadded;
-use defines::config::{HART_NUM, HART_START_ADDR};
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
 use triomphe::Arc;
 
 use crate::{
+    drivers, memory,
     process::{Process, INITPROC},
     thread::{self, Thread},
 };

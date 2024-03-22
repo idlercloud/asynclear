@@ -1,12 +1,15 @@
 mod inner;
 mod user;
 
+use crate::{
+    executor,
+    memory::{self, MapPermission, MemorySet, VirtAddr},
+    trap::TrapContext,
+};
 use atomic::{Atomic, Ordering};
-use defines::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
-use defines::structs::KSignalSet;
-use defines::trap_context::TrapContext;
+use common::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
+use defines::signal::KSignalSet;
 use klocks::SpinMutex;
-use memory::{MapPermission, MemorySet, VirtAddr};
 use triomphe::Arc;
 
 use crate::process::Process;

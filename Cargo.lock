@@ -377,6 +377,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
+name = "common"
+version = "0.1.0"
+
+[[package]]
 name = "compact_str"
 version = "0.8.0-beta"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -448,18 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "drivers"
-version = "0.1.0"
-dependencies = [
- "defines",
- "klocks",
- "qemu_block",
- "qemu_plic",
- "qemu_uart",
- "riscv",
-]
-
-[[package]]
 name = "embedded-hal"
 version = "1.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -524,18 +516,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executor"
-version = "0.1.0"
-dependencies = [
- "async-task",
- "defines",
- "heapless",
- "kernel_tracer",
- "klocks",
- "sbi-rt",
-]
-
-[[package]]
 name = "extend"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -559,15 +539,6 @@ dependencies = [
  "bitflags 2.4.2",
  "chrono",
  "log",
-]
-
-[[package]]
-name = "filesystem"
-version = "0.1.0"
-dependencies = [
- "defines",
- "qemu_uart",
- "user_check",
 ]
 
 [[package]]
@@ -666,9 +637,9 @@ checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
 
 [[package]]
 name = "js-sys"
-version = "0.3.68"
+version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "406cda4b368d531c842222cf9d2600a9a4acce8d29423695379c6868a143a9ee"
+checksum = "29c15563dc2726973df627357ce0c9ddddbea194836909d655df6a75d2cf296d"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -678,33 +649,34 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "anstyle",
+ "async-task",
  "atomic",
  "bitflags 2.4.2",
+ "buddy_system_allocator",
  "bytemuck",
+ "common",
  "compact_str",
  "crossbeam-utils",
  "defines",
- "drivers",
  "event-listener 5.1.0",
- "executor",
  "extend",
- "filesystem",
  "goblin",
+ "heapless",
  "idallocator",
  "kernel_tracer",
  "klocks",
  "macros",
- "memory",
+ "num_enum",
  "pin-project",
  "riscv",
  "riscv_guard",
  "riscv_time",
  "sbi-rt",
- "signal",
  "slab",
  "triomphe",
- "uart_console",
+ "uart_16550",
  "user_check",
+ "virtio-drivers",
 ]
 
 [[package]]
@@ -758,18 +730,6 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 [[package]]
 name = "macros"
 version = "0.1.0"
-
-[[package]]
-name = "memory"
-version = "0.1.0"
-dependencies = [
- "bitflags 2.4.2",
- "buddy_system_allocator",
- "defines",
- "goblin",
- "klocks",
- "riscv",
-]
 
 [[package]]
 name = "num-traits"
@@ -879,33 +839,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "qemu_block"
-version = "0.1.0"
-dependencies = [
- "defines",
- "memory",
- "virtio-drivers",
-]
-
-[[package]]
-name = "qemu_plic"
-version = "0.1.0"
-dependencies = [
- "defines",
-]
-
-[[package]]
-name = "qemu_uart"
-version = "0.1.0"
-dependencies = [
- "defines",
- "heapless",
- "kernel_tracer",
- "klocks",
- "uart_16550",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -942,7 +875,7 @@ dependencies = [
 name = "riscv_time"
 version = "0.1.0"
 dependencies = [
- "defines",
+ "common",
  "riscv",
  "sbi-rt",
 ]
@@ -1042,14 +975,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "signal"
-version = "0.1.0"
-dependencies = [
- "defines",
- "num_enum",
 ]
 
 [[package]]
@@ -1165,14 +1090,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uart_console"
-version = "0.1.0"
-dependencies = [
- "klocks",
- "qemu_uart",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1197,6 +1114,7 @@ dependencies = [
 name = "user_check"
 version = "0.1.0"
 dependencies = [
+ "common",
  "defines",
  "kernel_tracer",
  "riscv",
@@ -1223,9 +1141,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e124130aee3fb58c5bdd6b639a0509486b0338acaaae0c84a5124b0f588b7f"
+checksum = "4be2531df63900aeb2bca0daaaddec08491ee64ceecbee5076636a3b026795a8"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -1233,9 +1151,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9e7e1900c352b609c8488ad12639a311045f40a35491fb69ba8c12f758af70b"
+checksum = "614d787b966d3989fa7bb98a654e369c762374fd3213d212cfc0251257e747da"
 dependencies = [
  "bumpalo",
  "log",
@@ -1248,9 +1166,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b30af9e2d358182b5c7449424f017eba305ed32a7010509ede96cdc4696c46ed"
+checksum = "a1f8823de937b71b9460c0c34e25f3da88250760bec0ebac694b49997550d726"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -1258,9 +1176,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "642f325be6301eb8107a83d12a8ac6c1e1c54345a7ef1a9261962dfefda09e66"
+checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1271,9 +1189,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f186bd2dcf04330886ce82d6f33dd75a7bfcf69ecf5763b89fcde53b6ac9838"
+checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
 
 [[package]]
 name = "windows-core"

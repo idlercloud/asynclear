@@ -15,7 +15,7 @@ use core::arch::asm;
 
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
-use defines::structs::{KSignalAction, SignalActionFlags};
+use defines::signal::{KSignalAction, SignalActionFlags};
 
 pub use self::console::{flush, STDIN, STDOUT};
 pub use self::syscall::*;

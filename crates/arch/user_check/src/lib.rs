@@ -10,10 +10,8 @@ use core::{
     ptr,
 };
 
-use defines::{
-    config::{MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS},
-    error::{errno, Result},
-};
+use common::config::{MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
+use defines::error::{errno, Result};
 use riscv::register::stvec::{self, TrapMode};
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
@@ -250,7 +248,7 @@ pub fn set_kernel_trap_entry() {
 }
 
 mod check {
-    use defines::config::PAGE_SIZE;
+    use common::config::PAGE_SIZE;
     use riscv::register::stvec::{self, TrapMode};
     use riscv_guard::NoIrqGuard;
 

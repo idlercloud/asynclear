@@ -4,10 +4,9 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
 use idallocator::RecycleAllocator;
 use memory::{MemorySet, VirtAddr};
-use signal::SignalHandlers;
 use triomphe::Arc;
 
-use crate::thread::Thread;
+use crate::{memory, signal::SignalHandlers, thread::Thread};
 
 use super::Process;
 

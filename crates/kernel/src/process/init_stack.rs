@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
+use common::config::{PAGE_SIZE, PTR_SIZE};
 use compact_str::CompactString;
-use defines::config::{PAGE_SIZE, PTR_SIZE};
-use memory::{PageTable, VirtAddr};
+
+use crate::memory::{PageTable, VirtAddr};
 
 // use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 // use goblin::elf::{

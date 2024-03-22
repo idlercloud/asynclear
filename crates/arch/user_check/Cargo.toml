@@ -10,6 +10,7 @@ edition.workspace = true
 riscv.workspace = true
 scopeguard.workspace = true
 riscv_guard = { path = "../riscv_guard" }
+common = { path = "../../utils/common" }
 defines = { path = "../../utils/defines" }
 kernel_tracer = { path = "../../utils/kernel_tracer" }
 

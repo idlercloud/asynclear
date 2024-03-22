@@ -1,12 +1,14 @@
 use defines::{
-    config::SIGSET_SIZE_BYTES,
     error::{errno, Result},
-    structs::{KSignalAction, KSignalSet, Signal, SignalActionFlags},
+    signal::{KSignalAction, KSignalSet, Signal, SignalActionFlags, SIGSET_SIZE_BYTES},
 };
-use signal::{SignalContext, SigprocmaskHow};
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::{hart::local_hart, process::exit_process};
+use crate::{
+    hart::local_hart,
+    process::exit_process,
+    signal::{SignalContext, SigprocmaskHow},
+};
 
 /// 设置当前**进程**在收到特定信号时的行为
 ///

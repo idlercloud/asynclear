@@ -9,13 +9,15 @@ use core::{fmt::Write, num::NonZeroU32};
 use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use anstyle::{AnsiColor, Reset};
-use drivers::DiskDriver;
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
-use uart_console::STDOUT;
 
-use crate::hart::{local_hart, local_hart_mut};
+use crate::{
+    drivers::qemu_block::DiskDriver,
+    hart::{local_hart, local_hart_mut},
+    uart_console::STDOUT,
+};
 
 static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
 

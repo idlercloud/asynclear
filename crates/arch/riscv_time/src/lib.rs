@@ -1,6 +1,6 @@
 #![no_std]
 
-use defines::{
+use common::{
     config::{CLOCK_FREQ, TICKS_PER_SEC},
     constant::{MICRO_PER_SEC, MILLI_PER_SEC, NANO_PER_SEC},
 };

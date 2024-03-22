@@ -4,17 +4,19 @@ use core::num::NonZeroUsize;
 
 use alloc::vec::Vec;
 use atomic::Ordering;
+use common::constant::{MICRO_PER_SEC, NANO_PER_SEC};
 use compact_str::CompactString;
 use defines::{
-    constant::{MICRO_PER_SEC, NANO_PER_SEC},
     error::{errno, Result},
-    structs::{Signal, TimeSpec, TimeVal, UtsName},
+    misc::{TimeSpec, TimeVal, UtsName},
+    signal::Signal,
 };
-use memory::VirtAddr;
+use event_listener::listener;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
     hart::local_hart,
+    memory::VirtAddr,
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
     thread::BlockingFuture,
@@ -205,12 +207,12 @@ pub async fn sys_wait4(
     // 尝试寻找符合条件的子进程
     loop {
         // 尝试找到一个符合条件，且已经是僵尸的子进程
-        let listener = {
+        let process = unsafe { (*local_hart()).curr_process() };
+        listener!(process.wait4_event => listener);
+        {
             // 用块是因为 rust 目前不够聪明。
             // inner 是个 Guard，不 Send，因此不能包含在 future 中
             // 但在同一块作用域中，即使 drop inner，也依然会导致 future 不 send，非常麻烦
-            // 这也导致 listener 不得不堆分配，而暂时无法用栈上的 listener
-            let process = unsafe { (*local_hart()).curr_process() };
             let mut inner = process.lock_inner();
             let mut has_proper_child = false;
             let mut child_index = None;
@@ -244,7 +246,6 @@ pub async fn sys_wait4(
             if options.contains(WaitFlags::WNOHANG) {
                 return Ok(0);
             }
-            process.wait4_event.listen()
         };
 
         trace!("no proper child exited");

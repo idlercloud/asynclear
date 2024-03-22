@@ -1,6 +1,6 @@
 use defines::{
-    config::SIGSET_SIZE_BYTES,
-    structs::{KSignalAction, KSignalSet, UtsName},
+    misc::UtsName,
+    signal::{KSignalAction, KSignalSet, SIGSET_SIZE_BYTES},
     syscall::*,
 };
 

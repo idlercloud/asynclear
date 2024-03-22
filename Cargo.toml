@@ -1,16 +1,5 @@
 [workspace]
-members = [
-  "crates/executor",
-  "crates/kernel",
-  "crates/memory",
-  "crates/drivers/*",
-  "crates/arch/*",
-  "crates/utils/*",
-  "crates/filesystem",
-  "crates/signal",
-  "xtask",
-  "user",
-]
+members = ["crates/kernel", "crates/arch/*", "crates/utils/*", "xtask", "user"]
 exclude = ["crates/dependencies"]
 resolver = "2"
 

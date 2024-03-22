@@ -1,26 +1,28 @@
+mod context;
 mod kernel_trap;
 mod timer;
 
+pub use context::TrapContext;
+
 use core::ops::ControlFlow;
 
+use crate::drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource};
 use defines::{
     error::errno,
-    structs::{KSignalSet, Signal, SignalActionFlags},
-    trap_context::TrapContext,
+    signal::{KSignalSet, Signal, SignalActionFlags},
 };
-use drivers::{InterruptSource, Plic, UART0};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
     sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
-use signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN};
 use user_check::UserCheckMut;
 
 use crate::{
     hart::local_hart,
     process::{self, exit_process},
+    signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
     syscall,
 };
 

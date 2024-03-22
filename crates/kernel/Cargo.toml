@@ -16,23 +16,24 @@ pin-project.workspace = true
 event-listener.workspace = true
 triomphe.workspace = true
 extend.workspace = true
+num_enum.workspace = true
+heapless.workspace = true
+buddy_system_allocator = { workspace = true, default-features = false }
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
 user_check = { path = "../arch/user_check" }
-drivers = { path = "../drivers/drivers" }
-executor = { path = "../executor" }
-memory = { path = "../memory" }
-filesystem = { path = "../filesystem" }
-signal = { path = "../signal" }
 idallocator = { path = "../utils/idallocator" }
+common = { path = "../utils/common" }
 defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
-uart_console = { path = "../utils/uart_console" }
 macros = { path = "../utils/macros" }
 crossbeam-utils = { version = "0.8", default-features = false }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
+virtio-drivers = "0.7"
+uart_16550 = "0.3"
+async-task = { version = "4.7", default-features = false }
 
 [features]
 default = []

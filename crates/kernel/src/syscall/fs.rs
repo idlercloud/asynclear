@@ -1,8 +1,7 @@
 use defines::error::Result;
-use filesystem::TtyFuture;
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::thread::BlockingFuture;
+use crate::{fs::TtyFuture, thread::BlockingFuture, uart_console::print};
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///

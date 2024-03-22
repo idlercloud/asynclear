@@ -10,6 +10,7 @@ use compact_str::CompactString;
 use triomphe::Arc;
 
 use crate::{
+    executor,
     hart::{local_hart, local_hart_mut},
     process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
@@ -70,7 +71,7 @@ fn exit_thread(thread: &Thread) {
 
             // 通知父进程自己退出了
             if let Some(parent) = process_inner.parent.take() {
-                if let Some(exit_signal) = parent.exit_signal {
+                if let Some(exit_signal) = process.exit_signal {
                     todo!("[high] add exit_signal support")
                 }
                 parent.wait4_event.notify(1);
