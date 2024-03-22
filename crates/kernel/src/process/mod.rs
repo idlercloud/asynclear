@@ -261,10 +261,12 @@ impl Process {
         self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (2 << 8)
     }
 
-    pub fn exit_code(&self) -> i8 {
+    pub fn exit_code(&self) -> Option<i8> {
         let status = self.status.load(Ordering::SeqCst);
-        assert_ne!(status, ProcessStatus::normal());
-        (status.0 & 0b1111_1111) as i8
+        if status == ProcessStatus::normal() {
+            return None;
+        }
+        Some((status.0 & 0b1111_1111) as i8)
     }
 }
 

@@ -69,11 +69,23 @@ fn exit_thread(thread: &Thread) {
             process_inner.threads = BTreeMap::new();
             process_inner.tid_allocator.release();
 
+            // 如果进程已标记为退出（即已调用 `exit_process()`），则标记为僵尸并使用已有的退出码
+            // 否则使用线程的退出码
+            let exit_code = thread.exit_code.load(Ordering::SeqCst);
+            let new_status;
+            if let Some(override_exit_code) = process.exit_code() {
+                new_status = ProcessStatus::zombie(override_exit_code);
+            } else {
+                new_status = ProcessStatus::zombie(exit_code);
+            }
+            process.status.store(new_status, Ordering::SeqCst);
+
             // 通知父进程自己退出了
             if let Some(parent) = process_inner.parent.take() {
                 if let Some(exit_signal) = process.exit_signal {
                     todo!("[high] add exit_signal support")
                 }
+
                 parent.wait4_event.notify(1);
             }
             Some(core::mem::take(&mut process_inner.children))
@@ -96,13 +108,6 @@ fn exit_thread(thread: &Thread) {
                     initproc_inner.children.push(child);
                 }
             });
-        }
-
-        let exit_code = thread.exit_code.load(Ordering::SeqCst);
-        // 如果进程尚未被标记为退出（即未主动调用 `exit_process()`），则标记为僵尸并将线程的退出码赋予给它
-        if process.is_normal() {
-            let new_status = ProcessStatus::zombie(exit_code);
-            process.status.store(new_status, Ordering::SeqCst);
         }
     }
 }

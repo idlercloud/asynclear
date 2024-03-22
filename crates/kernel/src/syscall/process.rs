@@ -233,7 +233,7 @@ pub async fn sys_wait4(
                 let child = inner.children.remove(index);
                 drop(inner);
                 let found_pid = child.pid();
-                let exit_code = child.exit_code();
+                let exit_code = child.exit_code().expect("Thread should be zombie");
                 if !wstatus.is_null() {
                     let mut wstatus = wstatus.check_ptr_mut()?;
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
