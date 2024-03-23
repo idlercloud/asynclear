@@ -90,7 +90,7 @@ bitflags! {
 
 impl From<Signal> for KSignalSet {
     fn from(value: Signal) -> Self {
-        Self::from_bits_truncate(value as u64)
+        Self::from_bits_truncate(1 << (value as u8))
     }
 }
 

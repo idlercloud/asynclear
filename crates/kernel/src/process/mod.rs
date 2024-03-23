@@ -240,7 +240,7 @@ impl Process {
         self.inner.lock()
     }
 
-    /// 锁 inner 然后进行操作。这应该是访问 inner 的唯一方式
+    /// 锁 inner 然后进行操作，算是个快捷方法。尽量避免同时拿多个锁
     pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut ProcessInner) -> T) -> T {
         f(&mut self.inner.lock())
     }

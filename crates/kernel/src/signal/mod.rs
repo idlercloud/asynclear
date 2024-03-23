@@ -14,7 +14,6 @@
 // TODO: 参考 <https://man7.org/linux/man-pages/man7/signal.7.html> 和 <https://man7.org/linux/man-pages/man2/rt_sigaction.2.html> 完善 signal 相关文档
 
 mod handlers;
-mod receiver;
 
 pub use handlers::DefaultHandler;
 pub use handlers::SignalHandlers;

@@ -15,7 +15,7 @@ use core::arch::asm;
 
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
-use defines::signal::{KSignalAction, SignalActionFlags};
+use defines::signal::{KSignalAction, Signal, SignalActionFlags};
 
 pub use self::console::{flush, STDIN, STDOUT};
 pub use self::syscall::*;
@@ -133,7 +133,7 @@ pub fn getppid() -> isize {
 }
 
 pub fn fork() -> isize {
-    sys_fork()
+    sys_clone4(Signal::SIGCHLD as usize + 1)
 }
 
 pub fn exec(path: &str, args: &[*const u8]) -> isize {

@@ -2,6 +2,7 @@ use core::ops::Range;
 
 use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
+use defines::signal::{KSignalSet, Signal};
 use idallocator::RecycleAllocator;
 use memory::{MemorySet, VirtAddr};
 use triomphe::Arc;
@@ -74,4 +75,17 @@ impl ProcessInner {
     //     self.brk = new_brk;
     //     new_brk
     // }
+
+    /// 挑选一个合适的线程让其处理信号
+    pub fn receive_signal(&mut self, signal: Signal) {
+        for thread in self.threads.values() {
+            let mut inner = thread.lock_inner();
+            let signal = KSignalSet::from(signal);
+            if !inner.signal_mask.contains(signal) && !inner.pending_signal.contains(signal) {
+                debug!("thread {} receive signal {signal:?}", thread.tid());
+                inner.pending_signal.insert(signal);
+                break;
+            }
+        }
+    }
 }

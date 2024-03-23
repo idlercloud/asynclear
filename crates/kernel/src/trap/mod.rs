@@ -165,81 +165,84 @@ pub fn trap_return(trap_context: *mut TrapContext) {
 
 /// 如果进程因为信号被终止了，则返回 true
 pub fn check_signal() -> bool {
-    let pendings = unsafe {
-        (*local_hart())
-            .curr_thread()
-            .lock_inner_with(|inner| inner.pending_signal.intersection(!inner.signal_mask))
+    let first_pending = {
+        let thread = unsafe { (*local_hart()).curr_thread() };
+        let mut inner = thread.lock_inner();
+        let pendings = inner.pending_signal.intersection(!inner.signal_mask);
+        let Ok(first_pending) = Signal::try_from(pendings.bits().trailing_zeros() as u8) else {
+            return false;
+        };
+        inner.pending_signal.remove(KSignalSet::from(first_pending));
+        first_pending
     };
 
-    if let Ok(first_pending) = Signal::try_from(pendings.bits().trailing_zeros() as u8) {
-        debug!("handle signal {first_pending:?}");
-        let action = unsafe {
-            (*local_hart())
-                .curr_process()
-                .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone())
-        };
-        trace!(
-            "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
-            action.handler(),
-            action.mask(),
-            action.flags(),
-            action.restorer()
-        );
+    debug!("handle signal {first_pending:?}");
+    let action = unsafe {
+        (*local_hart())
+            .curr_process()
+            .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone())
+    };
+    trace!(
+        "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
+        action.handler(),
+        action.mask(),
+        action.flags(),
+        action.restorer()
+    );
 
-        let handler = match action.handler() {
-            SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
-            SIG_DFL => match DefaultHandler::new(first_pending) {
-                DefaultHandler::Terminate | DefaultHandler::CoreDump => {
-                    exit_process(
-                        unsafe { (*local_hart()).curr_process() },
-                        (first_pending as i8).wrapping_add_unsigned(128),
-                    );
-                    // TODO:[low] 要处理 CoreDump
-                    return true;
-                }
-                DefaultHandler::Ignore => return false,
-                DefaultHandler::Stop | DefaultHandler::Continue => {
-                    todo!("[low] default handler Stop and Continue")
-                }
-            },
-            SIG_IGN => return false,
-            handler => handler,
-        };
-
-        let thread = unsafe { (*local_hart()).curr_thread() };
-
-        let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
-            let old_mask = inner.signal_mask;
-            let old_trap_context = inner.trap_context.clone();
-            inner.signal_mask.insert(action.mask());
-            if !action.flags().contains(SignalActionFlags::SA_NODEFER) {
-                inner.signal_mask.set(KSignalSet::from(first_pending), true);
+    let handler = match action.handler() {
+        SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
+        SIG_DFL => match DefaultHandler::new(first_pending) {
+            DefaultHandler::Terminate | DefaultHandler::CoreDump => {
+                exit_process(
+                    unsafe { (*local_hart()).curr_process() },
+                    (first_pending as i8).wrapping_add_unsigned(128),
+                );
+                // TODO:[low] 要处理 CoreDump
+                return true;
             }
-            let trap_context = &mut inner.trap_context;
-            trap_context.sepc = handler;
-            *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
-            *trap_context.ra_mut() = action.restorer();
-            *trap_context.a0_mut() = first_pending as usize + 1;
+            DefaultHandler::Ignore => return false,
+            DefaultHandler::Stop | DefaultHandler::Continue => {
+                todo!("[low] default handler Stop and Continue")
+            }
+        },
+        SIG_IGN => return false,
+        handler => handler,
+    };
 
-            (old_mask, old_trap_context)
-        });
+    let thread = unsafe { (*local_hart()).curr_thread() };
 
-        let signal_context = SignalContext {
-            old_mask,
-            old_trap_context,
-        };
+    let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
+        let old_mask = inner.signal_mask;
+        let old_trap_context = inner.trap_context.clone();
+        inner.signal_mask.insert(action.mask());
+        if !action.flags().contains(SignalActionFlags::SA_NODEFER) {
+            inner.signal_mask.set(KSignalSet::from(first_pending), true);
+        }
+        let trap_context = &mut inner.trap_context;
+        trap_context.sepc = handler;
+        *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
+        *trap_context.ra_mut() = action.restorer();
+        *trap_context.a0_mut() = first_pending as usize + 1;
 
-        let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
-        let Ok(mut user_ptr) = UserCheckMut::new(sp as *mut SignalContext).check_ptr_mut() else {
-            // TODO:[blocked] 这里其实可以试着补救
-            exit_process(
-                unsafe { (*local_hart()).curr_process() },
-                (first_pending as i8).wrapping_add_unsigned(128),
-            );
-            return true;
-        };
-        *user_ptr = signal_context;
-    }
+        (old_mask, old_trap_context)
+    });
+
+    let signal_context = SignalContext {
+        old_mask,
+        old_trap_context,
+    };
+
+    let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
+    let Ok(mut user_ptr) = UserCheckMut::new(sp as *mut SignalContext).check_ptr_mut() else {
+        // TODO:[blocked] 这里其实可以试着补救
+        exit_process(
+            unsafe { (*local_hart()).curr_process() },
+            (first_pending as i8).wrapping_add_unsigned(128),
+        );
+        return true;
+    };
+    *user_ptr = signal_context;
 
     false
 }

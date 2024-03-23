@@ -72,7 +72,7 @@ pub fn sys_getppid() -> Result {
 /// TODO: 完善 `sys_clone()` 及文档
 ///
 /// 参数：
-/// - `flags` 指定 clone 的方式。具体参看 [`CloneFlags`]
+/// - `flags` 低八位 `exit_signal`，高位指定 clone 的方式。具体参看 [`CloneFlags`]
 /// - `user_stack` 指定用户栈的
 pub fn sys_clone(
     flags: usize,
@@ -81,12 +81,13 @@ pub fn sys_clone(
     _tls: usize,
     _ctid: usize,
 ) -> Result {
-    if u32::try_from(flags).is_err() {
+    let Ok(flags) = u32::try_from(flags) else {
         error!("flags exceeds u32: {flags:#b}");
         return Err(errno::UNSUPPORTED);
-    }
+    };
+
     // 参考 https://man7.org/linux/man-pages/man2/clone.2.html，低 8 位是 exit_signal，其余是 clone flags
-    let Some(clone_flags) = CloneFlags::from_bits((flags as u32) & !0xff) else {
+    let Some(clone_flags) = CloneFlags::from_bits(flags & !0xff) else {
         error!("undefined CloneFlags: {:#b}", flags & !0xff);
         return Err(errno::UNSUPPORTED);
     };
@@ -103,8 +104,10 @@ pub fn sys_clone(
                 | CloneFlags::CLONE_PARENT_SETTID
                 | CloneFlags::CLONE_CHILD_CLEARTID
         ));
+
+        // 创建线程时不该有 `exit_signal`
         if Signal::try_from((flags as u8).wrapping_sub(1)).is_ok() {
-            todo!("[high] check signal for sys_clone");
+            return Err(errno::EINVAL);
         }
         todo!("[mid] support create thread");
     } else {
@@ -130,6 +133,7 @@ pub fn sys_clone(
             if signal != Signal::SIGCHLD {
                 todo!("[low] unsupported signal for exit_signal: {signal:?}");
             }
+            debug!("exit signal is {signal:?}");
             exit_signal = Some(signal);
         }
         let user_stack = NonZeroUsize::new(user_stack);

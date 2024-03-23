@@ -1,5 +1,6 @@
 use core::{
     future::Future,
+    mem,
     pin::Pin,
     sync::atomic::Ordering,
     task::{Context, Poll},
@@ -52,50 +53,41 @@ async fn user_thread_loop() {
 fn exit_thread(thread: &Thread) {
     debug!("thread exits");
     let process = &thread.process;
-    let children = process.lock_inner_with(|process_inner| {
-        process_inner.threads.remove(&thread.tid);
-        process_inner.tid_allocator.dealloc(thread.tid);
-        thread.dealloc_user_stack(&mut process_inner.memory_set);
-        thread.set_status(ThreadStatus::Terminated);
+    let mut process_inner = process.lock_inner();
+    process_inner
+        .threads
+        .remove(&thread.tid)
+        .expect("remove thread here");
+    process_inner.tid_allocator.dealloc(thread.tid);
+    thread.dealloc_user_stack(&mut process_inner.memory_set);
+    thread.set_status(ThreadStatus::Terminated);
 
-        // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
-        // 如果父进程不 wait 的话，就一直存活着，并占用 pid 等资源
-        // 但主要的资源是会释放的，比如地址空间、线程控制块等
-        if process_inner.threads.is_empty() {
-            info!("all threads exit");
-            process_inner.cwd = CompactString::new("");
-            // 根页表以及内核相关的部分要留着
-            process_inner.memory_set.recycle_user_pages();
-            process_inner.threads = BTreeMap::new();
-            process_inner.tid_allocator.release();
+    // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
+    // 如果父进程不 wait 的话，就一直存活着，并占用 pid 等资源
+    // 但主要的资源是会释放的，比如地址空间、线程控制块等
+    if process_inner.threads.is_empty() {
+        info!("all threads exit");
+        process_inner.cwd = CompactString::new("");
+        // 根页表以及内核相关的部分要留着
+        process_inner.memory_set.recycle_user_pages();
+        process_inner.threads = BTreeMap::new();
+        process_inner.tid_allocator.release();
+        let children = mem::take(&mut process_inner.children);
+        let parent = process_inner.parent.take();
+        drop(process_inner);
 
-            // 如果进程已标记为退出（即已调用 `exit_process()`），则标记为僵尸并使用已有的退出码
-            // 否则使用线程的退出码
-            let exit_code = thread.exit_code.load(Ordering::SeqCst);
-            let new_status;
-            if let Some(override_exit_code) = process.exit_code() {
-                new_status = ProcessStatus::zombie(override_exit_code);
-            } else {
-                new_status = ProcessStatus::zombie(exit_code);
-            }
-            process.status.store(new_status, Ordering::SeqCst);
-
-            // 通知父进程自己退出了
-            if let Some(parent) = process_inner.parent.take() {
-                if let Some(exit_signal) = process.exit_signal {
-                    todo!("[high] add exit_signal support")
-                }
-
-                parent.wait4_event.notify(1);
-            }
-            Some(core::mem::take(&mut process_inner.children))
+        // 如果进程已标记为退出（即已调用 `exit_process()`），则标记为僵尸并使用已有的退出码
+        // 否则使用线程的退出码
+        let exit_code = thread.exit_code.load(Ordering::SeqCst);
+        let new_status;
+        if let Some(override_exit_code) = process.exit_code() {
+            new_status = ProcessStatus::zombie(override_exit_code);
         } else {
-            None
+            new_status = ProcessStatus::zombie(exit_code);
         }
-    });
+        process.status.store(new_status, Ordering::SeqCst);
 
-    // 子进程交由 INITPROC 来处理。如果退出的就是 INITPROC，那么系统退出
-    if let Some(children) = children {
+        // 子进程交由 INITPROC 来处理。如果退出的就是 INITPROC，那么系统退出
         if process.pid() == 1 {
             assert_eq!(children.len(), 0);
             SHUTDOWN.store(true, Ordering::SeqCst);
@@ -108,6 +100,15 @@ fn exit_thread(thread: &Thread) {
                     initproc_inner.children.push(child);
                 }
             });
+        }
+
+        // 通知父进程自己退出了
+        if let Some(parent) = parent {
+            if let Some(exit_signal) = process.exit_signal {
+                parent.lock_inner_with(|inner| inner.receive_signal(exit_signal));
+            }
+
+            parent.wait4_event.notify(1);
         }
     }
 }

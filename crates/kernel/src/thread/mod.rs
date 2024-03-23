@@ -9,7 +9,7 @@ use crate::{
 use atomic::{Atomic, Ordering};
 use common::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::signal::KSignalSet;
-use klocks::SpinMutex;
+use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
 use crate::process::Process;
@@ -54,7 +54,11 @@ impl Thread {
         self.tid
     }
 
-    /// 锁 inner 然后进行操作。这应该是访问 inner 的唯一方式
+    pub fn lock_inner(&self) -> SpinMutexGuard<'_, ThreadInner> {
+        self.inner.lock()
+    }
+
+    /// 锁 inner 然后进行操作，这是一个便捷方法
     pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut ThreadInner) -> T) -> T {
         f(&mut self.inner.lock())
     }

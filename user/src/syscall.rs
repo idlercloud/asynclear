@@ -123,8 +123,8 @@ pub fn sys_getppid() -> isize {
     syscall3(GETPPID, [0, 0, 0])
 }
 
-pub fn sys_fork() -> isize {
-    syscall3(CLONE, [0, 0, 0])
+pub fn sys_clone4(flags: usize) -> isize {
+    syscall3(CLONE, [flags, 0, 0])
 }
 
 pub fn sys_execve(path: &str, args: &[*const u8]) -> isize {
