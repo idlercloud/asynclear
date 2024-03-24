@@ -6,7 +6,11 @@ pub use context::TrapContext;
 
 use core::ops::ControlFlow;
 
-use crate::drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource};
+use crate::{
+    drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource},
+    executor,
+    thread::ThreadStatus,
+};
 use defines::{
     error::errno,
     signal::{KSignalSet, Signal, SignalActionFlags},
@@ -42,8 +46,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                 sstatus::set_sie();
             }
             let (syscall_id, syscall_args) = {
-                let thread = unsafe { (*local_hart()).curr_thread() };
-                thread.lock_inner_with(|inner| {
+                local_hart().curr_thread().lock_inner_with(|inner| {
                     // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
                     inner.trap_context.sepc += 4;
                     let user_regs = &mut inner.trap_context.user_regs;
@@ -70,7 +73,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             if result == errno::BREAK.as_isize() {
                 ControlFlow::Break(())
             } else {
-                let thread = unsafe { (*local_hart()).curr_thread() };
+                let thread = local_hart().curr_thread();
                 thread.lock_inner_with(|inner| inner.trap_context.user_regs[9] = result as usize);
                 ControlFlow::Continue(())
             }
@@ -84,42 +87,40 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             | Exception::LoadFault
             | Exception::LoadPageFault,
         ) => {
-            let (user_regs, sepc) = unsafe {
-                (*local_hart()).curr_thread().lock_inner_with(|inner| {
-                    (inner.trap_context.user_regs, inner.trap_context.sepc)
-                })
+            let thread = local_hart().curr_thread();
+            {
+                let inner = thread.lock_inner();
+                info!("regs: {:x?}", inner.trap_context.user_regs);
+                error!(
+                    "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
+                    scause.cause(),
+                    stval::read(),
+                    inner.trap_context.sepc,
+                );
             };
-            info!("regs: {:x?}", user_regs);
-            error!(
-                "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
-                scause.cause(),
-                stval::read(),
-                sepc,
-            );
-            process::exit_process(unsafe { (*local_hart()).curr_process() }, -2);
+            process::exit_process(&thread.process, -2);
             ControlFlow::Break(())
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            let (user_regs, sepc) = unsafe {
-                (*local_hart()).curr_thread().lock_inner_with(|inner| {
-                    (inner.trap_context.user_regs, inner.trap_context.sepc)
-                })
-            };
-            info!("regs: {:x?}", user_regs);
-            error!(
-                "IllegalInstruction(pc={:#x}) in application, core dumped.",
-                sepc,
-            );
-            process::exit_process(unsafe { (*local_hart()).curr_process() }, -3);
+            let thread = local_hart().curr_thread();
+            {
+                let inner = thread.lock_inner();
+                // .lock_inner_with(|inner| (inner.trap_context.user_regs, inner.trap_context.sepc));
+                info!("regs: {:x?}", inner.trap_context.user_regs);
+                error!(
+                    "IllegalInstruction(pc={:#x}) in application, core dumped.",
+                    inner.trap_context.sepc,
+                );
+            }
+            process::exit_process(&thread.process, -3);
             ControlFlow::Break(())
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             trace!("timer interrupt");
             riscv_time::set_next_trigger();
             timer::check_timer();
-            unsafe {
-                (*local_hart()).curr_thread().yield_now().await;
-            }
+            local_hart().curr_thread().set_status(ThreadStatus::Ready);
+            executor::yield_now().await;
             ControlFlow::Continue(())
         }
         Trap::Interrupt(Interrupt::SupervisorExternal) => {
@@ -166,7 +167,7 @@ pub fn trap_return(trap_context: *mut TrapContext) {
 /// 如果进程因为信号被终止了，则返回 true
 pub fn check_signal() -> bool {
     let first_pending = {
-        let thread = unsafe { (*local_hart()).curr_thread() };
+        let thread = local_hart().curr_thread();
         let mut inner = thread.lock_inner();
         let pendings = inner.pending_signal.intersection(!inner.signal_mask);
         let Ok(first_pending) = Signal::try_from(pendings.bits().trailing_zeros() as u8) else {
@@ -177,11 +178,9 @@ pub fn check_signal() -> bool {
     };
 
     debug!("handle signal {first_pending:?}");
-    let action = unsafe {
-        (*local_hart())
-            .curr_process()
-            .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone())
-    };
+    let action = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone());
     trace!(
         "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
         action.handler(),
@@ -195,7 +194,7 @@ pub fn check_signal() -> bool {
         SIG_DFL => match DefaultHandler::new(first_pending) {
             DefaultHandler::Terminate | DefaultHandler::CoreDump => {
                 exit_process(
-                    unsafe { (*local_hart()).curr_process() },
+                    &local_hart().curr_process(),
                     (first_pending as i8).wrapping_add_unsigned(128),
                 );
                 // TODO:[low] 要处理 CoreDump
@@ -210,7 +209,7 @@ pub fn check_signal() -> bool {
         handler => handler,
     };
 
-    let thread = unsafe { (*local_hart()).curr_thread() };
+    let thread = local_hart().curr_thread();
 
     let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
         let old_mask = inner.signal_mask;
@@ -237,7 +236,7 @@ pub fn check_signal() -> bool {
     let Ok(mut user_ptr) = UserCheckMut::new(sp as *mut SignalContext).check_ptr_mut() else {
         // TODO:[blocked] 这里其实可以试着补救
         exit_process(
-            unsafe { (*local_hart()).curr_process() },
+            &local_hart().curr_process(),
             (first_pending as i8).wrapping_add_unsigned(128),
         );
         return true;
@@ -269,7 +268,7 @@ fn set_user_trap_entry() {
 
 fn interrupt_handler() {
     let plic = unsafe { &*Plic::mmio() };
-    let hart_id = unsafe { (*local_hart()).hart_id() };
+    let hart_id = local_hart().hart_id();
     let context_id = hart_id * 2;
     let interrupt_id = plic.claim(context_id);
     let Some(interrupt_source) = InterruptSource::from_id(interrupt_id) else {

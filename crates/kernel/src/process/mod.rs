@@ -249,9 +249,9 @@ impl Process {
         self.pid
     }
 
-    pub fn is_normal(&self) -> bool {
-        self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (0 << 8)
-    }
+    // pub fn is_normal(&self) -> bool {
+    //     self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (0 << 8)
+    // }
 
     pub fn is_exited(&self) -> bool {
         self.status.load(Ordering::SeqCst).0 & (0b1111_1111 << 8) == (1 << 8)

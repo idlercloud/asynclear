@@ -40,7 +40,7 @@ triomphe = { version = "0.1.11", default-features = false }
 num_enum = { version = "0.7", default-features = false }
 
 [profile.dev]
-opt-level = 0
+opt-level = 1
 debug = 2
 
 [profile.release]

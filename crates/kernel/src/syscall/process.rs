@@ -15,55 +15,50 @@ use event_listener::listener;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
+    executor,
     hart::local_hart,
     memory::VirtAddr,
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
-    thread::BlockingFuture,
+    thread::{BlockingFuture, ThreadStatus},
 };
 
 // TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
 
 /// 退出当前线程，结束用户线程循环。
 pub fn sys_exit(exit_code: i32) -> Result {
-    unsafe {
-        (*local_hart())
-            .curr_thread()
-            .exit_code
-            .store((exit_code & 0xff) as i8, Ordering::SeqCst);
-    };
+    local_hart()
+        .curr_thread()
+        .exit_code
+        .store((exit_code & 0xff) as i8, Ordering::SeqCst);
     Err(errno::BREAK)
 }
 
 /// 退出进程，退出所有线程
 pub fn sys_exit_group(exit_code: i32) -> Result {
-    exit_process(
-        unsafe { (*local_hart()).curr_process() },
-        (exit_code & 0xff) as i8,
-    );
+    exit_process(&local_hart().curr_process(), (exit_code & 0xff) as i8);
     Err(errno::BREAK)
 }
 
 /// 挂起当前任务，让出 CPU，永不失败
 pub async fn sys_sched_yield() -> Result {
-    unsafe { (*local_hart()).curr_thread().yield_now().await }
+    local_hart().curr_thread().set_status(ThreadStatus::Ready);
+    executor::yield_now().await;
     Ok(0)
 }
 
 /// 返回当前进程 id，永不失败
 pub fn sys_getpid() -> Result {
-    let pid = unsafe { (*local_hart()).curr_process().pid() as isize };
+    let pid = local_hart().curr_process().pid() as isize;
     Ok(pid)
 }
 
 /// 返回当前进程的父进程的 id，永不失败
 pub fn sys_getppid() -> Result {
     // INITPROC(pid=1) 没有父进程，返回 0
-    let ppid = unsafe {
-        (*local_hart())
-            .curr_process()
-            .lock_inner_with(|inner| inner.parent.as_ref().map_or(0, |p| p.pid()) as isize)
-    };
+    let ppid = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.parent.as_ref().map_or(0, |p| p.pid()) as isize);
     Ok(ppid)
 }
 
@@ -137,12 +132,10 @@ pub fn sys_clone(
             exit_signal = Some(signal);
         }
         let user_stack = NonZeroUsize::new(user_stack);
-        let new_process = unsafe {
-            (*local_hart())
-                .curr_thread()
-                .process
-                .fork(user_stack, exit_signal)
-        };
+        let new_process = local_hart()
+            .curr_thread()
+            .process
+            .fork(user_stack, exit_signal);
         Ok(new_process.pid() as isize)
     }
 }
@@ -170,11 +163,9 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
     // 执行新进程
 
     let argc = arg_vec.len();
-    unsafe {
-        (*local_hart())
-            .curr_process()
-            .exec(CompactString::from(&*pathname), arg_vec)?;
-    }
+    local_hart()
+        .curr_process()
+        .exec(CompactString::from(&*pathname), arg_vec)?;
     Ok(argc as isize)
 }
 
@@ -213,7 +204,7 @@ pub async fn sys_wait4(
     // 尝试寻找符合条件的子进程
     loop {
         // 尝试找到一个符合条件，且已经是僵尸的子进程
-        let process = unsafe { (*local_hart()).curr_process() };
+        let process = local_hart().curr_process_arc();
         listener!(process.wait4_event => listener);
         {
             // 用块是因为 rust 目前不够聪明。
@@ -380,7 +371,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
             error!("fd must be -1 and offset must be 0 for anonyous mapping");
             return Err(errno::EPERM);
         }
-        let process = unsafe { (*local_hart()).curr_process() };
+        let process = local_hart().curr_process();
         info!("pid: {}", process.pid());
         // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
         return process.lock_inner_with(|inner| {

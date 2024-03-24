@@ -2,7 +2,6 @@ mod inner;
 mod user;
 
 use crate::{
-    executor,
     memory::{MapPermission, MemorySet, VirtAddr},
     trap::TrapContext,
 };
@@ -96,11 +95,6 @@ impl Thread {
         // 手动取消用户栈的映射
         let user_stack_low_addr = VirtAddr(Self::user_stack_low_addr(self.tid));
         memory_set.remove_area_with_start_vpn(user_stack_low_addr.vpn());
-    }
-
-    pub async fn yield_now(&self) {
-        self.set_status(ThreadStatus::Ready);
-        executor::yield_now().await;
     }
 
     pub fn set_status(&self, status: ThreadStatus) {

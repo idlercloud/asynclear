@@ -12,7 +12,7 @@ use triomphe::Arc;
 
 use crate::{
     executor,
-    hart::{local_hart, local_hart_mut},
+    hart::local_hart,
     process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
     trap, SHUTDOWN,
@@ -33,17 +33,16 @@ async fn user_thread_loop() {
     loop {
         // 返回用户态
         // 注意切换了控制流，但是之后回到内核态还是在这里
-        trap::trap_return(unsafe {
-            (*local_hart())
-                .curr_thread()
-                .lock_inner_with(|inner| &mut inner.trap_context as _)
-        });
+        let trap_context = local_hart()
+            .curr_thread()
+            .lock_inner_with(|inner| &mut inner.trap_context as _);
+        trap::trap_return(trap_context);
 
         trace!("enter kernel mode");
         // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
         let next_op = trap::user_trap_handler().await;
 
-        if next_op.is_break() || unsafe { (*local_hart()).curr_process().is_exited() } {
+        if next_op.is_break() || local_hart().curr_process().is_exited() {
             break;
         }
     }
@@ -133,9 +132,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        unsafe {
-            (*local_hart_mut()).replace_thread(Some(Arc::clone(&self.thread)));
-        }
+        local_hart().replace_thread(Some(Arc::clone(&self.thread)));
         let process = &self.thread.process;
         process.lock_inner_with(|inner| inner.memory_set.activate());
         let pid = process.pid();
@@ -160,9 +157,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
         // 该进程退出运行态。不过页表不会切换
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成
         trace!("User task deactivate");
-        unsafe {
-            (*local_hart_mut()).replace_thread(None);
-        }
+        local_hart().replace_thread(None);
 
         ret
     }
@@ -188,11 +183,9 @@ impl<F: Future> Future for BlockingFuture<F> {
         let pinned = self.project().future;
         let ret = pinned.poll(cx);
         if ret.is_pending() {
-            unsafe {
-                (*local_hart())
-                    .curr_thread()
-                    .set_status(ThreadStatus::Blocking);
-            }
+            local_hart()
+                .curr_thread()
+                .set_status(ThreadStatus::Blocking);
         }
         ret
     }

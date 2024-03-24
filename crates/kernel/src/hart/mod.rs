@@ -1,5 +1,6 @@
 use core::{
     arch::asm,
+    cell::{Ref, RefCell},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -30,16 +31,16 @@ pub struct Hart {
     hart_id: usize,
     //TODO: 内核线程是不是会不太一样？
     /// 当前 hart 上正在运行的线程。
-    thread: Option<Arc<Thread>>,
-    pub span_stack: Vec<SpanId>,
+    thread: RefCell<Option<Arc<Thread>>>,
+    pub span_stack: RefCell<Vec<SpanId>>,
 }
 
 impl Hart {
     pub const fn new() -> Hart {
         Hart {
             hart_id: 0,
-            thread: None,
-            span_stack: Vec::new(),
+            thread: RefCell::new(None),
+            span_stack: RefCell::new(Vec::new()),
         }
     }
 
@@ -47,16 +48,20 @@ impl Hart {
         self.hart_id
     }
 
-    pub fn replace_thread(&mut self, new_thread: Option<Arc<Thread>>) -> Option<Arc<Thread>> {
-        core::mem::replace(&mut self.thread, new_thread)
+    pub fn replace_thread(&self, new_thread: Option<Arc<Thread>>) -> Option<Arc<Thread>> {
+        core::mem::replace(&mut self.thread.borrow_mut(), new_thread)
     }
 
-    pub fn curr_thread(&self) -> &Thread {
-        self.thread.as_ref().unwrap()
+    pub fn curr_thread(&self) -> Ref<'_, Thread> {
+        Ref::map(self.thread.borrow(), |t| t.as_ref().unwrap().as_ref())
     }
 
-    pub fn curr_process(&self) -> &Process {
-        &self.curr_thread().process
+    pub fn curr_process(&self) -> Ref<'_, Process> {
+        Ref::map(self.curr_thread(), |t| t.process.as_ref())
+    }
+
+    pub fn curr_process_arc(&self) -> Arc<Process> {
+        Arc::clone(&self.thread.borrow().as_ref().unwrap().process)
     }
 }
 
@@ -153,18 +158,10 @@ unsafe fn set_local_hart(hart_id: usize) {
     }
 }
 
-pub fn local_hart() -> *const Hart {
+pub fn local_hart() -> &'static Hart {
     let tp: usize;
     unsafe {
         asm!("mv {}, tp", out(reg) tp);
+        &*(tp as *const Hart)
     }
-    tp as *const Hart
-}
-
-pub fn local_hart_mut() -> *mut Hart {
-    let tp: usize;
-    unsafe {
-        asm!("mv {}, tp", out(reg) tp);
-    }
-    tp as *mut Hart
 }

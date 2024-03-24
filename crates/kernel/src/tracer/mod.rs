@@ -13,11 +13,7 @@ use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
 
-use crate::{
-    drivers::qemu_block::DiskDriver,
-    hart::{local_hart, local_hart_mut},
-    uart_console::STDOUT,
-};
+use crate::{drivers::qemu_block::DiskDriver, hart::local_hart, uart_console::STDOUT};
 
 static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
 
@@ -62,19 +58,17 @@ impl Tracer for KernelTracerImpl {
     }
 
     fn enter(&self, span_id: &SpanId) {
-        unsafe {
-            (*local_hart_mut()).span_stack.push(span_id.clone());
-        }
+        local_hart().span_stack.borrow_mut().push(span_id.clone());
         #[cfg(feature = "profiling")]
         self.events.lock().push(ProfilingEvent::Enter {
-            hart_id: unsafe { (*local_hart()).hart_id() as u32 },
+            hart_id: local_hart().hart_id() as u32,
             id: span_id.to_u32(),
             instant: riscv_time::get_time_ns() as u64,
         });
     }
 
     fn exit(&self, span_id: &SpanId) {
-        let _span_id = unsafe { (*local_hart_mut()).span_stack.pop() };
+        let _span_id = local_hart().span_stack.borrow_mut().pop();
         #[cfg(feature = "profiling")]
         self.events.lock().push(ProfilingEvent::Exit {
             id: span_id.to_u32(),
@@ -122,7 +116,7 @@ impl KernelTracerImpl {
         let mut has_span = false;
         {
             let slab = self.slab.lock();
-            let stack = unsafe { &(*local_hart()).span_stack };
+            let stack = local_hart().span_stack.borrow();
 
             for id in stack.iter() {
                 let id = span_id_to_slab_index(id);

@@ -16,7 +16,7 @@ use user_check::{UserCheck, UserCheckMut};
 use crate::{hart::local_hart, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
-    let curr_pid = unsafe { (*local_hart()).curr_process().pid() };
+    let curr_pid = local_hart().curr_process().pid();
     // 读入标准输入、写入标准输出、写入标准错误都不关心
     if (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
@@ -96,7 +96,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         ),
         _ => {
             error!("Unsupported syscall id: {id}");
-            exit_process(unsafe { (*local_hart()).curr_process() }, -10);
+            exit_process(&local_hart().curr_process(), -10);
             Ok(0)
         }
     };

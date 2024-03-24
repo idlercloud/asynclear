@@ -37,11 +37,9 @@ pub fn sys_rt_sigaction(
         trace!("read old_act into {old_act:p}");
         let mut old_act_ptr = UserCheckMut::new(old_act).check_ptr_mut()?;
 
-        unsafe {
-            (*local_hart()).curr_process().lock_inner_with(|inner| {
-                old_act_ptr.clone_from(inner.signal_handlers.action(signal));
-            });
-        }
+        local_hart().curr_process().lock_inner_with(|inner| {
+            old_act_ptr.clone_from(inner.signal_handlers.action(signal));
+        });
     }
 
     if !act.is_null() {
@@ -53,14 +51,12 @@ pub fn sys_rt_sigaction(
             // 如果没有填写，则 os 需要自己手动做一个 trampoline
             todo!("[low] sig trampoline does not impl")
         }
-        unsafe {
-            (*local_hart()).curr_process().lock_inner_with(|inner| {
-                inner
-                    .signal_handlers
-                    .action_mut(signal)
-                    .clone_from(&act_ptr);
-            });
-        }
+        local_hart().curr_process().lock_inner_with(|inner| {
+            inner
+                .signal_handlers
+                .action_mut(signal)
+                .clone_from(&act_ptr);
+        });
     }
 
     Ok(0)
@@ -91,11 +87,9 @@ pub fn sys_rt_sigprocmask(
         trace!("read old_set into {old_set:p}");
         let mut old_set_ptr = UserCheckMut::new(old_set).check_ptr_mut()?;
 
-        unsafe {
-            (*local_hart()).curr_thread().lock_inner_with(|inner| {
-                old_set_ptr.clone_from(&inner.signal_mask);
-            });
-        }
+        local_hart().curr_thread().lock_inner_with(|inner| {
+            old_set_ptr.clone_from(&inner.signal_mask);
+        });
     }
 
     let Ok(how) = SigprocmaskHow::try_from(how) else {
@@ -105,15 +99,13 @@ pub fn sys_rt_sigprocmask(
     if !set.is_null() {
         debug!("write signal mask from {set:p} with how = {how:?}");
         let set_ptr = UserCheck::new(set).check_ptr()?;
-        unsafe {
-            (*local_hart())
-                .curr_thread()
-                .lock_inner_with(|inner| match how {
-                    SigprocmaskHow::SIG_BLOCK => inner.signal_mask.insert(*set_ptr),
-                    SigprocmaskHow::SIG_UNBLOCK => inner.signal_mask.remove(*set_ptr),
-                    SigprocmaskHow::SIG_SETMASK => inner.signal_mask = *set_ptr,
-                });
-        }
+        local_hart()
+            .curr_thread()
+            .lock_inner_with(|inner| match how {
+                SigprocmaskHow::SIG_BLOCK => inner.signal_mask.insert(*set_ptr),
+                SigprocmaskHow::SIG_UNBLOCK => inner.signal_mask.remove(*set_ptr),
+                SigprocmaskHow::SIG_SETMASK => inner.signal_mask = *set_ptr,
+            });
     }
 
     Ok(0)
@@ -121,7 +113,7 @@ pub fn sys_rt_sigprocmask(
 
 pub fn sys_rt_sigreturn() -> Result {
     debug!("sigreturn called");
-    let thread = unsafe { (*local_hart()).curr_thread() };
+    let thread = local_hart().curr_thread();
     let sp = thread.lock_inner_with(|inner| inner.trap_context.sp());
     let Ok(user_ptr) = UserCheck::new(sp as *mut SignalContext).check_ptr() else {
         // TODO:[blocked] 这里其实可以试着补救

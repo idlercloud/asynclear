@@ -43,6 +43,12 @@ impl KSignalAction {
     }
 }
 
+impl Default for KSignalAction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // TODO: 出于简单性，暂时只考虑标准信号，后续有需要实时信号再添加
 
 bitflags! {
