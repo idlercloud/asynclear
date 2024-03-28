@@ -62,18 +62,17 @@ use crate::{fs::TtyFuture, thread::BlockingFuture, uart_console::print};
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，若无效则返回 `EINVAL`
-/// - `len` 指定至多读取的字节数
-pub async fn sys_read(fd: usize, buf: UserCheckMut<u8>, len: usize) -> Result {
+pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
     if fd == 0 {
-        trace!("read stdin, len = {len}");
+        trace!("read stdin, len = {}", buf.len());
     } else {
-        debug!("fd = {fd}, len = {len}");
+        debug!("fd = {fd}, len = {}", buf.len());
     }
     // let file = prepare_io(fd, true)?;
     // let nread = file.read(buf);
     // Ok(nread as isize)
     if fd == 0 {
-        return Ok(BlockingFuture::new(TtyFuture::new(buf, len)).await? as isize);
+        return Ok(BlockingFuture::new(TtyFuture::new(buf)).await? as isize);
     }
     todo!("[blocked] sys_read full support")
 }
@@ -82,10 +81,9 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<u8>, len: usize) -> Result {
 ///
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
-/// - `buf: *const u8` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
-/// - `len` 指定至多写入的字节数
-pub async fn sys_write(fd: usize, buf: UserCheck<u8>, len: usize) -> Result {
-    let buf = buf.check_slice(len)?;
+/// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
+pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> Result {
+    let buf = buf.check_slice()?;
     // let file = prepare_io(fd, false)?;
     // let nwrite = file.write(buf);
     // Ok(nwrite as isize)

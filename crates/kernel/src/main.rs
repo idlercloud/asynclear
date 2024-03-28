@@ -11,6 +11,7 @@
 #![feature(decl_macro)]
 #![feature(assert_matches)]
 #![feature(step_trait)]
+#![feature(ptr_metadata)]
 
 #[macro_use]
 extern crate kernel_tracer;

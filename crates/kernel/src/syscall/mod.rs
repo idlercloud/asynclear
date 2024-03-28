@@ -5,6 +5,8 @@ mod signal;
 mod sync;
 mod thread;
 
+use core::ptr;
+
 use defines::{error::errno, syscall::*};
 use fs::*;
 use process::*;
@@ -47,8 +49,20 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // CLOSE => sys_close(args[0]),
         // PIPE2 => sys_pipe2(args[0] as _),
         // GETDENTS64 => sys_getdents64(args[0], args[1] as _, args[2]),
-        READ => sys_read(args[0], UserCheckMut::new(args[1] as _), args[2]).await,
-        WRITE => sys_write(args[0], UserCheck::new(args[1] as _), args[2]).await,
+        READ => {
+            sys_read(
+                args[0],
+                UserCheckMut::new(ptr::from_raw_parts_mut(args[1] as _, args[2])),
+            )
+            .await
+        }
+        WRITE => {
+            sys_write(
+                args[0],
+                UserCheck::new(ptr::from_raw_parts(args[1] as _, args[2])),
+            )
+            .await
+        }
         // READV => sys_readv(args[0], args[1] as _, args[2]),
         // WRITEV => sys_writev(args[0], args[1] as _, args[2]),
         // PPOLL => sys_ppoll(),

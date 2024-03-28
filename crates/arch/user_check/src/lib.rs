@@ -1,5 +1,7 @@
 #![no_std]
 #![feature(naked_functions)]
+#![feature(slice_ptr_get)]
+#![feature(slice_ptr_len)]
 
 #[macro_use]
 extern crate kernel_tracer;
@@ -16,20 +18,20 @@ use riscv::register::stvec::{self, TrapMode};
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
 
-pub struct UserCheck<T> {
+pub struct UserCheck<T: ?Sized> {
     ptr: *const T,
 }
 
-pub struct UserCheckMut<T> {
+pub struct UserCheckMut<T: ?Sized> {
     ptr: *mut T,
 }
 
-unsafe impl<T> Send for UserCheck<T> {}
-unsafe impl<T> Send for UserCheckMut<T> {}
+unsafe impl<T: ?Sized> Send for UserCheck<T> {}
+unsafe impl<T: ?Sized> Send for UserCheckMut<T> {}
 
 // TODO: 检查用户指针 page fault 时可以采取措施挽救
 
-impl<T> UserCheck<T> {
+impl<T: ?Sized> UserCheck<T> {
     pub fn new(ptr: *const T) -> Self {
         Self { ptr }
     }
@@ -37,7 +39,9 @@ impl<T> UserCheck<T> {
     pub fn is_null(&self) -> bool {
         self.ptr.is_null()
     }
+}
 
+impl<T> UserCheck<T> {
     pub fn check_ptr(&self) -> Result<UserConst<T>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_const_impl(self.ptr, 1) {
@@ -49,12 +53,18 @@ impl<T> UserCheck<T> {
             Err(errno::EFAULT)
         }
     }
+}
 
-    pub fn check_slice(&self, len: usize) -> Result<UserConst<[T]>> {
+impl<T> UserCheck<[T]> {
+    pub fn len(&self) -> usize {
+        self.ptr.len()
+    }
+
+    pub fn check_slice(&self) -> Result<UserConst<[T]>> {
         let _access_user_guard = AccessUserGuard::new();
-        if check::check_const_impl(self.ptr, len) {
+        if check::check_const_impl(self.ptr.as_ptr(), self.ptr.len()) {
             Ok(UserConst {
-                ptr: ptr::slice_from_raw_parts(self.ptr.cast(), len),
+                ptr: self.ptr,
                 _access_user_guard,
             })
         } else {
@@ -63,7 +73,7 @@ impl<T> UserCheck<T> {
     }
 }
 
-impl<T> UserCheckMut<T> {
+impl<T: ?Sized> UserCheckMut<T> {
     pub fn new(ptr: *mut T) -> Self {
         Self { ptr }
     }
@@ -71,7 +81,9 @@ impl<T> UserCheckMut<T> {
     pub fn is_null(&self) -> bool {
         self.ptr.is_null()
     }
+}
 
+impl<T> UserCheckMut<T> {
     pub fn check_ptr(&self) -> Result<UserConst<T>> {
         UserCheck::new(self.ptr as *const T).check_ptr()
     }
@@ -87,16 +99,22 @@ impl<T> UserCheckMut<T> {
             Err(errno::EFAULT)
         }
     }
+}
 
-    pub fn check_slice(&self, len: usize) -> Result<UserConst<[T]>> {
-        UserCheck::new(self.ptr as *const T).check_slice(len)
+impl<T> UserCheckMut<[T]> {
+    pub fn len(&self) -> usize {
+        self.ptr.len()
     }
 
-    pub fn check_slice_mut(&self, len: usize) -> Result<UserMut<[T]>> {
+    pub fn check_slice(&self) -> Result<UserConst<[T]>> {
+        UserCheck::new(self.ptr as *const [T]).check_slice()
+    }
+
+    pub fn check_slice_mut(&self) -> Result<UserMut<[T]>> {
         let _access_user_guard = AccessUserGuard::new();
-        if check::check_mut_impl(self.ptr, len) {
+        if check::check_mut_impl(self.ptr.as_mut_ptr(), self.ptr.len()) {
             Ok(UserMut {
-                ptr: ptr::slice_from_raw_parts_mut(self.ptr.cast(), len),
+                ptr: self.ptr,
                 _access_user_guard,
             })
         } else {
@@ -154,7 +172,6 @@ impl UserCheck<u8> {
     }
 
     fn check_cstr_end(start: usize) -> usize {
-        // TODO: 重构 memory 模块后，VitrAddr 相关的操作应该可以独立开来
         let next_page = ((start >> PAGE_SIZE_BITS) << PAGE_SIZE_BITS) + PAGE_SIZE;
         let mut va = start;
         while va < next_page {
