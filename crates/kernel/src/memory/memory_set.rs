@@ -67,7 +67,6 @@ impl MemorySet {
                 kernel_va_to_pa(VirtAddr(etext as usize)),
                 MapPermission::R | MapPermission::X | MapPermission::G,
             ),
-            0,
             None,
         );
 
@@ -79,7 +78,6 @@ impl MemorySet {
                 kernel_va_to_pa(VirtAddr(erodata as usize)),
                 MapPermission::R | MapPermission::G,
             ),
-            0,
             None,
         );
 
@@ -90,7 +88,6 @@ impl MemorySet {
                 kernel_va_to_pa(VirtAddr(ebss as usize)),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             ),
-            0,
             None,
         );
 
@@ -101,7 +98,6 @@ impl MemorySet {
                 PhysAddr(MEMORY_END),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             ),
-            0,
             None,
         );
 
@@ -113,7 +109,6 @@ impl MemorySet {
                     PhysAddr(start + len),
                     MapPermission::R | MapPermission::W | MapPermission::G,
                 ),
-                0,
                 None,
             );
         }
@@ -154,7 +149,7 @@ impl MemorySet {
                     },
                     map_perm,
                 );
-                self.push(map_area, start_offset, Some(&elf_data[ph.file_range()]));
+                self.push(map_area, Some((&elf_data[ph.file_range()], start_offset)));
             }
         }
         elf_end
@@ -177,22 +172,15 @@ impl MemorySet {
     }
 
     /// 从另一地址空间复制
-    pub fn from_existed_user(user_space: &MemorySet) -> MemorySet {
+    pub fn from_existed_user(user_space: &Self) -> Self {
         let mut memory_set = Self::new_bare();
         for (_, area) in user_space.areas.iter() {
             let new_area = MapArea::from_another(area);
-            memory_set.push(new_area, 0, None);
+            memory_set.push(new_area, None);
             // 从该地址空间复制数据
             for vpn in area.vpn_range.clone() {
                 let src_ppn = user_space.translate(vpn).unwrap();
                 let dst_ppn = memory_set.translate(vpn).unwrap();
-                // let physical_memory_begin_frame: usize =
-                //     kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
-                // info!(
-                //     "Copy from {} to {}",
-                //     src_ppn.0 - physical_memory_begin_frame,
-                //     dst_ppn.0 - physical_memory_begin_frame
-                // );
                 unsafe {
                     kernel_ppn_to_vpn(dst_ppn)
                         .as_page_bytes_mut()
@@ -270,7 +258,6 @@ impl MemorySet {
                 map_type: MapType::new_framed(),
                 map_perm: perm,
             },
-            0,
             None,
         );
     }
@@ -281,11 +268,11 @@ impl MemorySet {
         }
     }
 
-    /// `start_offset` 是数据在页中开始的偏移
-    pub fn push(&mut self, mut map_area: MapArea, start_offset: usize, data: Option<&[u8]>) {
+    /// `page_offset` 是数据在页中开始的偏移
+    pub fn push(&mut self, mut map_area: MapArea, data_with_page_offset: Option<(&[u8], usize)>) {
         map_area.map(&mut self.page_table);
-        if let Some(data) = data {
-            map_area.copy_data(&mut self.page_table, start_offset, data);
+        if let Some((data, offset)) = data_with_page_offset {
+            map_area.copy_data(&mut self.page_table, offset, data);
         }
         self.areas.insert(map_area.vpn_range.start, map_area);
     }
@@ -423,7 +410,7 @@ impl MapArea {
                 data_frames.insert(vpn, Arc::new(frame));
             }
         }
-        page_table.map(vpn, ppn, PTEFlags::from_bits_truncate(self.map_perm.bits()));
+        page_table.map(vpn, ppn, PTEFlags::from(self.map_perm));
     }
 
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {

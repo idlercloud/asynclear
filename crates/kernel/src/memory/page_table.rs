@@ -12,21 +12,22 @@ use riscv::register::satp;
 
 bitflags! {
     /// page table entry flags
-    pub struct PTEFlags: u8 {
-        const V = 1 << 0;
-        const R = 1 << 1;
-        const W = 1 << 2;
-        const X = 1 << 3;
-        const U = 1 << 4;
-        const G = 1 << 5;
-        const A = 1 << 6;
-        const D = 1 << 7;
+    pub struct PTEFlags: u16 {
+        const V =   1 << 0;
+        const R =   1 << 1;
+        const W =   1 << 2;
+        const X =   1 << 3;
+        const U =   1 << 4;
+        const G =   1 << 5;
+        const A =   1 << 6;
+        const D =   1 << 7;
+        const COW = 1 << 8;
     }
 }
 
 impl From<MapPermission> for PTEFlags {
     fn from(mp: MapPermission) -> Self {
-        Self::from_bits_truncate(mp.bits())
+        Self::from_bits_truncate(mp.bits() as u16)
     }
 }
 
@@ -51,7 +52,7 @@ impl PageTableEntry {
         PhysPageNum((self.bits >> 10) & LOW_44_MASK)
     }
     pub fn flags(&self) -> PTEFlags {
-        PTEFlags::from_bits_truncate(self.bits as u8)
+        PTEFlags::from_bits_truncate(self.bits as u16)
     }
     pub fn is_valid(&self) -> bool {
         self.flags().contains(PTEFlags::V)
@@ -174,7 +175,6 @@ impl PageTable {
 
     /// 将用户指针转换到内核的虚拟地址。
     #[inline]
-    #[track_caller]
     pub fn trans_va(&self, va: VirtAddr) -> Result<VirtAddr> {
         self.trans_va_to_pa(va)
             .map(super::kernel_pa_to_va)
