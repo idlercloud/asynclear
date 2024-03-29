@@ -34,6 +34,7 @@ slab = { version = "0.4", default-features = false }
 virtio-drivers = "0.7"
 uart_16550 = "0.3"
 async-task = { version = "4.7", default-features = false }
+async-trait = "0.1"
 
 [features]
 default = []

@@ -20,7 +20,7 @@ use crate::{
     memory::VirtAddr,
     process::exit_process,
     syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
-    thread::{BlockingFuture, ThreadStatus},
+    thread::BlockingFuture,
 };
 
 // TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
@@ -42,7 +42,6 @@ pub fn sys_exit_group(exit_code: i32) -> Result {
 
 /// 挂起当前任务，让出 CPU，永不失败
 pub async fn sys_sched_yield() -> Result {
-    local_hart().curr_thread().set_status(ThreadStatus::Ready);
     executor::yield_now().await;
     Ok(0)
 }

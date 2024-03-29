@@ -25,9 +25,9 @@ pub struct Uart {
 }
 
 impl Uart {
-    pub fn print(&self, bytes: &[u8]) {
+    pub fn print(&self, s: &str) {
         let mut port = self.port.lock();
-        for byte in bytes {
+        for byte in s.as_bytes() {
             port.send(*byte);
         }
     }

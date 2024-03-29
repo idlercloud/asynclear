@@ -1,7 +1,7 @@
 use defines::error::Result;
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::{fs::TtyFuture, thread::BlockingFuture, uart_console::print};
+use crate::fs::File;
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///
@@ -72,7 +72,7 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
     // let nread = file.read(buf);
     // Ok(nread as isize)
     if fd == 0 {
-        return Ok(BlockingFuture::new(TtyFuture::new(buf)).await? as isize);
+        return File::Stdin.read(buf).await.map(|n| n as isize);
     }
     todo!("[blocked] sys_read full support")
 }
@@ -83,14 +83,11 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
 pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> Result {
-    let buf = buf.check_slice()?;
     // let file = prepare_io(fd, false)?;
     // let nwrite = file.write(buf);
     // Ok(nwrite as isize)
     if fd == 1 || fd == 2 {
-        let s = core::str::from_utf8(&buf).unwrap();
-        print!("{s}");
-        return Ok(s.len() as isize);
+        return File::Stdout.write(buf).await.map(|n| n as isize);
     }
     todo!("[blocked] sys_write full support")
 }

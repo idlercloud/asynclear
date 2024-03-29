@@ -227,8 +227,9 @@ sudo make install
 
 按优先级排列：
 
-- [ ] CoW、Lazy Page，顺便重构 memory 模块
 - [ ] 虚拟文件系统和页缓存
+- [ ] CoW、Lazy Page
+- [ ] 用户堆分配 syscall 支持以及对应的用户测试
 - [ ] 内核线程
 - [ ] kernel 内容能否放入 huge page？
 

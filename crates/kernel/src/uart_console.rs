@@ -9,7 +9,7 @@ pub struct Stdout(());
 
 impl Write for Stdout {
     fn write_str(&mut self, s: &str) -> Result {
-        UART0.print(s.as_bytes());
+        UART0.print(s);
         Ok(())
     }
 }

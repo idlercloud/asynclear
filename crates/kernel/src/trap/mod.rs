@@ -9,7 +9,6 @@ use core::ops::ControlFlow;
 use crate::{
     drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource},
     executor,
-    thread::ThreadStatus,
 };
 use defines::{
     error::errno,
@@ -119,7 +118,6 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             trace!("timer interrupt");
             riscv_time::set_next_trigger();
             timer::check_timer();
-            local_hart().curr_thread().set_status(ThreadStatus::Ready);
             executor::yield_now().await;
             ControlFlow::Continue(())
         }
