@@ -7,7 +7,7 @@ use idallocator::RecycleAllocator;
 use memory::{MemorySet, VirtAddr};
 use triomphe::Arc;
 
-use crate::{memory, signal::SignalHandlers, thread::Thread};
+use crate::{fs::FdTable, memory, signal::SignalHandlers, thread::Thread};
 
 use super::Process;
 
@@ -32,7 +32,7 @@ pub struct ProcessInner {
     pub cwd: CompactString,
 
     /* 文件 */
-    // pub fd_table: Vec<Option<Arc<File>>>,
+    pub fd_table: FdTable,
 
     /* 信号 */
     pub signal_handlers: SignalHandlers,

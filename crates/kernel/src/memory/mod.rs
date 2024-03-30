@@ -1,15 +1,15 @@
 mod address;
 mod frame_allocator;
 mod kernel_heap;
-mod memory_set;
-mod page_table;
+mod memory_space;
+mod page;
 
 use common::config::{PAGE_SIZE, PA_TO_VA};
 
 pub use self::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
-pub use self::frame_allocator::{frame_alloc, frame_dealloc, FrameTracker};
-pub use self::memory_set::{MapPermission, MemorySet, KERNEL_SPACE};
-pub use self::page_table::{PTEFlags, PageTable};
+pub use self::frame_allocator::{frame_dealloc, ContinuousFrames};
+pub use self::memory_space::memory_set::{MapPermission, MemorySet, KERNEL_SPACE};
+pub use self::memory_space::page_table::{PTEFlags, PageTable};
 
 #[inline]
 pub const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {

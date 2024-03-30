@@ -1,7 +1,7 @@
-use defines::error::Result;
+use defines::error::{errno, Result};
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::fs::File;
+use crate::{fs::FileDescriptor, hart::local_hart};
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///
@@ -40,22 +40,21 @@ use crate::fs::File;
 //     todo!("[blocked] sys_mkdirat")
 // }
 
-// // #[rustfmt::skip]
-// // fn prepare_io(fd: usize, is_read: bool) -> Result<Arc<File>> {
-// //     let process = curr_process();
-// //     let inner = process.inner();
-// //     if let Some(Some(file)) = inner.fd_table.get(fd) &&
-// //         ((is_read && file.readable()) || (!is_read&& file.writable()))
-// //     {
-// //         let file = Arc::clone(&file.clone());
-// //         if file.is_dir() {
-// //             return Err(errno::EISDIR);
-// //         }
-// //         Ok(file)
-// //     } else {
-// //         Err(errno::EBADF)
-// //     }
-// // }
+#[rustfmt::skip]
+fn prepare_io(fd: usize, is_read: bool) -> Result<FileDescriptor> {
+    let process = local_hart().curr_process_arc();
+    let inner = process.lock_inner();
+    let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
+    if (is_read && file.readable()) || (!is_read&& file.writable())
+    {
+        if file.is_dir() {
+            return Err(errno::EISDIR);
+        }
+        Ok(file.clone())
+    } else {
+        Err(errno::EBADF)
+    }
+}
 
 /// 从 `fd` 指示的文件中读至多 `len` 字节的数据到用户缓冲区中。成功时返回读入的字节数
 ///
@@ -68,13 +67,10 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
     } else {
         debug!("fd = {fd}, len = {}", buf.len());
     }
-    // let file = prepare_io(fd, true)?;
-    // let nread = file.read(buf);
-    // Ok(nread as isize)
-    if fd == 0 {
-        return File::Stdin.read(buf).await.map(|n| n as isize);
-    }
-    todo!("[blocked] sys_read full support")
+
+    let file = prepare_io(fd, true)?;
+    let nread = file.read(buf).await?;
+    Ok(nread as isize)
 }
 
 /// 向 fd 指示的文件中写入至多 `len` 字节的数据。成功时返回写入的字节数
@@ -83,13 +79,9 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
 pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> Result {
-    // let file = prepare_io(fd, false)?;
-    // let nwrite = file.write(buf);
-    // Ok(nwrite as isize)
-    if fd == 1 || fd == 2 {
-        return File::Stdout.write(buf).await.map(|n| n as isize);
-    }
-    todo!("[blocked] sys_write full support")
+    let file = prepare_io(fd, false)?;
+    let nwrite = file.write(buf).await?;
+    Ok(nwrite as isize)
 }
 
 // #[repr(C)]

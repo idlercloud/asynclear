@@ -19,6 +19,7 @@ use memory::{MemorySet, KERNEL_SPACE};
 use triomphe::Arc;
 
 use crate::{
+    fs::FdTable,
     memory,
     signal::SignalHandlers,
     thread::{self, Thread},
@@ -112,6 +113,7 @@ impl Process {
                 parent: None,
                 children: Vec::new(),
                 cwd: CompactString::from_static_str("/"),
+                fd_table: FdTable::with_stdio(),
                 signal_handlers: SignalHandlers::new(),
                 tid_allocator,
                 threads: BTreeMap::new(),
@@ -164,6 +166,7 @@ impl Process {
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),
                     cwd: inner.cwd.clone(),
+                    fd_table: inner.fd_table.clone(),
                     signal_handlers: inner.signal_handlers.clone(),
                     tid_allocator: inner.tid_allocator.clone(),
                     threads: BTreeMap::new(),
@@ -201,7 +204,9 @@ impl Process {
             info!("executable does not exist");
             errno::ENOENT
         })?;
+        // TODO: [low] 处理 elf 文件无效的情况
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
+        // TODO: [mid]: 处理 close_on_exec
         self.lock_inner_with(|inner| {
             // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);

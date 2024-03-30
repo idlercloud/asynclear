@@ -9,20 +9,57 @@ use super::{kernel_ppn_to_vpn, kernel_va_to_pa, PhysPageNum, VirtAddr};
 use common::config::{MEMORY_END, MEMORY_SIZE, PAGE_SIZE};
 use klocks::SpinMutex;
 
-/// manage a frame which has the same lifecycle as the tracker
 #[derive(Debug)]
-pub struct FrameTracker {
+pub struct Frame {
+    ppn: PhysPageNum,
+}
+
+impl Frame {
+    pub fn alloc() -> Option<Self> {
+        let ppn = FRAME_ALLOCATOR.lock().alloc(1)?;
+        let mut frame = Self { ppn };
+        frame.fill(0);
+        Some(frame)
+    }
+
+    pub fn ppn(&self) -> PhysPageNum {
+        self.ppn
+    }
+
+    fn fill(&mut self, byte: u8) {
+        let mut va = kernel_ppn_to_vpn(self.ppn).page_start();
+        unsafe {
+            va.as_mut::<[u8; PAGE_SIZE]>().fill(byte);
+        }
+    }
+}
+
+impl Drop for Frame {
+    fn drop(&mut self) {
+        unsafe {
+            frame_dealloc(self.ppn..(self.ppn + 1));
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ContinuousFrames {
     pub ppn: PhysPageNum,
     pub num: usize,
 }
 
-impl FrameTracker {
-    // 分配一个新的物理帧，同时会将该物理帧清空
-    pub fn new(ppn: PhysPageNum, num: usize) -> Self {
+impl ContinuousFrames {
+    /// 分配并清空一段连续的物理页帧
+    pub fn alloc(num: usize) -> Option<Self> {
         debug_assert!(num >= 1);
-        let mut frame = Self { ppn, num };
-        frame.fill(0);
-        frame
+        let ppn = FRAME_ALLOCATOR.lock().alloc(num)?;
+        let mut frames = Self { ppn, num };
+        frames.fill(0);
+        Some(frames)
+    }
+
+    pub fn start_ppn(&self) -> PhysPageNum {
+        self.ppn
     }
 
     fn fill(&mut self, byte: u8) {
@@ -34,15 +71,17 @@ impl FrameTracker {
     }
 }
 
-impl Drop for FrameTracker {
+impl Drop for ContinuousFrames {
     fn drop(&mut self) {
-        frame_dealloc(self.ppn..(PhysPageNum(self.ppn.0 + self.num)));
+        unsafe {
+            frame_dealloc(self.ppn..(self.ppn + self.num));
+        }
     }
 }
 
 trait FrameAllocator {
     fn alloc(&mut self, num: usize) -> Option<PhysPageNum>;
-    fn dealloc(&mut self, range: Range<PhysPageNum>);
+    unsafe fn dealloc(&mut self, range: Range<PhysPageNum>);
 }
 
 const BUDDY_ORDER: usize = ((MEMORY_SIZE - 1) / PAGE_SIZE).ilog2() as usize + 1;
@@ -72,7 +111,7 @@ impl FrameAllocator for BuddySystemFrameAllocator {
             .map(|first| PhysPageNum(first + physical_memory_begin_frame))
     }
 
-    fn dealloc(&mut self, range: Range<PhysPageNum>) {
+    unsafe fn dealloc(&mut self, range: Range<PhysPageNum>) {
         let physical_memory_begin_frame: usize =
             kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
         self.allocator.dealloc(
@@ -94,16 +133,12 @@ pub fn init_frame_allocator() {
     );
 }
 
-/// initiate the frame allocator using `ekernel` and `MEMORY_END`
-pub fn frame_alloc(num: usize) -> Option<FrameTracker> {
-    FRAME_ALLOCATOR
-        .lock()
-        .alloc(num)
-        .map(|ppn| FrameTracker::new(ppn, num))
-}
-
-/// deallocate a frame
+/// # Safety
+///
+/// 需要保证 range 内的物理页之前都实际被分配
 #[track_caller]
-pub fn frame_dealloc(range: Range<PhysPageNum>) {
-    FRAME_ALLOCATOR.lock().dealloc(range);
+pub unsafe fn frame_dealloc(range: Range<PhysPageNum>) {
+    unsafe {
+        FRAME_ALLOCATOR.lock().dealloc(range);
+    }
 }

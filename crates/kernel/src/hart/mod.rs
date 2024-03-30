@@ -158,7 +158,7 @@ unsafe fn set_local_hart(hart_id: usize) {
     }
 }
 
-pub fn local_hart() -> &'static Hart {
+pub fn local_hart<'a>() -> &'a Hart {
     let tp: usize;
     unsafe {
         asm!("mv {}, tp", out(reg) tp);

@@ -200,10 +200,9 @@ pub async fn sys_wait4(
         return Err(errno::UNSUPPORTED);
     }
 
-    // 尝试寻找符合条件的子进程
+    // 尝试找到一个符合条件，且已经是僵尸的子进程
+    let process = local_hart().curr_process_arc();
     loop {
-        // 尝试找到一个符合条件，且已经是僵尸的子进程
-        let process = local_hart().curr_process_arc();
         listener!(process.wait4_event => listener);
         {
             // 用块是因为 rust 目前不够聪明。

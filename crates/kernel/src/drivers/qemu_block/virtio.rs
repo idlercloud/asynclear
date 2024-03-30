@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 
-use crate::memory::{self, PhysAddr, PhysPageNum};
+use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
 
 use super::BlockDevice;
 use common::config::PA_TO_VA;
@@ -20,12 +20,12 @@ unsafe impl Hal for HalImpl {
         pages: usize,
         _direction: virtio_drivers::BufferDirection,
     ) -> (virtio_drivers::PhysAddr, NonNull<u8>) {
-        let frame = memory::frame_alloc(pages).unwrap();
-        // 这个 frame 交由库管理了，要阻止它调用 drop
-        let pa_start = frame.ppn.page_start().0;
-        core::mem::forget(frame);
-        let vptr = NonNull::new((pa_start + PA_TO_VA) as _).unwrap();
-        (pa_start, vptr)
+        let frames = ContinuousFrames::alloc(pages).unwrap();
+        // 这些 frames 交由库管理了，要阻止它调用 drop
+        let pa_start = frames.start_ppn().page_start();
+        core::mem::forget(frames);
+        let vptr = NonNull::new(kernel_pa_to_va(pa_start).as_mut_ptr::<u8>()).unwrap();
+        (pa_start.0, vptr)
     }
 
     unsafe fn dma_dealloc(
@@ -33,9 +33,10 @@ unsafe impl Hal for HalImpl {
         _vaddr: core::ptr::NonNull<u8>,
         pages: usize,
     ) -> i32 {
-        let mut ppn = PhysAddr(paddr).ppn();
-        memory::frame_dealloc(ppn..PhysPageNum(ppn.0 + pages));
-        ppn.0 += 1;
+        let ppn = PhysAddr(paddr).ppn();
+        unsafe {
+            memory::frame_dealloc(ppn..(ppn + pages));
+        }
         0
     }
 

@@ -1,10 +1,13 @@
 //! Implementation of [`MapArea`] and [`MemorySet`].
 
-use super::kernel_va_to_pa;
-use super::{
-    frame_alloc, kernel_ppn_to_vpn, FrameTracker, PTEFlags, PageTable, PhysAddr, PhysPageNum,
-    VirtAddr, VirtPageNum,
-};
+use crate::memory::frame_allocator::Frame;
+use crate::memory::kernel_ppn_to_vpn;
+use crate::memory::kernel_va_to_pa;
+use crate::memory::PTEFlags;
+use crate::memory::PhysAddr;
+use crate::memory::PhysPageNum;
+use crate::memory::VirtAddr;
+use crate::memory::VirtPageNum;
 use alloc::{collections::BTreeMap, sync::Arc};
 use bitflags::bitflags;
 use common::config::{
@@ -16,6 +19,8 @@ use goblin::elf::Elf;
 use goblin::elf64::program_header::{PF_R, PF_W, PF_X, PT_LOAD};
 use klocks::Lazy;
 use riscv::register::satp;
+
+use crate::memory::PageTable;
 
 extern "C" {
     fn stext();
@@ -340,7 +345,7 @@ pub enum MapType {
         /// 这些保存的物理页帧用于存放实际的内存数据
         ///
         /// 而 `PageTable` 所拥有的的物理页仅用于存放页表节点数据，因此不会冲突
-        data_frames: BTreeMap<VirtPageNum, Arc<FrameTracker>>,
+        data_frames: BTreeMap<VirtPageNum, Arc<Frame>>,
     },
 }
 
@@ -405,8 +410,8 @@ impl MapArea {
                 ppn = PhysPageNum(vpn.0 - *offset / PAGE_SIZE);
             }
             MapType::Framed { data_frames } => {
-                let frame = frame_alloc(1).unwrap();
-                ppn = frame.ppn;
+                let frame = Frame::alloc().unwrap();
+                ppn = frame.ppn();
                 data_frames.insert(vpn, Arc::new(frame));
             }
         }

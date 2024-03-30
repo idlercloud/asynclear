@@ -1,4 +1,3 @@
-use super::page_table::PageTableEntry;
 use common::config::{PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
 use core::{iter::Step, ops::Add};
 
@@ -65,44 +64,46 @@ impl Step for PhysPageNum {
 pub struct VirtAddr(pub usize);
 
 impl VirtAddr {
-    #[inline]
     pub const fn page_offset(&self) -> usize {
         self.0 & (PAGE_SIZE - 1)
     }
+
     /// 向下取整页号
-    #[inline]
     pub const fn vpn_floor(&self) -> VirtPageNum {
         VirtPageNum(self.0 >> PAGE_SIZE_BITS)
     }
+
     /// 当前虚地址所在的虚拟页号
-    #[inline]
     pub const fn vpn(&self) -> VirtPageNum {
         self.vpn_floor()
     }
+
     /// 向上取整页号
-    #[inline]
     pub const fn vpn_ceil(&self) -> VirtPageNum {
         VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
     }
-    #[inline]
     pub const fn add(&self, offset: usize) -> Self {
         Self(self.0 + offset)
     }
+
     /// # Safety
     ///
     /// 需要保证该地址转化为 T 后内容合法
-    #[inline]
     #[track_caller]
-    pub unsafe fn as_ref<T>(&self) -> &'static T {
+    pub unsafe fn as_ref<'a, T>(&self) -> &'a T {
         unsafe { (self.0 as *const T).as_ref().unwrap() }
     }
+
     /// # Safety
     ///
     /// 需要保证该地址转化为 T 后内容合法
-    #[inline]
     #[track_caller]
-    pub unsafe fn as_mut<T>(&mut self) -> &'static mut T {
+    pub unsafe fn as_mut<'a, T>(&mut self) -> &'a mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
+    }
+
+    pub fn as_mut_ptr<T>(&self) -> *mut T {
+        self.0 as *mut T
     }
 }
 
@@ -133,33 +134,25 @@ impl VirtPageNum {
         }
         idx
     }
+
     pub fn page_start(&self) -> VirtAddr {
         VirtAddr(self.0 << PAGE_SIZE_BITS)
     }
-    /// # Safety
-    ///
-    /// 需要确保该页确实存放页表
-    pub unsafe fn as_page_ptes(&self) -> &'static [PageTableEntry; PTE_PER_PAGE] {
-        unsafe { self.page_start().as_ref() }
-    }
-    /// # Safety
-    ///
-    /// 需要确保该页确实存放页表
-    pub unsafe fn as_page_ptes_mut(&mut self) -> &'static mut [PageTableEntry; PTE_PER_PAGE] {
-        unsafe { self.page_start().as_mut() }
-    }
+
     /// # Safety
     ///
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
-    pub unsafe fn as_page_bytes(&self) -> &'static [u8; PAGE_SIZE] {
+    pub unsafe fn as_page_bytes<'a>(&self) -> &'a [u8; PAGE_SIZE] {
         unsafe { self.page_start().as_ref() }
     }
+
     /// # Safety
     ///
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
-    pub unsafe fn as_page_bytes_mut(&mut self) -> &'static mut [u8; PAGE_SIZE] {
+    pub unsafe fn as_page_bytes_mut<'a>(&mut self) -> &'a mut [u8; PAGE_SIZE] {
         unsafe { self.page_start().as_mut() }
     }
+
     /// 将 `src` 中的数据复制到该页中。
     ///
     /// # Safety

@@ -1,14 +1,15 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{
-    frame_alloc, kernel_ppn_to_vpn, FrameTracker, MapPermission, PhysAddr, PhysPageNum, VirtAddr,
-    VirtPageNum,
-};
 use alloc::{vec, vec::Vec};
 use bitflags::*;
-use common::config::PAGE_SIZE;
+use common::config::{PAGE_SIZE, PTE_PER_PAGE};
 use defines::error::{errno, Result};
 use riscv::register::satp;
+
+use crate::memory::{
+    frame_allocator::Frame, kernel_pa_to_va, kernel_ppn_to_vpn, MapPermission, PhysAddr,
+    PhysPageNum, VirtAddr, VirtPageNum,
+};
 
 bitflags! {
     /// page table entry flags
@@ -62,16 +63,16 @@ impl PageTableEntry {
 /// 页表，其内跟踪了页表所占用的帧，页表释放时，释放这些帧
 pub struct PageTable {
     root_ppn: PhysPageNum,
-    frames: Vec<FrameTracker>,
+    frames: Vec<Frame>,
 }
 
 /// 假定创建和映射时不会导致内存不足
 impl PageTable {
     /// 注意，创建时会分配一个根页表的帧
     pub fn with_root() -> Self {
-        let frame = frame_alloc(1).unwrap();
+        let frame = Frame::alloc().unwrap();
         PageTable {
-            root_ppn: frame.ppn,
+            root_ppn: frame.ppn(),
             frames: vec![frame],
         }
     }
@@ -135,8 +136,8 @@ impl PageTable {
                 break;
             }
             if !pte.is_valid() {
-                let frame = frame_alloc(1).unwrap();
-                *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
+                let frame = Frame::alloc().unwrap();
+                *pte = PageTableEntry::new(frame.ppn(), PTEFlags::V);
                 self.frames.push(frame);
             }
             ppn = pte.ppn();
@@ -177,12 +178,29 @@ impl PageTable {
     #[inline]
     pub fn trans_va(&self, va: VirtAddr) -> Result<VirtAddr> {
         self.trans_va_to_pa(va)
-            .map(super::kernel_pa_to_va)
+            .map(kernel_pa_to_va)
             .ok_or(errno::EFAULT)
     }
 
     #[inline]
     pub fn token(&self) -> usize {
         (satp::Mode::Sv39 as usize) << 60 | self.root_ppn.0
+    }
+}
+
+#[extend::ext(name = AsPtes)]
+impl VirtPageNum {
+    /// # Safety
+    ///
+    /// 需要确保该页确实存放页表
+    unsafe fn as_page_ptes<'a>(&self) -> &'a [PageTableEntry; PTE_PER_PAGE] {
+        unsafe { self.page_start().as_ref() }
+    }
+
+    /// # Safety
+    ///
+    /// 需要确保该页确实存放页表
+    unsafe fn as_page_ptes_mut<'a>(&mut self) -> &'a mut [PageTableEntry; PTE_PER_PAGE] {
+        unsafe { self.page_start().as_mut() }
     }
 }
