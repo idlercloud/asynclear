@@ -9,7 +9,6 @@ extern crate kernel_tracer;
 use core::{
     arch,
     ops::{Deref, DerefMut},
-    ptr,
 };
 
 use common::config::{MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};

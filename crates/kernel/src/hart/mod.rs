@@ -86,6 +86,8 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
 
+        memory::log_kernel_sections();
+
         thread::spawn_user_thread(INITPROC.lock_inner_with(|inner| inner.main_thread()));
         info!("Init hart {hart_id} started");
         INIT_FINISHED.store(true, Ordering::SeqCst);

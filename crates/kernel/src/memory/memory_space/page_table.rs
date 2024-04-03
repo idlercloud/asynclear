@@ -66,7 +66,7 @@ pub struct PageTable {
     frames: Vec<Frame>,
 }
 
-/// 假定创建和映射时不会导致内存不足
+// 假定创建和映射时不会导致内存不足
 impl PageTable {
     /// 注意，创建时会分配一个根页表的帧
     pub fn with_root() -> Self {

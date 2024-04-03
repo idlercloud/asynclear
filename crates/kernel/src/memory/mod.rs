@@ -8,7 +8,9 @@ use common::config::{PAGE_SIZE, PA_TO_VA};
 
 pub use self::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 pub use self::frame_allocator::{frame_dealloc, ContinuousFrames};
-pub use self::memory_space::memory_set::{MapPermission, MemorySet, KERNEL_SPACE};
+pub use self::memory_space::memory_set::{
+    log_kernel_sections, MapPermission, MemorySpace, KERNEL_SPACE,
+};
 pub use self::memory_space::page_table::{PTEFlags, PageTable};
 
 #[inline]

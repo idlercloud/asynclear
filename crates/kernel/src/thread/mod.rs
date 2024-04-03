@@ -2,7 +2,7 @@ mod inner;
 mod user;
 
 use crate::{
-    memory::{MapPermission, MemorySet, VirtAddr},
+    memory::{MapPermission, MemorySpace, VirtAddr},
     trap::TrapContext,
 };
 use atomic::{Atomic, Ordering};
@@ -65,13 +65,14 @@ impl Thread {
     /// 分配用户栈，一般用于创建新线程。返回用户栈高地址
     ///
     /// 注意 `memory_set` 是进程的 `MemorySet`
-    pub fn alloc_user_stack(tid: usize, memory_set: &mut MemorySet) -> usize {
+    pub fn alloc_user_stack(tid: usize, memory_set: &mut MemorySpace) -> usize {
         // 分配用户栈
         let ustack_low_addr = Self::user_stack_low_addr(tid);
         let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
+        trace!("user stack is {ustack_low_addr:#x}..{ustack_high_addr:#x}");
         memory_set.insert_framed_area(
-            VirtAddr(ustack_low_addr).vpn_floor(),
-            VirtAddr(ustack_high_addr).vpn_ceil(),
+            VirtAddr(ustack_low_addr),
+            VirtAddr(ustack_high_addr),
             MapPermission::R | MapPermission::W | MapPermission::U,
         );
         ustack_high_addr
@@ -91,7 +92,7 @@ impl Thread {
     /// 释放用户栈。一般是单个线程退出时使用。
     ///
     /// 注意 `memory_set` 是进程的 `MemorySet`
-    fn dealloc_user_stack(&self, memory_set: &mut MemorySet) {
+    fn dealloc_user_stack(&self, memory_set: &mut MemorySpace) {
         // 手动取消用户栈的映射
         let user_stack_low_addr = VirtAddr(Self::user_stack_low_addr(self.tid));
         memory_set.remove_area_with_start_vpn(user_stack_low_addr.vpn());

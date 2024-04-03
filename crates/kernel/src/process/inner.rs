@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
 use defines::signal::{KSignalSet, Signal};
 use idallocator::RecycleAllocator;
-use memory::{MemorySet, VirtAddr};
+use memory::{MemorySpace, VirtAddr};
 use triomphe::Arc;
 
 use crate::{fs::FdTable, memory, signal::SignalHandlers, thread::Thread};
@@ -17,7 +17,7 @@ pub struct ProcessInner {
     pub name: CompactString,
 
     /* 地址空间 */
-    pub memory_set: MemorySet,
+    pub memory_set: MemorySpace,
     /// 用户堆的范围。
     ///
     /// `heap_range.start` 一般紧邻进程 elf 数据之后，并且创建之后不会改变

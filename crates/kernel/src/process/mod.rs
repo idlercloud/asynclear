@@ -15,7 +15,7 @@ use event_listener::Event;
 use goblin::elf::Elf;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
-use memory::{MemorySet, KERNEL_SPACE};
+use memory::MemorySpace;
 use triomphe::Arc;
 
 use crate::{
@@ -78,8 +78,8 @@ impl Process {
 
         let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        let mut memory_set = MemorySet::new_bare();
-        memory_set.map_kernel_areas(KERNEL_SPACE.page_table());
+        let mut memory_set = MemorySpace::new_bare();
+        memory_set.map_kernel_areas();
         let elf_end = memory_set.load_sections(&elf, elf_data);
         let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
 
@@ -161,7 +161,7 @@ impl Process {
                 exit_signal,
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
-                    memory_set: MemorySet::from_existed_user(&inner.memory_set),
+                    memory_set: MemorySpace::from_existed_user(&inner.memory_set),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),
