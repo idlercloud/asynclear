@@ -14,7 +14,7 @@ pub use self::memory_space::memory_set::{
 pub use self::memory_space::page_table::{PTEFlags, PageTable};
 
 #[inline]
-pub const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {
+const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {
     PhysAddr(va.0 - PA_TO_VA)
 }
 
@@ -24,7 +24,12 @@ pub const fn kernel_pa_to_va(pa: PhysAddr) -> VirtAddr {
 }
 
 #[inline]
-pub const fn kernel_ppn_to_vpn(ppn: PhysPageNum) -> VirtPageNum {
+const fn kernel_vpn_to_ppn(vpn: VirtPageNum) -> PhysPageNum {
+    PhysPageNum(vpn.0 - PA_TO_VA / PAGE_SIZE)
+}
+
+#[inline]
+const fn kernel_ppn_to_vpn(ppn: PhysPageNum) -> VirtPageNum {
     VirtPageNum(ppn.0 + PA_TO_VA / PAGE_SIZE)
 }
 

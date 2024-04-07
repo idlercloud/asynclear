@@ -161,7 +161,7 @@ impl Process {
                 exit_signal,
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
-                    memory_set: MemorySpace::from_existed_user(&inner.memory_set),
+                    memory_set: MemorySpace::from_curr_user(&inner.memory_set),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),

@@ -221,6 +221,7 @@ sudo make install
 - [ ] 某些堆分配可以用 Allocaotr API 试着优化
 - [ ] trap 改为 vector 模式（会有优化吗？）
 - [ ] per-cpu 的分配缓存
+- [ ] virtio 块设备驱动采取中断方式处理
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 
 ### 具体任务

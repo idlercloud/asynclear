@@ -70,11 +70,15 @@ impl Thread {
         let ustack_low_addr = Self::user_stack_low_addr(tid);
         let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
         trace!("user stack is {ustack_low_addr:#x}..{ustack_high_addr:#x}");
-        memory_set.insert_framed_area(
-            VirtAddr(ustack_low_addr),
-            VirtAddr(ustack_high_addr),
-            MapPermission::R | MapPermission::W | MapPermission::U,
-        );
+
+        // 栈地址都是根据 tid 确定的，不会冲突
+        unsafe {
+            memory_set.user_map(
+                VirtAddr(ustack_low_addr),
+                VirtAddr(ustack_high_addr),
+                MapPermission::R | MapPermission::W | MapPermission::U,
+            );
+        }
         ustack_high_addr
     }
 
@@ -95,7 +99,7 @@ impl Thread {
     fn dealloc_user_stack(&self, memory_set: &mut MemorySpace) {
         // 手动取消用户栈的映射
         let user_stack_low_addr = VirtAddr(Self::user_stack_low_addr(self.tid));
-        memory_set.remove_area_with_start_vpn(user_stack_low_addr.vpn());
+        memory_set.remove_area_with_start_vpn(user_stack_low_addr.vpn_floor());
     }
 
     pub fn set_status(&self, status: ThreadStatus) {

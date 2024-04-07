@@ -1,11 +1,5 @@
 //! Implementation of [`VmArea`] and [`MemorySet`].
 
-use crate::memory::kernel_ppn_to_vpn;
-use crate::memory::kernel_va_to_pa;
-use crate::memory::PhysAddr;
-use crate::memory::PhysPageNum;
-use crate::memory::VirtAddr;
-use crate::memory::VirtPageNum;
 use alloc::collections::BTreeMap;
 use bitflags::bitflags;
 use common::config::{LOW_ADDRESS_END, MEMORY_END, MMIO, PAGE_SIZE};
@@ -15,10 +9,13 @@ use goblin::elf::Elf;
 use goblin::elf64::program_header::{PF_R, PF_W, PF_X, PT_LOAD};
 use klocks::Lazy;
 use riscv::register::satp;
+use riscv_guard::AccessUserGuard;
 
-use crate::memory::PageTable;
-
-use super::vm_area::VmArea;
+use super::vm_area::FramedVmArea;
+use crate::memory::{
+    kernel_pa_to_va, kernel_ppn_to_vpn, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr,
+    PhysPageNum, VirtAddr, VirtPageNum,
+};
 
 extern "C" {
     fn stext();
@@ -62,7 +59,7 @@ bitflags! {
 pub struct MemorySpace {
     page_table: PageTable,
     // 起始 vpn 映射到 VmArea
-    user_areas: BTreeMap<VirtPageNum, VmArea>,
+    user_areas: BTreeMap<VirtPageNum, FramedVmArea>,
 }
 
 impl MemorySpace {
@@ -76,55 +73,40 @@ impl MemorySpace {
     fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();
 
-        memory_set.push(
-            VmArea::kernel_map(
-                kernel_va_to_pa(VirtAddr(stext as usize)),
-                kernel_va_to_pa(VirtAddr(etext as usize)),
-                MapPermission::R | MapPermission::X | MapPermission::G,
-            ),
-            None,
+        memory_set.kernel_map(
+            VirtAddr(stext as usize),
+            VirtAddr(etext as usize),
+            MapPermission::R | MapPermission::X | MapPermission::G,
         );
 
         // 注：旧版的 Linux 中，text 段和 rodata 段是合并在一起的，这样可以减少一次映射
         // 新版本则独立开来了，参考 https://stackoverflow.com/questions/44938745/rodata-section-loaded-in-executable-page
-        memory_set.push(
-            VmArea::kernel_map(
-                kernel_va_to_pa(VirtAddr(srodata as usize)),
-                kernel_va_to_pa(VirtAddr(erodata as usize)),
-                MapPermission::R | MapPermission::G,
-            ),
-            None,
+        memory_set.kernel_map(
+            VirtAddr(srodata as usize),
+            VirtAddr(erodata as usize),
+            MapPermission::R | MapPermission::G,
         );
 
         // .data 段和 .bss 段的访问限制相同，所以可以放到一起
-        memory_set.push(
-            VmArea::kernel_map(
-                kernel_va_to_pa(VirtAddr(sdata as usize)),
-                kernel_va_to_pa(VirtAddr(ebss as usize)),
-                MapPermission::R | MapPermission::W | MapPermission::G,
-            ),
-            None,
+        memory_set.kernel_map(
+            VirtAddr(sdata as usize),
+            VirtAddr(ebss as usize),
+            MapPermission::R | MapPermission::W | MapPermission::G,
         );
 
         // TODO: 这里也许可以 Huge Page 映射？
-        memory_set.push(
-            VmArea::kernel_map(
-                kernel_va_to_pa(VirtAddr(ekernel as usize)),
-                PhysAddr(MEMORY_END),
-                MapPermission::R | MapPermission::W | MapPermission::G,
-            ),
-            None,
+        memory_set.kernel_map(
+            VirtAddr(ekernel as usize),
+            kernel_pa_to_va(PhysAddr(MEMORY_END)),
+            MapPermission::R | MapPermission::W | MapPermission::G,
         );
 
         // MMIO 映射
         for &(start, len) in MMIO {
-            memory_set.push(
-                VmArea::kernel_map(
-                    PhysAddr(start),
-                    PhysAddr(start + len),
-                    MapPermission::R | MapPermission::W | MapPermission::G,
-                ),
-                None,
+            memory_set.kernel_map(
+                kernel_pa_to_va(PhysAddr(start)),
+                kernel_pa_to_va(PhysAddr(start + len)),
+                MapPermission::R | MapPermission::W | MapPermission::G,
             );
         }
         memory_set
@@ -157,8 +139,14 @@ impl MemorySpace {
                     map_perm |= MapPermission::X;
                 }
                 trace!("load vm area {:#x}..{:#x}", start_va.0, end_va.0);
-                let vm_area = VmArea::new_framed(start_va, end_va, map_perm);
-                self.push(vm_area, Some((&elf_data[ph.file_range()], start_offset)));
+                unsafe {
+                    self.user_map_with_data(
+                        start_va..end_va,
+                        map_perm,
+                        &elf_data[ph.file_range()],
+                        start_offset,
+                    );
+                }
             }
         }
         elf_end
@@ -180,14 +168,20 @@ impl MemorySpace {
         }
     }
 
-    /// 从另一地址空间复制
-    pub fn from_existed_user(user_space: &Self) -> Self {
+    /// 从当前用户地址空间复制一个地址空间
+    pub fn from_curr_user(user_space: &Self) -> Self {
         let mut memory_set = Self::new_bare();
-        for (_, area) in user_space.user_areas.iter() {
-            let new_area = VmArea::from_another(area);
-            memory_set.push(new_area, None);
-            // 从该地址空间复制数据
-            for vpn in area.vpn_range.clone() {
+        for area in user_space.user_areas.values() {
+            let vpn_range = area.vpn_range();
+            unsafe {
+                let _guard = AccessUserGuard::new();
+                memory_set.user_map(
+                    vpn_range.start.page_start(),
+                    vpn_range.end.page_start(),
+                    area.perm(),
+                );
+            }
+            for vpn in vpn_range {
                 let src_ppn = user_space.translate(vpn).unwrap();
                 let dst_ppn = memory_set.translate(vpn).unwrap();
                 unsafe {
@@ -197,7 +191,6 @@ impl MemorySpace {
                 }
             }
         }
-        // 已存在的地址空间高地址部分也已经映射了，所以从它那里复制内核空间也是可以的
         memory_set.map_kernel_areas();
         memory_set
     }
@@ -255,29 +248,47 @@ impl MemorySpace {
         // }
     }
 
-    /// 插入帧映射的一个内存段，假定是不会造成冲突的
-    pub fn insert_framed_area(
-        &mut self,
-        start_va: VirtAddr,
-        end_va: VirtAddr,
-        perm: MapPermission,
-    ) {
-        self.push(VmArea::new_framed(start_va, end_va, perm), None);
-    }
-
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
         if let Some(mut area) = self.user_areas.remove(&start_vpn) {
             area.unmap(&mut self.page_table);
         }
     }
 
-    /// `page_offset` 是数据在页中开始的偏移
-    pub fn push(&mut self, mut map_area: VmArea, data_with_page_offset: Option<(&[u8], usize)>) {
+    /// 映射一段用户的帧映射内存区域
+    ///
+    /// # Safety
+    ///
+    /// 需要保证该虚拟地址区域未被映射
+    pub unsafe fn user_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+        let mut map_area = FramedVmArea::new(start_va..end_va, perm);
         map_area.map(&mut self.page_table);
-        if let Some((data, offset)) = data_with_page_offset {
-            map_area.copy_data(&mut self.page_table, offset, data);
+        self.user_areas.insert(map_area.vpn_range().start, map_area);
+    }
+
+    /// `page_offset` 是数据在页中开始的偏移
+    ///
+    /// # Safety
+    ///
+    /// 需要保证该虚拟地址区域未被映射
+    unsafe fn user_map_with_data(
+        &mut self,
+        va_range: Range<VirtAddr>,
+        perm: MapPermission,
+        data: &[u8],
+        page_offset: usize,
+    ) {
+        let mut map_area = FramedVmArea::new(va_range, perm);
+        map_area.map_with_data(&mut self.page_table, data, page_offset);
+        self.user_areas.insert(map_area.vpn_range().start, map_area);
+    }
+
+    fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+        let start_vpn = start_va.vpn_floor();
+        let end_vpn = end_va.vpn_ceil();
+        for vpn in start_vpn..end_vpn {
+            let ppn = kernel_vpn_to_ppn(vpn);
+            self.page_table.map(vpn, ppn, PTEFlags::from(perm));
         }
-        self.user_areas.insert(map_area.vpn_range.start, map_area);
     }
 
     /// 如有必要就切换页表，只在内核态调用，执行流不会跳变

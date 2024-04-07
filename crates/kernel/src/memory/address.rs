@@ -73,17 +73,9 @@ impl VirtAddr {
         VirtPageNum(self.0 >> PAGE_SIZE_BITS)
     }
 
-    /// 当前虚地址所在的虚拟页号
-    pub const fn vpn(&self) -> VirtPageNum {
-        self.vpn_floor()
-    }
-
     /// 向上取整页号
     pub const fn vpn_ceil(&self) -> VirtPageNum {
         VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
-    }
-    pub const fn add(&self, offset: usize) -> Self {
-        Self(self.0 + offset)
     }
 
     /// # Safety
@@ -151,18 +143,6 @@ impl VirtPageNum {
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
     pub unsafe fn as_page_bytes_mut<'a>(&mut self) -> &'a mut [u8; PAGE_SIZE] {
         unsafe { self.page_start().as_mut() }
-    }
-
-    /// 将 `src` 中的数据复制到该页中。
-    ///
-    /// # Safety
-    ///
-    /// 需要保证 `src` 与该页不相交
-    pub unsafe fn copy_from(&mut self, offset: usize, src: &[u8]) {
-        let va = self.page_start();
-        let dst =
-            unsafe { core::slice::from_raw_parts_mut(va.add(offset).0 as *mut u8, src.len()) };
-        dst.copy_from_slice(src);
     }
 }
 
