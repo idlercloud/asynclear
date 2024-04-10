@@ -16,32 +16,22 @@
 
 - crates/kernel
     - 内核的主模块，生成内核二进制文件
-    - 包含 trap 处理、进程/线程管理、hart 管理等
+    - 包含 trap 处理、进程/线程管理、hart 管理、外设管理、文件系统、内存管理等
     - 内核的入口在 src/hart/entry.S 中
     - 加载内核栈和临时页表后，跳转到 src/hart/mod.rs::__hart_entry()
     - 主 hart 进行一些必要的初始化工作，并启动其他 hart
     - 最后进入 src/main::kernel_loop()，即内核主循环，不断运行用户任务
 - crates/arch
     - 一些特定于架构的东西，比如 riscv 的 time 读取
-- crates/dependencies（这个实际上不包含在 workspace 中，暂时）
-    - 一些第三方库，但是需要做一些修改
-    - 后期也可能基于它们扩展
-- crates/drivers
-    - 支持中断和各种外设
-- crates/executor
-    - 内核的异步调度和执行器
-- crates/filesystem
-    - 文件系统。目前未实现，只完成了基于 uart 的 stdio
-- crates/memory
-    - 管理内核堆、用户帧分配、虚拟内存等
-    - 注意，这个模块即将大改
 - crates/utils
     - 一些通用组件
-    - defines 包括一些内核参数、错误码、常用结构等
+    - defines 包括一些内核和用户空间都会用到的定义
     - idallocator 是用于分配整数（pid、tid）的分配器实现
     - kernel_tracer 是内核的日志系统的基础
     - klocks 实现自旋锁、关中断自旋锁、睡眠锁等原语
-    - uart_console 是基于 uart 实现的 print 支持
+- deps（这个实际上不包含在 workspace 中，暂时）
+    - 一些第三方库，但是需要做一些修改
+    - 后期也可能基于它们扩展
 - user
     - 一些用户应用，可以用做测试
     - 包括 initproc 和 shell。由于目前还没有文件系统，它们是直接二进制嵌入到内核中的
@@ -223,6 +213,7 @@ sudo make install
 - [ ] per-cpu 的分配缓存
 - [ ] virtio 块设备驱动采取中断方式处理
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
+- [ ] 支持 GPU 驱动
 
 ### 具体任务
 
