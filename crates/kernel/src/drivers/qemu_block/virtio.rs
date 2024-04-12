@@ -2,7 +2,6 @@ use core::ptr::NonNull;
 
 use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
 
-use super::BlockDevice;
 use common::config::PA_TO_VA;
 use virtio_drivers::{
     device::blk::VirtIOBlk,
@@ -64,27 +63,7 @@ unsafe impl Hal for HalImpl {
     }
 }
 
-impl BlockDevice for VirtIOBlk<HalImpl, MmioTransport> {
-    const BLOCK_SIZE: u32 = 512;
-
-    fn read_block(&mut self, block_id: u64, buf: &mut [u8; Self::BLOCK_SIZE as usize]) {
-        self.read_blocks(block_id as usize, buf)
-            .expect("Error when reading VirtIOBlk");
-    }
-    fn write_block(&mut self, block_id: u64, buf: &[u8; Self::BLOCK_SIZE as usize]) {
-        self.write_blocks(block_id as usize, buf)
-            .expect("Error when writing VirtIOBlk");
-    }
-}
-
-/// `BLOCK_SIZE` 必须是 `SECTOR_SIZE` 的正整数倍
-const _: () = assert!(
-    (<VirtIOBlk<HalImpl, MmioTransport> as BlockDevice>::BLOCK_SIZE as usize)
-        % virtio_drivers::device::blk::SECTOR_SIZE
-        == 0
-);
-
-pub fn new() -> VirtIOBlk<HalImpl, MmioTransport> {
+pub fn init() -> VirtIOBlk<HalImpl, MmioTransport> {
     const VIRTIO0: usize = 0x10001000;
     let header = NonNull::new((VIRTIO0 + PA_TO_VA) as *mut VirtIOHeader).unwrap();
     let transport = unsafe { MmioTransport::new(header).unwrap() };

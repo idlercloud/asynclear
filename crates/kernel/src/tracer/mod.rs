@@ -10,10 +10,10 @@ use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use anstyle::{AnsiColor, Reset};
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
-use klocks::{Lazy, SpinNoIrqMutex};
+use klocks::SpinNoIrqMutex;
 use slab::Slab;
 
-use crate::{drivers::qemu_block::DiskDriver, hart::local_hart, uart_console::STDOUT};
+use crate::{hart::local_hart, uart_console::STDOUT};
 
 static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
 
@@ -41,8 +41,8 @@ impl Tracer for KernelTracerImpl {
         self.write_log(&mut *STDOUT.lock(), record);
     }
 
-    fn log_to_file(&self, record: &Record<'_>) {
-        self.write_log(&mut *LOG_FS.lock(), record);
+    fn log_to_file(&self, _record: &Record<'_>) {
+        // self.write_log(&mut *LOG_FS.lock(), record);
     }
 
     fn new_span(&self, span_attr: SpanAttr) -> SpanId {
@@ -147,6 +147,3 @@ impl KernelTracerImpl {
         writeln!(writer, "{}", record.args()).unwrap();
     }
 }
-
-static LOG_FS: Lazy<SpinNoIrqMutex<DiskDriver>> =
-    Lazy::new(|| SpinNoIrqMutex::new(DiskDriver::new()));

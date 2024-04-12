@@ -1,9 +1,11 @@
+mod fat32;
 mod inode;
 mod stdio;
 
 use core::ops::Deref;
 
 use alloc::{boxed::Box, collections::BTreeMap};
+use klocks::Lazy;
 use triomphe::Arc;
 
 use async_trait::async_trait;
@@ -11,7 +13,10 @@ use bitflags::bitflags;
 use defines::error::Result;
 use user_check::{UserCheck, UserCheckMut};
 
-use self::stdio::{read_stdin, write_stdout};
+use self::{
+    fat32::FAT_FS,
+    stdio::{read_stdin, write_stdout},
+};
 
 #[derive(Clone)]
 pub struct FdTable {
@@ -148,4 +153,8 @@ impl File {
 pub trait DynFile: Send + Sync {
     async fn read(&self, buf: UserCheckMut<[u8]>) -> Result<usize>;
     async fn write(&self, buf: UserCheck<[u8]>) -> Result<usize>;
+}
+
+pub fn init() {
+    Lazy::force(&FAT_FS);
 }

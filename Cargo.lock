@@ -670,6 +670,7 @@ dependencies = [
  "defines",
  "event-listener 5.2.0",
  "extend",
+ "fatfs",
  "goblin",
  "heapless",
  "idallocator",

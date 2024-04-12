@@ -19,6 +19,10 @@ extend.workspace = true
 num_enum.workspace = true
 heapless.workspace = true
 buddy_system_allocator.workspace = true
+fatfs = { path = "../../deps/rust-fatfs", default-features = false, features = [
+  "alloc",
+  "lfn",
+] }
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
 user_check = { path = "../arch/user_check" }

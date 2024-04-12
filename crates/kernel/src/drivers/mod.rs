@@ -5,7 +5,7 @@ pub mod qemu_uart;
 use common::config;
 use klocks::Lazy;
 
-use self::{qemu_plic::Plic, qemu_uart::UART0};
+use self::{qemu_block::BLOCK_DEVICE, qemu_plic::Plic, qemu_uart::UART0};
 
 pub enum InterruptSource {
     VirtIO = 1,
@@ -33,6 +33,7 @@ pub fn init() {
     // plic.set_priority(InterruptSource::VirtIO as usize, 1);
 
     Lazy::force(&UART0);
+    Lazy::force(&BLOCK_DEVICE);
 
     unsafe {
         riscv::register::sie::set_sext();
