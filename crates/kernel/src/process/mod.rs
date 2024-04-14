@@ -78,9 +78,7 @@ impl Process {
 
         let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        let mut memory_set = MemorySpace::new_bare();
-        memory_set.map_kernel_areas();
-        let elf_end = memory_set.load_sections(&elf, elf_data);
+        let (mut memory_set, elf_end) = MemorySpace::new_user(&elf, elf_data);
         let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
 
         // 在用户栈上推入参数、环境变量、辅助向量等
@@ -161,7 +159,7 @@ impl Process {
                 exit_signal,
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
-                    memory_set: MemorySpace::from_curr_user(&inner.memory_set),
+                    memory_set: MemorySpace::from_other(&inner.memory_set),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),

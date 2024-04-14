@@ -15,16 +15,24 @@ pub struct FramedVmArea {
     vpn_range: Range<VirtPageNum>,
     map: BTreeMap<VirtPageNum, Arc<Frame>>,
     perm: MapPermission,
+    area_type: AreaType,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum AreaType {
+    Stack,
+    Elf,
 }
 
 impl FramedVmArea {
-    pub fn new(va_range: Range<VirtAddr>, perm: MapPermission) -> Self {
+    pub(super) fn new(va_range: Range<VirtAddr>, perm: MapPermission, area_type: AreaType) -> Self {
         let start_vpn = va_range.start.vpn_floor();
         let end_vpn = va_range.end.vpn_ceil();
         Self {
             vpn_range: start_vpn..end_vpn,
             map: BTreeMap::new(),
             perm,
+            area_type,
         }
     }
 
@@ -36,11 +44,19 @@ impl FramedVmArea {
         self.perm
     }
 
+    pub fn area_type(&self) -> AreaType {
+        self.area_type
+    }
+
+    pub fn is_mapped(&self, vpn: VirtPageNum) -> bool {
+        self.map.contains_key(&vpn)
+    }
+
     pub fn len(&self) -> usize {
         self.vpn_range.end.0.saturating_sub(self.vpn_range.start.0) * PAGE_SIZE
     }
 
-    pub fn map(&mut self, page_table: &mut PageTable) {
+    pub(super) fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
@@ -49,7 +65,7 @@ impl FramedVmArea {
         }
     }
 
-    pub fn map_with_data(
+    pub(super) fn map_with_data(
         &mut self,
         page_table: &mut PageTable,
         data: &[u8],
@@ -72,7 +88,7 @@ impl FramedVmArea {
         }
     }
 
-    pub fn unmap(&mut self, page_table: &mut PageTable) {
+    pub(super) fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range() {
             self.map.remove(&vpn);
             page_table.unmap(vpn);

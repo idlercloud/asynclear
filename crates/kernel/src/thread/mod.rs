@@ -2,7 +2,7 @@ mod inner;
 mod user;
 
 use crate::{
-    memory::{MapPermission, MemorySpace, VirtAddr},
+    memory::{AreaType, MapPermission, MemorySpace, VirtAddr},
     trap::TrapContext,
 };
 use atomic::{Atomic, Ordering};
@@ -77,6 +77,7 @@ impl Thread {
                 VirtAddr(ustack_low_addr),
                 VirtAddr(ustack_high_addr),
                 MapPermission::R | MapPermission::W | MapPermission::U,
+                AreaType::Stack,
             );
         }
         ustack_high_addr

@@ -14,7 +14,7 @@ use defines::error::Result;
 use user_check::{UserCheck, UserCheckMut};
 
 use self::{
-    fat32::FAT_FS,
+    // fat32::FAT_FS,
     stdio::{read_stdin, write_stdout},
 };
 
@@ -156,5 +156,5 @@ pub trait DynFile: Send + Sync {
 }
 
 pub fn init() {
-    Lazy::force(&FAT_FS);
+    // Lazy::force(&FAT_FS);
 }

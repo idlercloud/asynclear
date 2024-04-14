@@ -9,9 +9,8 @@ use goblin::elf::Elf;
 use goblin::elf64::program_header::{PF_R, PF_W, PF_X, PT_LOAD};
 use klocks::Lazy;
 use riscv::register::satp;
-use riscv_guard::AccessUserGuard;
 
-use super::vm_area::FramedVmArea;
+use super::vm_area::{AreaType, FramedVmArea};
 use crate::memory::{
     kernel_pa_to_va, kernel_ppn_to_vpn, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr,
     PhysPageNum, VirtAddr, VirtPageNum,
@@ -63,7 +62,7 @@ pub struct MemorySpace {
 }
 
 impl MemorySpace {
-    pub fn new_bare() -> Self {
+    fn new_bare() -> Self {
         Self {
             page_table: PageTable::with_root(),
             user_areas: BTreeMap::new(),
@@ -112,6 +111,44 @@ impl MemorySpace {
         memory_set
     }
 
+    /// 返回的 `VirtAddr` 是 `elf_end`，用户的 brk 放在这之后
+    pub fn new_user(elf: &Elf<'_>, elf_data: &[u8]) -> (Self, VirtAddr) {
+        let mut memory_set = Self::new_bare();
+        let elf_end = memory_set.load_sections(&elf, elf_data);
+        memory_set.map_kernel_areas();
+        (memory_set, elf_end)
+    }
+
+    /// 从当前用户地址空间复制一个地址空间
+    pub fn from_other(user_space: &Self) -> Self {
+        let mut memory_set = Self::new_bare();
+        for area in user_space.user_areas.values() {
+            let vpn_range = area.vpn_range();
+            unsafe {
+                memory_set.user_map(
+                    vpn_range.start.page_start(),
+                    vpn_range.end.page_start(),
+                    area.perm(),
+                    area.area_type(),
+                );
+            }
+            for vpn in vpn_range {
+                if !area.is_mapped(vpn) {
+                    continue;
+                }
+                let src_ppn = user_space.translate(vpn).unwrap();
+                let dst_ppn = memory_set.translate(vpn).unwrap();
+                unsafe {
+                    kernel_ppn_to_vpn(dst_ppn)
+                        .as_page_bytes_mut()
+                        .copy_from_slice(kernel_ppn_to_vpn(src_ppn).as_page_bytes());
+                }
+            }
+        }
+        memory_set.map_kernel_areas();
+        memory_set
+    }
+
     pub fn page_table(&self) -> &PageTable {
         &self.page_table
     }
@@ -143,6 +180,7 @@ impl MemorySpace {
                     self.user_map_with_data(
                         start_va..end_va,
                         map_perm,
+                        AreaType::Elf,
                         &elf_data[ph.file_range()],
                         start_offset,
                     );
@@ -166,33 +204,6 @@ impl MemorySpace {
                 user_pte.bits = kernel_pte.bits;
             }
         }
-    }
-
-    /// 从当前用户地址空间复制一个地址空间
-    pub fn from_curr_user(user_space: &Self) -> Self {
-        let mut memory_set = Self::new_bare();
-        for area in user_space.user_areas.values() {
-            let vpn_range = area.vpn_range();
-            unsafe {
-                let _guard = AccessUserGuard::new();
-                memory_set.user_map(
-                    vpn_range.start.page_start(),
-                    vpn_range.end.page_start(),
-                    area.perm(),
-                );
-            }
-            for vpn in vpn_range {
-                let src_ppn = user_space.translate(vpn).unwrap();
-                let dst_ppn = memory_set.translate(vpn).unwrap();
-                unsafe {
-                    kernel_ppn_to_vpn(dst_ppn)
-                        .as_page_bytes_mut()
-                        .copy_from_slice(kernel_ppn_to_vpn(src_ppn).as_page_bytes());
-                }
-            }
-        }
-        memory_set.map_kernel_areas();
-        memory_set
     }
 
     // /// 需保证 `heap_start` < `new_vpn`，且还有足够的虚地址和物理空间可以映射
@@ -259,8 +270,14 @@ impl MemorySpace {
     /// # Safety
     ///
     /// 需要保证该虚拟地址区域未被映射
-    pub unsafe fn user_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
-        let mut map_area = FramedVmArea::new(start_va..end_va, perm);
+    pub unsafe fn user_map(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        perm: MapPermission,
+        area_type: AreaType,
+    ) {
+        let mut map_area = FramedVmArea::new(start_va..end_va, perm, area_type);
         map_area.map(&mut self.page_table);
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
@@ -274,10 +291,11 @@ impl MemorySpace {
         &mut self,
         va_range: Range<VirtAddr>,
         perm: MapPermission,
+        area_type: AreaType,
         data: &[u8],
         page_offset: usize,
     ) {
-        let mut map_area = FramedVmArea::new(va_range, perm);
+        let mut map_area = FramedVmArea::new(va_range, perm, area_type);
         map_area.map_with_data(&mut self.page_table, data, page_offset);
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
