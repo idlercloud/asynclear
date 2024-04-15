@@ -214,6 +214,7 @@ sudo make install
 - [ ] virtio 块设备驱动采取中断方式处理
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 - [ ] 支持 GPU 驱动
+- [ ] 支持用户的多线程之后要实现 TLB shootdown
 
 ### 具体任务
 

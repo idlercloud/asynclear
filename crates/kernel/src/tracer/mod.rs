@@ -10,24 +10,39 @@ use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use anstyle::{AnsiColor, Reset};
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
-use klocks::SpinNoIrqMutex;
+use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
 
-use crate::{hart::local_hart, uart_console::STDOUT};
+use crate::{
+    hart::local_hart,
+    uart_console::{println, STDOUT},
+};
 
-static KERNEL_TRACER_IMPL: klocks::Once<KernelTracerImpl> = klocks::Once::new();
+static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImpl {
+    slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
+    #[cfg(feature = "profiling")]
+    events: SpinNoIrqMutex::new(Vec::with_capacity(128)),
+});
 
 pub fn init() {
-    kernel_tracer::KERNLE_TRACER.call_once(|| {
-        KERNEL_TRACER_IMPL.call_once(|| {
-            // TODO: 改造 KernelLogImpl 使其适应多核；并且可以用于栈展开
-            KernelTracerImpl {
-                slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
-                #[cfg(feature = "profiling")]
-                events: SpinNoIrqMutex::new(Vec::with_capacity(128)),
-            }
-        })
-    });
+    kernel_tracer::KERNLE_TRACER
+        .call_once(|| Lazy::force(&KERNEL_TRACER_IMPL) as &(dyn Tracer + Sync));
+}
+
+pub fn print_span_stack() {
+    let span_stack = local_hart().span_stack.borrow();
+    let slab = KERNEL_TRACER_IMPL.slab.lock();
+    let mut stdout = STDOUT.lock();
+    writeln!(stdout, "span stack:").unwrap();
+    for id in span_stack.iter().rev() {
+        let id = span_id_to_slab_index(id);
+        let span_attr = slab.get(id).unwrap();
+        write!(stdout, "    {}: {}", span_attr.level(), span_attr.name()).unwrap();
+        if let Some(kvs) = span_attr.kvs() {
+            write!(stdout, "{{{kvs}}}").unwrap();
+        }
+        writeln!(stdout).unwrap();
+    }
 }
 
 struct KernelTracerImpl {

@@ -67,7 +67,6 @@ fn exit_thread(thread: &Thread) {
     if process_inner.threads.is_empty() {
         info!("all threads exit");
         process_inner.cwd = CompactString::new("");
-        // 根页表以及内核相关的部分要留着
         process_inner.memory_set.recycle_user_pages();
         process_inner.threads = BTreeMap::new();
         process_inner.tid_allocator.release();

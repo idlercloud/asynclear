@@ -5,15 +5,15 @@ use common::config::PAGE_SIZE;
 use triomphe::Arc;
 
 use crate::memory::{
-    frame_allocator::Frame, kernel_ppn_to_vpn, MapPermission, PTEFlags, PageTable, VirtAddr,
-    VirtPageNum,
+    frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
+    VirtAddr, VirtPageNum,
 };
 
 /// 采取帧式映射的一块（用户）虚拟内存区域
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FramedVmArea {
     vpn_range: Range<VirtPageNum>,
-    map: BTreeMap<VirtPageNum, Arc<Frame>>,
+    map: BTreeMap<VirtPageNum, Arc<Page>>,
     perm: MapPermission,
     area_type: AreaType,
 }
@@ -60,7 +60,7 @@ impl FramedVmArea {
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
-            self.map.insert(vpn, Arc::new(frame));
+            self.map.insert(vpn, Arc::new(Page::new(frame)));
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
         }
     }
@@ -76,7 +76,7 @@ impl FramedVmArea {
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
-            self.map.insert(vpn, Arc::new(frame));
+            self.map.insert(vpn, Arc::new(Page::new(frame)));
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
             let len = usize::min(data.len() - start, PAGE_SIZE - page_offset);
             unsafe {

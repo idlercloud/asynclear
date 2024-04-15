@@ -336,27 +336,13 @@ impl MemorySpace {
         self.page_table.translate(vpn)
     }
 
-    // pub fn recycle_all_pages(&mut self) {
-    //     self.areas.clear();
-    // }
-
-    /// 只回收进程低 256GiB 部分的页面，也就是用户进程专属的页（包括页表）
     pub fn recycle_user_pages(&mut self) {
-        // TODO: 等等，Memory.areas 中是不是其实只存放了用户地址的映射？
-        // 也就是只保留高地址的空间
-        self.user_areas
-            .retain(|vpn, _| vpn.0 >= LOW_ADDRESS_END / PAGE_SIZE);
+        self.user_areas.clear();
         self.page_table.clear_except_root();
         // 根页表要处理下，把用户地址的页表项去除，以防已经回收的页仍然能被访问
         unsafe {
             self.page_table.root_page()[0..PAGE_SIZE / 2].fill(0);
         }
-        // FIXME: 为了安全性，也许应该刷新 TLB？
-        self.flush_tlb(None);
-        // 回收了用户页表的进程不应该去访问用户数据了
-        // 一般而言都是成为了僵尸进程，那么其实可能确实不会访问
-        // 所以应该不太会去访问。不过也许会有误操作？
-        // 但是，除去系统调用之外，会有其他访问用户数据的操作吗？
-        // 另外，也许可以通过 SUM 标志位来控制？
+        // 回收了用户页表的进程不应该去访问用户数据了。因此不考虑 TLB 应该也没问题
     }
 }
