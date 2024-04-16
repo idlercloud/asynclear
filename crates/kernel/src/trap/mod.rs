@@ -6,10 +6,6 @@ pub use context::TrapContext;
 
 use core::ops::ControlFlow;
 
-use crate::{
-    drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource},
-    executor,
-};
 use defines::{
     error::errno,
     signal::{KSignalSet, Signal, SignalActionFlags},
@@ -23,6 +19,8 @@ use riscv::register::{
 use user_check::UserCheckMut;
 
 use crate::{
+    drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource},
+    executor,
     hart::local_hart,
     process::{self, exit_process},
     signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
@@ -79,26 +77,36 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
         }
 
         Trap::Exception(
-            Exception::StoreFault
+            e @ (Exception::StoreFault
             | Exception::StorePageFault
-            | Exception::InstructionFault
             | Exception::InstructionPageFault
-            | Exception::LoadFault
-            | Exception::LoadPageFault,
+            | Exception::LoadPageFault),
         ) => {
             let thread = local_hart().curr_thread();
-            {
-                let inner = thread.lock_inner();
-                info!("regs: {:x?}", inner.trap_context.user_regs);
-                error!(
-                    "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
-                    scause.cause(),
-                    stval::read(),
-                    inner.trap_context.sepc,
-                );
-            };
-            process::exit_process(&thread.process, -2);
-            ControlFlow::Break(())
+
+            let exception_addr = stval::read();
+            let ok = thread.process.lock_inner_with(|inner| {
+                inner
+                    .memory_space
+                    .handle_memory_exception(exception_addr, e == Exception::StoreFault)
+            });
+
+            if ok {
+                ControlFlow::Continue(())
+            } else {
+                {
+                    let inner = thread.lock_inner();
+                    info!("regs: {:x?}", inner.trap_context.user_regs);
+                    error!(
+                        "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
+                        scause.cause(),
+                        exception_addr,
+                        inner.trap_context.sepc,
+                    );
+                };
+                process::exit_process(&thread.process, -2);
+                ControlFlow::Break(())
+            }
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             let thread = local_hart().curr_thread();

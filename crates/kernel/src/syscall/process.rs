@@ -374,7 +374,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
         // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
         return process.lock_inner_with(|inner| {
             inner
-                .memory_set
+                .memory_space
                 .try_map(VirtAddr(addr)..VirtAddr(addr + len), prot.into(), false)
         });
     }

@@ -64,8 +64,8 @@ impl Thread {
 
     /// 分配用户栈，一般用于创建新线程。返回用户栈高地址
     ///
-    /// 注意 `memory_set` 是进程的 `MemorySet`
-    pub fn alloc_user_stack(tid: usize, memory_set: &mut MemorySpace) -> usize {
+    /// 注意 `memory_space` 是进程的 `MemorySpace`
+    pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> usize {
         // 分配用户栈
         let ustack_low_addr = Self::user_stack_low_addr(tid);
         let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
@@ -73,7 +73,7 @@ impl Thread {
 
         // 栈地址都是根据 tid 确定的，不会冲突
         unsafe {
-            memory_set.user_map(
+            memory_space.user_map(
                 VirtAddr(ustack_low_addr),
                 VirtAddr(ustack_high_addr),
                 MapPermission::R | MapPermission::W | MapPermission::U,
@@ -96,11 +96,11 @@ impl Thread {
 
     /// 释放用户栈。一般是单个线程退出时使用。
     ///
-    /// 注意 `memory_set` 是进程的 `MemorySet`
-    fn dealloc_user_stack(&self, memory_set: &mut MemorySpace) {
+    /// 注意 `memory_space` 是进程的 `MemorySpace`
+    fn dealloc_user_stack(&self, memory_space: &mut MemorySpace) {
         // 手动取消用户栈的映射
         let user_stack_low_addr = VirtAddr(Self::user_stack_low_addr(self.tid));
-        memory_set.remove_area_with_start_vpn(user_stack_low_addr.vpn_floor());
+        memory_space.remove_area_with_start_vpn(user_stack_low_addr.vpn_floor());
     }
 
     pub fn set_status(&self, status: ThreadStatus) {

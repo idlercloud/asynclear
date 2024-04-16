@@ -1,11 +1,9 @@
-mod init_stack;
 mod inner;
 
 use core::num::NonZeroUsize;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use atomic::{Atomic, Ordering};
-use common::config::PAGE_SIZE;
 use compact_str::CompactString;
 use defines::{
     error::{errno, Result},
@@ -27,10 +25,7 @@ use crate::{
     uart_console::println,
 };
 
-use self::{
-    init_stack::{UserAppInfo, UserStackInit, AT_PAGESZ},
-    inner::ProcessInner,
-};
+use self::inner::ProcessInner;
 
 // FIXME: 暂时而言应用是嵌入内核的。之后需要修复
 static TMP_FS: &[(&str, &[u8])] = macros::gen_tmp_fs!();
@@ -78,19 +73,15 @@ impl Process {
 
         let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        let (mut memory_set, elf_end) = MemorySpace::new_user(&elf, elf_data);
-        let mut user_sp = Thread::alloc_user_stack(0, &mut memory_set);
+        let (mut memory_space, elf_end) = MemorySpace::new_user(&elf, elf_data);
+        let user_sp = Thread::alloc_user_stack(0, &mut memory_space);
 
         // 在用户栈上推入参数、环境变量、辅助向量等
-        let mut stack_init = UserStackInit::new(user_sp, Some(memory_set.page_table()));
         let argc = args.len();
-        let argv_base = stack_init.init_stack(UserAppInfo {
-            args,
-            envs: Vec::new(),
-            auxv: vec![(AT_PAGESZ, PAGE_SIZE)],
-        });
+        let (user_sp, argv_base) = memory_space
+            .init_stack(user_sp, args, Vec::new())
+            .expect("Should have stack");
 
-        user_sp = stack_init.user_sp();
         let brk = elf_end.vpn_ceil().page_start();
         let mut tid_allocator = RecycleAllocator::new();
         let tid = tid_allocator.alloc();
@@ -106,7 +97,7 @@ impl Process {
             exit_signal: None,
             inner: SpinMutex::new(ProcessInner {
                 name: process_name,
-                memory_set,
+                memory_space,
                 heap_range: brk..brk,
                 parent: None,
                 children: Vec::new(),
@@ -159,7 +150,7 @@ impl Process {
                 exit_signal,
                 inner: SpinMutex::new(ProcessInner {
                     name: inner.name.clone(),
-                    memory_set: MemorySpace::from_other(&inner.memory_set),
+                    memory_space: MemorySpace::from_other(&inner.memory_space),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),
@@ -210,24 +201,21 @@ impl Process {
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
-            inner.memory_set.recycle_user_pages();
-            let elf_end = inner.memory_set.load_sections(&elf, elf_data);
+            inner.memory_space.recycle_user_pages();
+            let elf_end = inner.memory_space.load_sections(&elf, elf_data);
             inner.heap_range = {
                 let brk = elf_end.vpn_ceil().page_start();
                 brk..brk
             };
-            let mut user_sp = Thread::alloc_user_stack(0, &mut inner.memory_set);
-            inner.memory_set.flush_tlb(None);
+            let user_sp = Thread::alloc_user_stack(0, &mut inner.memory_space);
             inner.signal_handlers = SignalHandlers::new();
 
-            let mut stack_init = UserStackInit::new(user_sp, None);
             let argc = args.len();
-            let argv_base = stack_init.init_stack(UserAppInfo {
-                args,
-                envs: Vec::new(),
-                auxv: vec![(AT_PAGESZ, PAGE_SIZE)],
-            });
-            user_sp = stack_init.user_sp();
+            let (user_sp, argv_base) = inner
+                .memory_space
+                .init_stack(user_sp, args, Vec::new())
+                .unwrap();
+            memory::flush_tlb(None);
 
             inner.main_thread().lock_inner_with(|inner| {
                 inner.trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);

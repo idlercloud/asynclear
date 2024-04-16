@@ -1,8 +1,8 @@
 use bitflags::bitflags;
 
-pub struct Inode {
-    mode: StatMode,
-}
+// pub struct Inode {
+//     mode: StatMode,
+// }
 
 bitflags! {
     /// The mode of a inode

@@ -3,12 +3,10 @@
 use alloc::{vec, vec::Vec};
 use bitflags::*;
 use common::config::{PAGE_SIZE, PTE_PER_PAGE};
-use defines::error::{errno, Result};
 use riscv::register::satp;
 
 use crate::memory::{
-    frame_allocator::Frame, kernel_pa_to_va, kernel_ppn_to_vpn, MapPermission, PhysAddr,
-    PhysPageNum, VirtAddr, VirtPageNum,
+    frame_allocator::Frame, kernel_ppn_to_vpn, MapPermission, PhysPageNum, VirtPageNum,
 };
 
 bitflags! {
@@ -106,6 +104,7 @@ impl PageTable {
     /// 找到 `vpn` 对应的叶子页表项。注意，该页表项必须是 valid 的。
     ///
     /// TODO: 是否要将翻译相关的函数返回值改为 Result？
+    #[allow(unused)]
     pub fn find_pte(&self, vpn: VirtPageNum) -> Option<&PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
@@ -157,29 +156,8 @@ impl PageTable {
 
     pub fn unmap(&mut self, vpn: VirtPageNum) {
         let pte = self.find_pte_create(vpn).unwrap();
-        debug_assert!(pte.is_valid(), "vpn {vpn:?} is invalid before unmapping");
+        debug_assert!(pte.is_valid(), "vpn {vpn:x?} is invalid before unmapping");
         *pte = PageTableEntry::empty();
-    }
-
-    #[inline]
-    pub fn translate(&self, vpn: VirtPageNum) -> Option<PhysPageNum> {
-        self.find_pte(vpn).copied().map(|pte| pte.ppn())
-    }
-
-    #[inline]
-    pub fn trans_va_to_pa(&self, va: VirtAddr) -> Option<PhysAddr> {
-        self.find_pte(va.vpn_floor()).map(|pte| {
-            let aligned_pa = pte.ppn().page_start();
-            aligned_pa + va.page_offset()
-        })
-    }
-
-    /// 将用户指针转换到内核的虚拟地址。
-    #[inline]
-    pub fn trans_va(&self, va: VirtAddr) -> Result<VirtAddr> {
-        self.trans_va_to_pa(va)
-            .map(kernel_pa_to_va)
-            .ok_or(errno::EFAULT)
     }
 
     #[inline]

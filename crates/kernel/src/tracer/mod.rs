@@ -13,10 +13,7 @@ use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
 use slab::Slab;
 
-use crate::{
-    hart::local_hart,
-    uart_console::{println, STDOUT},
-};
+use crate::{hart::local_hart, uart_console::STDOUT};
 
 static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImpl {
     slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),

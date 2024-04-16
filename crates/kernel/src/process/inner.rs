@@ -17,7 +17,7 @@ pub struct ProcessInner {
     pub name: CompactString,
 
     /* 地址空间 */
-    pub memory_set: MemorySpace,
+    pub memory_space: MemorySpace,
     /// 用户堆的范围。
     ///
     /// `heap_range.start` 一般紧邻进程 elf 数据之后，并且创建之后不会改变
@@ -71,7 +71,7 @@ impl ProcessInner {
     //         return self.brk;
     //     }
     //     // TODO: 注，这里是假定地址空间和物理内存都够用
-    //     self.memory_set.set_user_brk(new_end, self.heap_range);
+    //     self.memory_space.set_user_brk(new_end, self.heap_range);
     //     self.brk = new_brk;
     //     new_brk
     // }

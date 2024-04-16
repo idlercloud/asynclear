@@ -5,7 +5,6 @@ mod stdio;
 use core::ops::Deref;
 
 use alloc::{boxed::Box, collections::BTreeMap};
-use klocks::Lazy;
 use triomphe::Arc;
 
 use async_trait::async_trait;
@@ -155,6 +154,6 @@ pub trait DynFile: Send + Sync {
     async fn write(&self, buf: UserCheck<[u8]>) -> Result<usize>;
 }
 
-pub fn init() {
-    // Lazy::force(&FAT_FS);
-}
+// pub fn init() {
+//     Lazy::force(&FAT_FS);
+// }

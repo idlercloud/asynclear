@@ -58,7 +58,7 @@ fn exit_thread(thread: &Thread) {
         .remove(&thread.tid)
         .expect("remove thread here");
     process_inner.tid_allocator.dealloc(thread.tid);
-    thread.dealloc_user_stack(&mut process_inner.memory_set);
+    thread.dealloc_user_stack(&mut process_inner.memory_space);
     thread.set_status(ThreadStatus::Terminated);
 
     // 如果是最后一个线程，则该进程成为僵尸进程，等待父进程 wait
@@ -67,7 +67,7 @@ fn exit_thread(thread: &Thread) {
     if process_inner.threads.is_empty() {
         info!("all threads exit");
         process_inner.cwd = CompactString::new("");
-        process_inner.memory_set.recycle_user_pages();
+        process_inner.memory_space.recycle_user_pages();
         process_inner.threads = BTreeMap::new();
         process_inner.tid_allocator.release();
         let children = mem::take(&mut process_inner.children);
@@ -133,7 +133,7 @@ impl<F: Future + Send> Future for UserThreadFuture<F> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         local_hart().replace_thread(Some(Arc::clone(&self.thread)));
         let process = &self.thread.process;
-        process.lock_inner_with(|inner| inner.memory_set.activate());
+        process.lock_inner_with(|inner| inner.memory_space.activate());
         let pid = process.pid();
         let tid = self.thread.tid;
         let _enter = info_span!("task", pid = pid, tid = tid).entered();

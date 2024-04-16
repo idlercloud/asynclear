@@ -1,4 +1,4 @@
-use super::frame_allocator::Frame;
+use super::{frame_allocator::Frame, PhysPageNum};
 
 #[derive(Debug)]
 pub struct Page {
@@ -8,5 +8,9 @@ pub struct Page {
 impl Page {
     pub fn new(frame: Frame) -> Self {
         Self { frame }
+    }
+
+    pub fn ppn(&self) -> PhysPageNum {
+        self.frame.ppn()
     }
 }

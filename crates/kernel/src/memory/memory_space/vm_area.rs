@@ -6,7 +6,7 @@ use triomphe::Arc;
 
 use crate::memory::{
     frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
-    VirtAddr, VirtPageNum,
+    PhysPageNum, VirtAddr, VirtPageNum,
 };
 
 /// 采取帧式映射的一块（用户）虚拟内存区域
@@ -48,24 +48,31 @@ impl FramedVmArea {
         self.area_type
     }
 
-    pub fn is_mapped(&self, vpn: VirtPageNum) -> bool {
-        self.map.contains_key(&vpn)
+    pub fn mapped_ppn(&self, vpn: VirtPageNum) -> Option<PhysPageNum> {
+        self.map.get(&vpn).map(|page| page.ppn())
     }
 
     pub fn len(&self) -> usize {
         self.vpn_range.end.0.saturating_sub(self.vpn_range.start.0) * PAGE_SIZE
     }
 
-    pub(super) fn map(&mut self, page_table: &mut PageTable) {
-        for vpn in self.vpn_range() {
-            let frame = Frame::alloc().unwrap();
-            let ppn = frame.ppn();
-            self.map.insert(vpn, Arc::new(Page::new(frame)));
-            page_table.map(vpn, ppn, PTEFlags::from(self.perm));
-        }
+    pub fn ensure_allocated(
+        &mut self,
+        vpn: VirtPageNum,
+        page_table: &mut PageTable,
+    ) -> PhysPageNum {
+        let entry = self.map.entry(vpn);
+        entry
+            .or_insert_with(|| {
+                let frame = Frame::alloc().unwrap();
+                let ppn = frame.ppn();
+                page_table.map(vpn, ppn, PTEFlags::from(self.perm));
+                Arc::new(Page::new(frame))
+            })
+            .ppn()
     }
 
-    pub(super) fn map_with_data(
+    pub(super) unsafe fn map_with_data(
         &mut self,
         page_table: &mut PageTable,
         data: &[u8],
@@ -90,8 +97,9 @@ impl FramedVmArea {
 
     pub(super) fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range() {
-            self.map.remove(&vpn);
-            page_table.unmap(vpn);
+            if self.map.remove(&vpn).is_some() {
+                page_table.unmap(vpn);
+            }
         }
     }
 

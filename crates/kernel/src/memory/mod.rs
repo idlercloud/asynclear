@@ -9,9 +9,10 @@ use common::config::{PAGE_SIZE, PA_TO_VA};
 pub use self::address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 pub use self::frame_allocator::{frame_dealloc, ContinuousFrames};
 pub use self::memory_space::{
-    memory_set::{log_kernel_sections, MapPermission, MemorySpace, KERNEL_SPACE},
+    flush_tlb, log_kernel_sections,
     page_table::{PTEFlags, PageTable},
-    vm_area::AreaType,
+    vm_area::{AreaType, FramedVmArea},
+    MapPermission, MemorySpace, KERNEL_SPACE,
 };
 
 #[inline]
