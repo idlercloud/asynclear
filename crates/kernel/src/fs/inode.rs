@@ -1,8 +1,31 @@
+use alloc::collections::BTreeMap;
 use bitflags::bitflags;
+use compact_str::CompactString;
+use defines::misc::TimeSpec;
+use klocks::SleepMutex;
+use triomphe::Arc;
 
-// pub struct Inode {
-//     mode: StatMode,
-// }
+pub struct Inode {
+    /// inode number，在一个文件系统中唯一标识一个 Inode
+    ino: usize,
+    mode: StatMode,
+    name: CompactString,
+    inner: SleepMutex<InodeInner>,
+}
+
+struct InodeInner {
+    /// 上一次访问时间
+    atime: TimeSpec,
+    /// 上一次修改时间
+    mtime: TimeSpec,
+    /// 上一次状态变化时间
+    ctime: TimeSpec,
+    parent: Option<Arc<Inode>>,
+    children: BTreeMap<CompactString, Arc<Inode>>,
+    data_len: usize,
+}
+
+pub trait InodeOp {}
 
 bitflags! {
     /// The mode of a inode

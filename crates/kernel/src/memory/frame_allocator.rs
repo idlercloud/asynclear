@@ -1,6 +1,7 @@
 //! Implementation of [`FrameAllocator`] which
 //! controls all the frames in the operating system.
 
+use core::mem::ManuallyDrop;
 use core::ops::Range;
 
 use super::address::PhysAddr;
@@ -18,7 +19,7 @@ impl Frame {
     pub fn alloc() -> Option<Self> {
         let ppn = FRAME_ALLOCATOR.lock().alloc(1)?;
         let mut frame = Self { ppn };
-        frame.fill(0);
+        frame.clear();
         Some(frame)
     }
 
@@ -26,11 +27,44 @@ impl Frame {
         self.ppn
     }
 
-    fn fill(&mut self, byte: u8) {
-        let mut va = kernel_ppn_to_vpn(self.ppn).page_start();
-        unsafe {
-            va.as_mut::<[u8; PAGE_SIZE]>().fill(byte);
-        }
+    /// 直接用 ppn 构建一个不拥有所有权的 Frame 视图
+    ///
+    /// # SAFETY
+    ///
+    /// 需保证 ppn 指向的物理页已被分配且未 alias
+    pub unsafe fn view(ppn: PhysPageNum) -> ManuallyDrop<Self> {
+        ManuallyDrop::new(Self { ppn })
+    }
+
+    fn clear(&mut self) {
+        self.as_page_bytes_mut().fill(0);
+    }
+
+    pub fn copy_from(&mut self, src: &Self) {
+        self.as_page_bytes_mut()
+            .copy_from_slice(src.as_page_bytes());
+    }
+
+    /// # SAFETY
+    ///
+    /// 需保证类型的 alignment，并且不会越过页边界
+    pub unsafe fn as_ref_at<'a, T>(&self, offset: usize) -> &'a T {
+        unsafe { kernel_ppn_to_vpn(self.ppn).with_offset(offset).as_ref() }
+    }
+
+    /// # SAFETY
+    ///
+    /// 需保证类型的 alignment，并且不会越过页边界
+    pub unsafe fn as_mut_at<'a, T>(&mut self, offset: usize) -> &'a mut T {
+        unsafe { kernel_ppn_to_vpn(self.ppn).with_offset(offset).as_mut() }
+    }
+
+    pub fn as_page_bytes(&self) -> &[u8; PAGE_SIZE] {
+        unsafe { self.as_ref_at(0) }
+    }
+
+    pub fn as_page_bytes_mut(&mut self) -> &mut [u8; PAGE_SIZE] {
+        unsafe { self.as_mut_at(0) }
     }
 }
 

@@ -14,6 +14,7 @@ pub use self::memory_space::{
     vm_area::{AreaType, FramedVmArea},
     MapPermission, MemorySpace, KERNEL_SPACE,
 };
+pub use self::page::Page;
 
 #[inline]
 const fn kernel_va_to_pa(va: VirtAddr) -> PhysAddr {

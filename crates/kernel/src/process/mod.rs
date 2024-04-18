@@ -74,12 +74,12 @@ impl Process {
         let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
         let elf = Elf::parse(elf_data).expect("Should be valid elf");
         let (mut memory_space, elf_end) = MemorySpace::new_user(&elf, elf_data);
-        let user_sp = Thread::alloc_user_stack(0, &mut memory_space);
+        let user_sp_vpn = Thread::alloc_user_stack(0, &mut memory_space);
 
         // 在用户栈上推入参数、环境变量、辅助向量等
         let argc = args.len();
         let (user_sp, argv_base) = memory_space
-            .init_stack(user_sp, args, Vec::new())
+            .init_stack(user_sp_vpn, args, Vec::new())
             .expect("Should have stack");
 
         let brk = elf_end.vpn_ceil().page_start();

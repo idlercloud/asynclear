@@ -1,5 +1,8 @@
 use common::config::{PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
-use core::{iter::Step, ops::Add};
+use core::{
+    iter::Step,
+    ops::{Add, Sub},
+};
 
 /// 物理地址。在 Sv39 页表机制中，虚拟地址转化得到的物理地址总共为 56 位，其中页号 44 位，页内偏移 12 位。
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -134,15 +137,12 @@ impl VirtPageNum {
     /// # Safety
     ///
     /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
-    pub unsafe fn as_page_bytes<'a>(&self) -> &'a [u8; PAGE_SIZE] {
-        unsafe { self.page_start().as_ref() }
-    }
-
-    /// # Safety
-    ///
-    /// 任何页都可以转化为字节数组。但可能造成 alias，所以先标为 `unsafe`
     pub unsafe fn as_page_bytes_mut<'a>(&mut self) -> &'a mut [u8; PAGE_SIZE] {
         unsafe { self.page_start().as_mut() }
+    }
+
+    pub fn with_offset(self, offset: usize) -> VirtAddr {
+        VirtAddr(self.page_start().0 + offset)
     }
 }
 
@@ -150,6 +150,13 @@ impl Add<usize> for VirtPageNum {
     type Output = Self;
     fn add(self, len: usize) -> Self::Output {
         Self(self.0 + len)
+    }
+}
+
+impl Sub<usize> for VirtPageNum {
+    type Output = Self;
+    fn sub(self, len: usize) -> Self::Output {
+        Self(self.0 - len)
     }
 }
 

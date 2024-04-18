@@ -10,18 +10,16 @@ use goblin::elf::{
     Elf,
 };
 use klocks::Lazy;
-use riscv::register::satp;
 use virtio_drivers::PAGE_SIZE;
 use vm_area::AreaType;
 
 use self::{
-    init_stack::{UserStackInit, AT_PAGESZ},
+    init_stack::{StackInitCtx, AT_PAGESZ},
     vm_area::FramedVmArea,
 };
 
 use super::{
-    kernel_pa_to_va, kernel_ppn_to_vpn, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr,
-    VirtPageNum,
+    kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
 
 pub mod init_stack;
@@ -139,7 +137,7 @@ impl MemorySpace {
     /// 返回的 `VirtAddr` 是 `elf_end`，用户的 brk 放在这之后
     pub fn new_user(elf: &Elf<'_>, elf_data: &[u8]) -> (Self, VirtAddr) {
         let mut memory_set = Self::new_bare();
-        let elf_end = memory_set.load_sections(&elf, elf_data);
+        let elf_end = memory_set.load_sections(elf, elf_data);
         memory_set.map_kernel_areas();
         (memory_set, elf_end)
     }
@@ -155,20 +153,18 @@ impl MemorySpace {
                     vpn_range.end.page_start(),
                     src_area.perm(),
                     src_area.area_type(),
-                )
+                );
             };
             let dst_area = memory_set
                 .user_areas
                 .get_mut(&vpn_range.start)
                 .expect("just insert above");
             for vpn in vpn_range {
-                if let Some(src_ppn) = src_area.mapped_ppn(vpn) {
-                    let dst_ppn = dst_area.ensure_allocated(vpn, &mut memory_set.page_table);
-                    unsafe {
-                        kernel_ppn_to_vpn(dst_ppn)
-                            .as_page_bytes_mut()
-                            .copy_from_slice(kernel_ppn_to_vpn(src_ppn).as_page_bytes());
-                    }
+                if let Some(src_frame) = src_area.mapped_frame(vpn) {
+                    let mut dst_frame = dst_area
+                        .ensure_allocated(vpn, &mut memory_set.page_table)
+                        .frame();
+                    dst_frame.copy_from(&src_frame);
                 }
             }
         }
@@ -214,19 +210,8 @@ impl MemorySpace {
     }
 
     /// 映射高地址中的内核段，注意不持有它们的所有权
-    pub fn map_kernel_areas(&mut self) {
-        // 用户地址空间中，高地址是内核的部分
-        // 具体而言，就是 [0xffff_ffff_8000_000, 0xffff_ffff_ffff_fff]
-        // 以及 [0xffff_ffff_0000_0000, 0xffff_ffff_3fff_ffff]（MMIO 所在的大页）
-        // 也就是内核根页表的第 508、510、511 项
-        unsafe {
-            // 这些需要映射到用户的页表中
-            for line in [508, 510, 511] {
-                let user_pte = self.page_table.root_pte_mut(line);
-                let kernel_pte = KERNEL_SPACE.page_table.root_pte(line);
-                user_pte.bits = kernel_pte.bits;
-            }
-        }
+    fn map_kernel_areas(&mut self) {
+        self.page_table.map_kernel_areas();
     }
 
     // /// 需保证 `heap_start` < `new_vpn`，且还有足够的虚地址和物理空间可以映射
@@ -335,22 +320,12 @@ impl MemorySpace {
 
     /// 如有必要就切换页表，只在内核态调用，执行流不会跳变
     pub fn activate(&self) {
-        let old_root = satp::read().bits();
-        let new_root = self.page_table.token();
-        if new_root != old_root {
-            satp::write(new_root);
-            flush_tlb(None);
-        }
+        self.page_table.activate();
     }
 
     pub fn recycle_user_pages(&mut self) {
         self.user_areas.clear();
-        self.page_table.clear_except_root();
-        // 根页表要处理下，把用户地址的页表项去除，以防已经回收的页仍然能被访问
-        unsafe {
-            self.page_table.root_page()[0..PAGE_SIZE / 2].fill(0);
-        }
-        // 回收了用户页表的进程不应该去访问用户数据了。因此不考虑 TLB 应该也没问题
+        self.page_table.clear();
     }
 
     pub fn handle_memory_exception(&mut self, addr: usize, maybe_cow: bool) -> bool {
@@ -372,24 +347,29 @@ impl MemorySpace {
                     AreaType::Elf => todo!("[mid] impl elf backed memory"),
                 }
             }
-            return false;
+            false
         }
     }
 
     // 返回 `user_sp` 与 `argv_base`
     pub fn init_stack(
         &mut self,
-        user_sp: usize,
+        user_sp_vpn: VirtPageNum,
         args: Vec<CompactString>,
         envs: Vec<CompactString>,
     ) -> Option<(usize, usize)> {
-        let vpn = VirtAddr(user_sp).vpn_floor();
-        let (_, area) = self.user_areas.range_mut(..=vpn).next_back()?;
-        if vpn > area.vpn_range().end {
+        let (_, area) = self.user_areas.range_mut(..=user_sp_vpn).next_back()?;
+        if user_sp_vpn > area.vpn_range().end {
             return None;
         }
-        let mut stack_init = UserStackInit::new(user_sp, area, &mut self.page_table);
-        let argv_base = stack_init.init_stack(args, envs, vec![(AT_PAGESZ, PAGE_SIZE)]);
-        Some((stack_init.user_sp(), argv_base))
+
+        let ctx = StackInitCtx::new(
+            user_sp_vpn,
+            &mut self.page_table,
+            args,
+            envs,
+            vec![(AT_PAGESZ, PAGE_SIZE)],
+        );
+        Some(area.init_stack_impl(ctx))
     }
 }

@@ -1,5 +1,6 @@
 mod fat32;
 mod inode;
+mod page_cache;
 mod stdio;
 
 use core::ops::Deref;

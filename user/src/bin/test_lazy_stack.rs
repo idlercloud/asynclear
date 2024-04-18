@@ -6,7 +6,7 @@ use core::hint::black_box;
 use user::{println, test_main};
 
 fn recursive(depth: usize, upper_bound: usize) -> usize {
-    if black_box(depth >= 1024) {
+    if black_box(depth >= upper_bound) {
         return depth;
     }
     let mut ret: usize = 512;

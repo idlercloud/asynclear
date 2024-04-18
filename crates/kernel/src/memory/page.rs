@@ -1,16 +1,19 @@
-use super::{frame_allocator::Frame, PhysPageNum};
+use klocks::{SpinMutex, SpinMutexGuard};
 
-#[derive(Debug)]
+use super::frame_allocator::Frame;
+
 pub struct Page {
-    frame: Frame,
+    frame: SpinMutex<Frame>,
 }
 
 impl Page {
     pub fn new(frame: Frame) -> Self {
-        Self { frame }
+        Self {
+            frame: SpinMutex::new(frame),
+        }
     }
 
-    pub fn ppn(&self) -> PhysPageNum {
-        self.frame.ppn()
+    pub fn frame(&self) -> SpinMutexGuard<'_, Frame> {
+        self.frame.lock()
     }
 }

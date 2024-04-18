@@ -2,7 +2,7 @@ mod inner;
 mod user;
 
 use crate::{
-    memory::{AreaType, MapPermission, MemorySpace, VirtAddr},
+    memory::{AreaType, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
     trap::TrapContext,
 };
 use atomic::{Atomic, Ordering};
@@ -65,33 +65,39 @@ impl Thread {
     /// 分配用户栈，一般用于创建新线程。返回用户栈高地址
     ///
     /// 注意 `memory_space` 是进程的 `MemorySpace`
-    pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> usize {
+    pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> VirtPageNum {
         // 分配用户栈
-        let ustack_low_addr = Self::user_stack_low_addr(tid);
-        let ustack_high_addr = ustack_low_addr + USER_STACK_SIZE;
-        trace!("user stack is {ustack_low_addr:#x}..{ustack_high_addr:#x}");
+        let ustack_low_vpn = Self::user_stack_low_addr(tid);
+        let ustack_high_vpn = Self::user_stack_high_addr(tid);
+        let ustack_low_addr = ustack_low_vpn.page_start();
+        let ustack_high_addr = ustack_high_vpn.page_start();
+        trace!(
+            "user stack is {:#x}..{:#x}",
+            ustack_low_addr.0,
+            ustack_high_addr.0
+        );
 
         // 栈地址都是根据 tid 确定的，不会冲突
         unsafe {
             memory_space.user_map(
-                VirtAddr(ustack_low_addr),
-                VirtAddr(ustack_high_addr),
+                ustack_low_addr,
+                ustack_high_addr,
                 MapPermission::R | MapPermission::W | MapPermission::U,
                 AreaType::Stack,
             );
         }
-        ustack_high_addr
+        ustack_high_vpn
     }
 
     /// 获取当前线程用户栈的低地址，即高地址减去用户栈大小
-    fn user_stack_low_addr(tid: usize) -> usize {
-        Self::user_stack_high_addr(tid) - USER_STACK_SIZE
+    fn user_stack_low_addr(tid: usize) -> VirtPageNum {
+        Self::user_stack_high_addr(tid) - VirtAddr(USER_STACK_SIZE).vpn_floor().0
     }
 
     /// 获取当前线程用户栈的高地址
-    fn user_stack_high_addr(tid: usize) -> usize {
+    fn user_stack_high_addr(tid: usize) -> VirtPageNum {
         // 注意每个用户栈后都会有一个 Guard Page
-        LOW_ADDRESS_END - tid * (USER_STACK_SIZE + PAGE_SIZE)
+        VirtAddr(LOW_ADDRESS_END - tid * (USER_STACK_SIZE + PAGE_SIZE)).vpn_floor()
     }
 
     /// 释放用户栈。一般是单个线程退出时使用。
@@ -99,8 +105,8 @@ impl Thread {
     /// 注意 `memory_space` 是进程的 `MemorySpace`
     fn dealloc_user_stack(&self, memory_space: &mut MemorySpace) {
         // 手动取消用户栈的映射
-        let user_stack_low_addr = VirtAddr(Self::user_stack_low_addr(self.tid));
-        memory_space.remove_area_with_start_vpn(user_stack_low_addr.vpn_floor());
+        let user_stack_low_addr = Self::user_stack_low_addr(self.tid);
+        memory_space.remove_area_with_start_vpn(user_stack_low_addr);
     }
 
     pub fn set_status(&self, status: ThreadStatus) {
@@ -118,3 +124,5 @@ pub enum ThreadStatus {
 }
 
 unsafe impl bytemuck::NoUninit for ThreadStatus {}
+
+const _: () = assert!(USER_STACK_SIZE % PAGE_SIZE == 0 && LOW_ADDRESS_END % PAGE_SIZE == 0);
