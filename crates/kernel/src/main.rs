@@ -13,6 +13,7 @@
 #![feature(step_trait)]
 #![feature(ptr_metadata)]
 #![feature(never_type)]
+#![feature(type_alias_impl_trait)]
 
 #[macro_use]
 extern crate kernel_tracer;

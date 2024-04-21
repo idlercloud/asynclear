@@ -22,28 +22,32 @@ use super::Thread;
 
 pub fn spawn_user_thread(thread: Arc<Thread>) {
     let (runnable, task) = executor::spawn_with(
-        UserThreadFuture::new(Arc::clone(&thread), user_thread_loop()),
+        UserThreadWrapperFuture::new(Arc::clone(&thread), user_thread_loop()),
         move || thread.set_status(ThreadStatus::Ready),
     );
     runnable.schedule();
     task.detach();
 }
 
-async fn user_thread_loop() {
-    loop {
-        // 返回用户态
-        // 注意切换了控制流，但是之后回到内核态还是在这里
-        let trap_context = local_hart()
-            .curr_thread()
-            .lock_inner_with(|inner| &mut inner.trap_context as _);
-        trap::trap_return(trap_context);
+type UserThreadFuture = impl Future<Output = ()> + Send;
 
-        trace!("enter kernel mode");
-        // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
-        let next_op = trap::user_trap_handler().await;
+fn user_thread_loop() -> UserThreadFuture {
+    async {
+        loop {
+            // 返回用户态
+            // 注意切换了控制流，但是之后回到内核态还是在这里
+            let trap_context = local_hart()
+                .curr_thread()
+                .lock_inner_with(|inner| &mut inner.trap_context as _);
+            trap::trap_return(trap_context);
 
-        if next_op.is_break() || local_hart().curr_process().is_exited() {
-            break;
+            trace!("enter kernel mode");
+            // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
+            let next_op = trap::user_trap_handler().await;
+
+            if next_op.is_break() || local_hart().curr_process().is_exited() {
+                break;
+            }
         }
     }
 }
@@ -114,21 +118,21 @@ fn exit_thread(thread: &Thread) {
 /// `UserThreadFuture` 用来处理用户线程获取控制权以及让出控制权时的上下文切换。如页表切换等
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project::pin_project]
-struct UserThreadFuture<F: Future + Send> {
+struct UserThreadWrapperFuture {
     #[pin]
-    future: F,
+    future: UserThreadFuture,
     thread: Arc<Thread>,
 }
 
-impl<F: Future + Send> UserThreadFuture<F> {
+impl UserThreadWrapperFuture {
     #[inline]
-    fn new(thread: Arc<Thread>, future: F) -> Self {
+    fn new(thread: Arc<Thread>, future: UserThreadFuture) -> Self {
         Self { thread, future }
     }
 }
 
-impl<F: Future + Send> Future for UserThreadFuture<F> {
-    type Output = F::Output;
+impl Future for UserThreadWrapperFuture {
+    type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         local_hart().replace_thread(Some(Arc::clone(&self.thread)));
