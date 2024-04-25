@@ -10,7 +10,7 @@ use triomphe::Arc;
 
 use async_trait::async_trait;
 use bitflags::bitflags;
-use defines::error::Result;
+use defines::error::KResult;
 use user_check::{UserCheck, UserCheckMut};
 
 use self::{
@@ -128,7 +128,7 @@ pub enum File {
 }
 
 impl File {
-    pub async fn read(&self, buf: UserCheckMut<[u8]>) -> Result<usize> {
+    pub async fn read(&self, buf: UserCheckMut<[u8]>) -> KResult<usize> {
         match self {
             File::Stdin => read_stdin(buf).await,
             File::Stdout => panic!("stdout cannot be read"),
@@ -136,7 +136,7 @@ impl File {
         }
     }
 
-    pub async fn write(&self, buf: UserCheck<[u8]>) -> Result<usize> {
+    pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
         match self {
             File::Stdin => panic!("stdin cannot be written"),
             File::Stdout => write_stdout(buf),
@@ -151,8 +151,8 @@ impl File {
 
 #[async_trait]
 pub trait DynFile: Send + Sync {
-    async fn read(&self, buf: UserCheckMut<[u8]>) -> Result<usize>;
-    async fn write(&self, buf: UserCheck<[u8]>) -> Result<usize>;
+    async fn read(&self, buf: UserCheckMut<[u8]>) -> KResult<usize>;
+    async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize>;
 }
 
 // pub fn init() {

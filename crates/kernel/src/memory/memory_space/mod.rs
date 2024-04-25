@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, vec, vec::Vec};
 use bitflags::bitflags;
 use common::config::{MEMORY_END, MMIO};
 use compact_str::CompactString;
-use defines::error::Result;
+use defines::error::KResult;
 use goblin::elf::{
     program_header::{PF_R, PF_W, PF_X, PT_LOAD},
     Elf,
@@ -239,7 +239,7 @@ impl MemorySpace {
         _va_range: Range<VirtAddr>,
         _perm: MapPermission,
         _fixed: bool,
-    ) -> Result<isize> {
+    ) -> KResult<isize> {
         todo!("[mid] impl mmap with page cache")
         // if fixed {
         //     // TODO: 应当 unmap 与其相交的部分。不过，如果是一些不该 unmap 的区域，是否该返回错误？

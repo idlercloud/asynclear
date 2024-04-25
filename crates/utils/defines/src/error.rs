@@ -8,7 +8,7 @@ impl Error {
     }
 }
 
-pub type Result<T = isize> = core::result::Result<T, Error>;
+pub type KResult<T = isize> = core::result::Result<T, Error>;
 
 pub mod errno {
     macro_rules! declare_errno {

@@ -7,7 +7,7 @@ use atomic::Ordering;
 use common::constant::{MICRO_PER_SEC, NANO_PER_SEC};
 use compact_str::CompactString;
 use defines::{
-    error::{errno, Result},
+    error::{errno, KResult},
     misc::{TimeSpec, TimeVal, UtsName},
     signal::Signal,
 };
@@ -26,7 +26,7 @@ use crate::{
 // TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
 
 /// 退出当前线程，结束用户线程循环。
-pub fn sys_exit(exit_code: i32) -> Result {
+pub fn sys_exit(exit_code: i32) -> KResult {
     local_hart()
         .curr_thread()
         .exit_code
@@ -35,25 +35,25 @@ pub fn sys_exit(exit_code: i32) -> Result {
 }
 
 /// 退出进程，退出所有线程
-pub fn sys_exit_group(exit_code: i32) -> Result {
+pub fn sys_exit_group(exit_code: i32) -> KResult {
     exit_process(&local_hart().curr_process(), (exit_code & 0xff) as i8);
     Err(errno::BREAK)
 }
 
 /// 挂起当前任务，让出 CPU，永不失败
-pub async fn sys_sched_yield() -> Result {
+pub async fn sys_sched_yield() -> KResult {
     executor::yield_now().await;
     Ok(0)
 }
 
 /// 返回当前进程 id，永不失败
-pub fn sys_getpid() -> Result {
+pub fn sys_getpid() -> KResult {
     let pid = local_hart().curr_process().pid() as isize;
     Ok(pid)
 }
 
 /// 返回当前进程的父进程的 id，永不失败
-pub fn sys_getppid() -> Result {
+pub fn sys_getppid() -> KResult {
     // INITPROC(pid=1) 没有父进程，返回 0
     let ppid = local_hart()
         .curr_process()
@@ -74,7 +74,7 @@ pub fn sys_clone(
     _ptid: usize,
     _tls: usize,
     _ctid: usize,
-) -> Result {
+) -> KResult {
     let Ok(flags) = u32::try_from(flags) else {
         error!("flags exceeds u32: {flags:#b}");
         return Err(errno::UNSUPPORTED);
@@ -145,7 +145,7 @@ pub fn sys_clone(
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
-pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> Result {
+pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> KResult {
     assert!(envp.is_null(), "envp 暂时尚未支持");
     let pathname = UserCheck::new(pathname).check_cstr()?;
     trace!("pathname: {}", &*pathname);
@@ -188,7 +188,7 @@ pub async fn sys_wait4(
     wstatus: UserCheckMut<i32>,
     options: usize,
     rusage: usize,
-) -> Result {
+) -> KResult {
     assert!(
         pid == -1 || pid > 0,
         "pid < -1 和 pid == 0，也就是等待进程组，目前还不支持"
@@ -253,7 +253,7 @@ pub async fn sys_wait4(
 /// 参数：
 /// - `ts` 要设置的时间值
 /// - `tz` 时区结构，但目前已经过时，不考虑
-pub fn sys_get_time_of_day(tv: *mut TimeVal, _tz: usize) -> Result {
+pub fn sys_get_time_of_day(tv: *mut TimeVal, _tz: usize) -> KResult {
     // 根据 man 所言，时区参数 tz 已经过时了，通常应当是 NULL。
     assert_eq!(_tz, 0);
     let mut tv = UserCheckMut::new(tv).check_ptr_mut()?;
@@ -273,7 +273,7 @@ const CLOCK_REALTIME: usize = 0;
 /// 参数：
 /// - `clock_id` 时钟 id，目前仅为 `CLOCK_READTIME`
 /// - `tp` 指向要设置的用户指针
-pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> Result {
+pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> KResult {
     // TODO: 目前只考虑挂钟时间
     assert_eq!(_clock_id, CLOCK_REALTIME);
     let mut ts = UserCheckMut::new(ts).check_ptr_mut()?;
@@ -283,7 +283,7 @@ pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> Result {
     Ok(0)
 }
 
-pub fn sys_setpriority(_prio: isize) -> Result {
+pub fn sys_setpriority(_prio: isize) -> KResult {
     todo!("[low] sys_setpriority")
 }
 
@@ -307,7 +307,7 @@ pub struct Tms {
 ///
 /// 错误：
 /// - `EFAULT` `tms` 指向非法地址
-pub fn sys_times(tms: *mut Tms) -> Result {
+pub fn sys_times(tms: *mut Tms) -> KResult {
     let ticks = riscv::register::time::read();
     let mut tms = UserCheckMut::new(tms).check_ptr_mut()?;
     tms.tms_utime = ticks / 4;
@@ -339,7 +339,7 @@ pub fn sys_times(tms: *mut Tms) -> Result {
 /// - `flags` 描述映射的特征，详细参考 [`MmapFlags`]
 /// - `fd` 被映射的文件描述符
 /// - `offset` 映射的起始偏移，必须是 `PAGE_SIZE` 的整数倍
-pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset: usize) -> Result {
+pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset: usize) -> KResult {
     info!("addr: {addr}");
     info!("len: {len}");
 
@@ -383,7 +383,7 @@ pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset:
     Err(errno::UNSUPPORTED)
 }
 
-pub fn sys_munmap(_addr: usize, _len: usize) -> Result {
+pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
     // Err(errno::UNSUPPORTED)
     todo!("[blocked] sys_munmap")
 }
@@ -499,7 +499,7 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> Result {
 // }
 
 /// 返回系统信息，返回值为 0
-pub fn sys_uname(utsname: *mut UtsName) -> Result {
+pub fn sys_uname(utsname: *mut UtsName) -> KResult {
     let mut utsname = UserCheckMut::new(utsname).check_ptr_mut()?;
     *utsname = UtsName::default();
     Ok(0)
@@ -508,13 +508,13 @@ pub fn sys_uname(utsname: *mut UtsName) -> Result {
 /// 设置进程组号
 ///
 /// TODO: 暂时未实现，仅返回 0
-pub fn sys_setpgid(_pid: usize, _pgid: usize) -> Result {
+pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
     Ok(0)
 }
 
 /// 返回进程组号
 ///
 /// TODO: 暂时未实现，仅返回 0
-pub fn sys_getpgid(_pid: usize) -> Result {
+pub fn sys_getpgid(_pid: usize) -> KResult {
     Ok(0)
 }

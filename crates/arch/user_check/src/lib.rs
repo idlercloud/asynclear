@@ -12,7 +12,7 @@ use core::{
 };
 
 use common::config::{MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
-use defines::error::{errno, Result};
+use defines::error::{errno, KResult};
 use riscv::register::stvec::{self, TrapMode};
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
@@ -41,7 +41,7 @@ impl<T: ?Sized> UserCheck<T> {
 }
 
 impl<T> UserCheck<T> {
-    pub fn check_ptr(&self) -> Result<UserConst<T>> {
+    pub fn check_ptr(&self) -> KResult<UserConst<T>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_const_impl(self.ptr, 1) {
             Ok(UserConst {
@@ -59,7 +59,7 @@ impl<T> UserCheck<[T]> {
         self.ptr.len()
     }
 
-    pub fn check_slice(&self) -> Result<UserConst<[T]>> {
+    pub fn check_slice(&self) -> KResult<UserConst<[T]>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_const_impl(self.ptr.as_ptr(), self.ptr.len()) {
             Ok(UserConst {
@@ -83,11 +83,11 @@ impl<T: ?Sized> UserCheckMut<T> {
 }
 
 impl<T> UserCheckMut<T> {
-    pub fn check_ptr(&self) -> Result<UserConst<T>> {
+    pub fn check_ptr(&self) -> KResult<UserConst<T>> {
         UserCheck::new(self.ptr as *const T).check_ptr()
     }
 
-    pub fn check_ptr_mut(&self) -> Result<UserMut<T>> {
+    pub fn check_ptr_mut(&self) -> KResult<UserMut<T>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_mut_impl(self.ptr, 1) {
             Ok(UserMut {
@@ -105,11 +105,11 @@ impl<T> UserCheckMut<[T]> {
         self.ptr.len()
     }
 
-    pub fn check_slice(&self) -> Result<UserConst<[T]>> {
+    pub fn check_slice(&self) -> KResult<UserConst<[T]>> {
         UserCheck::new(self.ptr as *const [T]).check_slice()
     }
 
-    pub fn check_slice_mut(&self) -> Result<UserMut<[T]>> {
+    pub fn check_slice_mut(&self) -> KResult<UserMut<[T]>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_mut_impl(self.ptr.as_mut_ptr(), self.ptr.len()) {
             Ok(UserMut {
@@ -124,7 +124,7 @@ impl<T> UserCheckMut<[T]> {
 
 impl UserCheck<u8> {
     /// 非 utf8 会返回 EINVAL
-    pub fn check_cstr(&self) -> Result<UserConst<str>> {
+    pub fn check_cstr(&self) -> KResult<UserConst<str>> {
         debug_span!("check_cstr");
         let _guard = NoIrqGuard::new();
         unsafe {

@@ -4,16 +4,16 @@ use core::{
     task::{Context, Poll},
 };
 
-use defines::error::Result;
+use defines::error::KResult;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{drivers::qemu_uart::TTY, thread::BlockingFuture, uart_console::print};
 
-pub async fn read_stdin(buf: UserCheckMut<[u8]>) -> Result<usize> {
+pub async fn read_stdin(buf: UserCheckMut<[u8]>) -> KResult<usize> {
     BlockingFuture::new(TtyFuture::new(buf)).await
 }
 
-pub fn write_stdout(buf: UserCheck<[u8]>) -> Result<usize> {
+pub fn write_stdout(buf: UserCheck<[u8]>) -> KResult<usize> {
     let buf = buf.check_slice()?;
     let s = core::str::from_utf8(&buf).unwrap();
     print!("{s}");
@@ -32,7 +32,7 @@ impl TtyFuture {
 }
 
 impl Future for TtyFuture {
-    type Output = Result<usize>;
+    type Output = KResult<usize>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;

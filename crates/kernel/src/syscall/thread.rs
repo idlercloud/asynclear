@@ -1,4 +1,4 @@
-use defines::error::Result;
+use defines::error::KResult;
 
 use crate::hart::local_hart;
 
@@ -7,6 +7,6 @@ use crate::hart::local_hart;
 /// TODO: Linux 手册里说，单线程进程中返回 pid，而多线程进程返回 tid。这里一直返回 tid（而且 tid 的定义可能也不同）
 ///
 /// <https://man7.org/linux/man-pages/man2/gettid.2.html>
-pub fn sys_gettid() -> Result {
+pub fn sys_gettid() -> KResult {
     Ok(local_hart().curr_thread().tid() as isize)
 }

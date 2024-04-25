@@ -1,5 +1,5 @@
 use defines::{
-    error::{errno, Result},
+    error::{errno, KResult},
     signal::{KSignalAction, KSignalSet, Signal, SignalActionFlags, SIGSET_SIZE_BYTES},
 };
 use user_check::{UserCheck, UserCheckMut};
@@ -24,7 +24,7 @@ pub fn sys_rt_sigaction(
     signum: usize,
     act: *const KSignalAction,
     old_act: *mut KSignalAction,
-) -> Result {
+) -> KResult {
     let Ok(signal) = Signal::try_from(signum as u8) else {
         warn!("use unsupported signal {signum}");
         return Err(errno::EINVAL);
@@ -78,7 +78,7 @@ pub fn sys_rt_sigprocmask(
     set: *const KSignalSet,
     old_set: *mut KSignalSet,
     set_size: usize,
-) -> Result {
+) -> KResult {
     if set_size > SIGSET_SIZE_BYTES {
         return Err(errno::EINVAL);
     }
@@ -111,7 +111,7 @@ pub fn sys_rt_sigprocmask(
     Ok(0)
 }
 
-pub fn sys_rt_sigreturn() -> Result {
+pub fn sys_rt_sigreturn() -> KResult {
     debug!("sigreturn called");
     let thread = local_hart().curr_thread();
     let sp = thread.lock_inner_with(|inner| inner.trap_context.sp());

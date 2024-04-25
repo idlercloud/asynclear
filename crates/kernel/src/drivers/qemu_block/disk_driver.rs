@@ -1,6 +1,6 @@
 use super::virtio::{self, HalImpl};
 
-use defines::error::{errno, Result};
+use defines::error::{errno, KResult};
 use virtio_drivers::{device::blk::VirtIOBlk, transport::mmio::MmioTransport};
 
 const BLOCK_SIZE: usize = 512;
@@ -25,7 +25,7 @@ impl DiskDriver {
         }
     }
 
-    pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    pub fn read(&mut self, buf: &mut [u8]) -> KResult<usize> {
         let mut tot_nread = 0;
         while tot_nread < buf.len() {
             let copy_len = usize::min(
@@ -49,7 +49,7 @@ impl DiskDriver {
         Ok(tot_nread)
     }
 
-    pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    pub fn write(&mut self, buf: &[u8]) -> KResult<usize> {
         let mut tot_write = 0;
         while tot_write < buf.len() {
             let copy_len = usize::min(
@@ -98,7 +98,7 @@ impl DiskDriver {
         offset
     }
 
-    pub fn flush(&mut self) -> Result<()> {
+    pub fn flush(&mut self) -> KResult<()> {
         self.device.flush().map_err(|_| errno::EIO)
     }
 }

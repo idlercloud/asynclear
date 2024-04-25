@@ -1,4 +1,4 @@
-use defines::error::{errno, Result};
+use defines::error::{errno, KResult};
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{fs::FileDescriptor, hart::local_hart};
@@ -41,7 +41,7 @@ use crate::{fs::FileDescriptor, hart::local_hart};
 // }
 
 #[rustfmt::skip]
-fn prepare_io(fd: usize, is_read: bool) -> Result<FileDescriptor> {
+fn prepare_io(fd: usize, is_read: bool) -> KResult<FileDescriptor> {
     let process = local_hart().curr_process_arc();
     let inner = process.lock_inner();
     let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
@@ -61,7 +61,7 @@ fn prepare_io(fd: usize, is_read: bool) -> Result<FileDescriptor> {
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，若无效则返回 `EINVAL`
-pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
+pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
     if fd == 0 {
         trace!("read stdin, len = {}", buf.len());
     } else {
@@ -78,7 +78,7 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> Result {
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
-pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> Result {
+pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     let file = prepare_io(fd, false)?;
     let nwrite = file.write(buf).await?;
     Ok(nwrite as isize)

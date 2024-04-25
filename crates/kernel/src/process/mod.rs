@@ -6,7 +6,7 @@ use alloc::{collections::BTreeMap, vec, vec::Vec};
 use atomic::{Atomic, Ordering};
 use compact_str::CompactString;
 use defines::{
-    error::{errno, Result},
+    error::{errno, KResult},
     signal::{KSignalSet, Signal},
 };
 use event_listener::Event;
@@ -63,7 +63,7 @@ pub struct Process {
 impl Process {
     // TODO: 整理这些函数，抽出共同部分
 
-    fn from_path(path: CompactString, args: Vec<CompactString>) -> Result<Arc<Self>> {
+    fn from_path(path: CompactString, args: Vec<CompactString>) -> KResult<Arc<Self>> {
         let _enter = info_span!("spawn process", path = path, args = args).entered();
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
@@ -182,7 +182,7 @@ impl Process {
     }
 
     /// 根据 `path` 加载一个新的 ELF 文件并执行。目前要求原进程仅有一个线程并且没有子进程
-    pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> Result<()> {
+    pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> KResult<()> {
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
             process_name.push(' ');
