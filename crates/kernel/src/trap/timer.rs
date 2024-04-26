@@ -16,7 +16,7 @@ struct TimerFuture {
 impl Future for TimerFuture {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.expire_ms < riscv_time::get_time_ms() {
+        if self.expire_ms > riscv_time::get_time_ms() {
             if !self.timer_activated {
                 TIMERS.lock().push(Reverse(Timer {
                     expire_ms: self.expire_ms,
