@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
 
-use common::config::PA_TO_VA;
+use common::config::{PA_TO_VA, QEMU_VIRTIO0};
 use virtio_drivers::{
     device::blk::VirtIOBlk,
     transport::{
@@ -64,8 +64,7 @@ unsafe impl Hal for HalImpl {
 }
 
 pub fn init() -> VirtIOBlk<HalImpl, MmioTransport> {
-    const VIRTIO0: usize = 0x10001000;
-    let header = NonNull::new((VIRTIO0 + PA_TO_VA) as *mut VirtIOHeader).unwrap();
+    let header = NonNull::new((QEMU_VIRTIO0 + PA_TO_VA) as *mut VirtIOHeader).unwrap();
     let transport = unsafe { MmioTransport::new(header).unwrap() };
     assert!(transport.device_type() == DeviceType::Block);
     VirtIOBlk::new(transport).unwrap()

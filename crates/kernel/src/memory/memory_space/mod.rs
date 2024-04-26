@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 use bitflags::bitflags;
-use common::config::{MEMORY_END, MMIO};
+use common::config::{MEMORY_END, MMIO, PA_TO_VA};
 use compact_str::CompactString;
 use defines::error::KResult;
 use goblin::elf::{
@@ -33,6 +33,8 @@ extern "C" {
     fn erodata();
     fn sdata();
     fn edata();
+    fn sstack();
+    fn estack();
     fn sbss();
     fn ebss();
     fn ekernel();
@@ -53,14 +55,28 @@ pub fn flush_tlb(vaddr: Option<VirtAddr>) {
 }
 
 pub fn log_kernel_sections() {
-    info!("kernel text {:#x}..{:#x}", stext as usize, etext as usize);
     info!(
-        "kernel rodata {:#x}..{:#x}",
+        "kernel     text {:#x}..{:#x}",
+        stext as usize, etext as usize
+    );
+    info!(
+        "kernel   rodata {:#x}..{:#x}",
         srodata as usize, erodata as usize
     );
-    info!("kernel data {:#x}..{:#x}", sdata as usize, edata as usize);
-    info!("kernel bss {:#x}..{:#x}", sbss as usize, ebss as usize);
-    info!("physical memory {:#x}..{:#x}", ekernel as usize, MEMORY_END);
+    info!(
+        "kernel     data {:#x}..{:#x}",
+        sdata as usize, edata as usize
+    );
+    info!(
+        "kernel    stack {:#x}..{:#x}",
+        sstack as usize, estack as usize
+    );
+    info!("kernel      bss {:#x}..{:#x}", sbss as usize, ebss as usize);
+    info!(
+        "physical memory {:#x}..{:#x}",
+        ekernel as usize,
+        PA_TO_VA + MEMORY_END
+    );
 }
 
 pub static KERNEL_SPACE: Lazy<MemorySpace> = Lazy::new(MemorySpace::new_kernel);
@@ -109,9 +125,20 @@ impl MemorySpace {
             MapPermission::R | MapPermission::G,
         );
 
-        // .data 段和 .bss 段的访问限制相同，所以可以放到一起
         memory_set.kernel_map(
             VirtAddr(sdata as usize),
+            VirtAddr(edata as usize),
+            MapPermission::R | MapPermission::W | MapPermission::G,
+        );
+
+        memory_set.kernel_map(
+            VirtAddr(sstack as usize),
+            VirtAddr(estack as usize),
+            MapPermission::R | MapPermission::W | MapPermission::G,
+        );
+
+        memory_set.kernel_map(
+            VirtAddr(sbss as usize),
             VirtAddr(ebss as usize),
             MapPermission::R | MapPermission::W | MapPermission::G,
         );

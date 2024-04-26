@@ -43,6 +43,7 @@ impl AsmArgs {
             .args(["--section", ".data"])
             .args(["--section", ".bss"])
             .args(["--section", ".text"])
+            .args(["--section", ".stack"])
             .args([&elf_path])
             .tap(|cmd| println!("Invoking {:?}", cmd.info()))
             .output();

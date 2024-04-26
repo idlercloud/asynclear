@@ -8,33 +8,36 @@ SECTIONS
 
     .text : {
         stext = .;
-        __executable_start = .;
         *(.text.entry)
         *(.text .text.*)
-        etext = .;
-        __etext = .;
     }
 
     .rodata : ALIGN(4K) {
+        etext = .;
         srodata = .;
         *(.rodata .rodata.*)
-        erodata = .;
     }
 
     .data : ALIGN(4K) {
+        erodata = .;
         sdata = .;
         *(.data .data.*)
-        edata = .;
     }
 
-    .bss : {
-	    *(.bss.stack)
+    .stack : ALIGN(4K) {
+        edata = .;
+        sstack = .;
+        *(.bss.stack)
+    }
+
+    .bss : ALIGN(4K) {
+        estack = .;
         sbss = .;
         *(.sbss .bss .bss.*)
-        ebss = .;
     }
 
     . = ALIGN(4K);
+    ebss = .;
     ekernel = .;
     PROVIDE(end = .);
 

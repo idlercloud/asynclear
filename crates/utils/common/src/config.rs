@@ -43,13 +43,14 @@ pub const TICKS_PER_SEC: usize = 1;
 /// I/O 映射的起始地址和长度
 pub const MMIO: &[(usize, usize)] = &[
     (QEMU_UART_ADDR, 0x1000),   // UART
-    (0x1000_1000, 0x1000),      // VIRTIO
+    (QEMU_VIRTIO0, 0x1000),     // VIRTIO
     (0x0200_0000, 0x10000),     // CLINT
     (QEMU_PLIC_ADDR, 0x400000), // PLIC
 ];
 
 pub const QEMU_UART_ADDR: usize = 0x1000_0000;
 pub const QEMU_PLIC_ADDR: usize = 0xc00_0000;
+pub const QEMU_VIRTIO0: usize = 0x1000_1000;
 
 /// 内核线程的数量（核心数）
 pub const HART_NUM: usize = 8;

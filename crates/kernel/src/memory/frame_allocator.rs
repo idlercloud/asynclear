@@ -88,20 +88,20 @@ impl ContinuousFrames {
         debug_assert!(num >= 1);
         let ppn = FRAME_ALLOCATOR.lock().alloc(num)?;
         let mut frames = Self { ppn, num };
-        frames.fill(0);
+        frames.clear();
         Some(frames)
+    }
+
+    fn clear(&mut self) {
+        let va = kernel_ppn_to_vpn(self.ppn).page_start();
+        unsafe {
+            let bytes = core::slice::from_raw_parts_mut(va.0 as _, self.num * PAGE_SIZE);
+            bytes.fill(0);
+        }
     }
 
     pub fn start_ppn(&self) -> PhysPageNum {
         self.ppn
-    }
-
-    fn fill(&mut self, byte: u8) {
-        let va = kernel_ppn_to_vpn(self.ppn).page_start();
-        unsafe {
-            let bytes = core::slice::from_raw_parts_mut(va.0 as _, self.num * PAGE_SIZE);
-            bytes.fill(byte);
-        }
     }
 }
 
