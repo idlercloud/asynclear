@@ -18,7 +18,6 @@ use user_check::{UserCheck, UserCheckMut};
 use crate::{hart::local_hart, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
-    let curr_pid = local_hart().curr_process().pid();
     // 读入标准输入、写入标准输出、写入标准错误都不关心
     if (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
@@ -30,9 +29,9 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     let ret = match id {
         // GETCWD => sys_getcwd(args[0] as _, args[1]),
         // DUP => sys_dup(args[0]),
-        // DUP3 => sys_dup3(args[0], args[1]),
+        DUP3 => sys_dup3(args[0], args[1], args[2] as _),
         // FCNTL64 => sys_fcntl64(args[0], args[1], args[2]),
-        // IOCTL => sys_ioctl(args[0], args[1], args[2]),
+        IOCTL => sys_ioctl(args[0], args[1], args[2]),
         // MKDIRAT => sys_mkdirat(args[0], args[1] as _, args[2]),
         // UNLINKAT => sys_unlinkat(args[0], args[1] as _, args[2] as _),
         // LINKAT => sys_linkat(args[1] as _, args[3] as _),
@@ -81,7 +80,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // NEWFSTAT => sys_fstat(args[0], args[1] as _),
         EXIT => sys_exit(args[0] as _),
         EXIT_GROUP => sys_exit_group(args[0] as _),
-        // SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
+        SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
         // SLEEP => sys_sleep(args[0] as _),
         CLOCK_GETTIME => sys_clock_gettime(args[0] as _, args[1] as _),
         SCHED_YIELD => sys_sched_yield().await,
@@ -127,8 +126,10 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     };
     match ret {
         Ok(ret) => {
-            // shell 的 stdin 和 stdout 以较低等级输出
-            if (id == READ || id == WRITE) && curr_pid == 2 {
+            // 读入标准输入、写入标准输出、写入标准错误都不关心
+            if (id == READ || id == READV) && args[0] == 0
+                || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
+            {
                 trace!("return {ret} = {ret:#x}");
             } else {
                 info!("return {ret} = {ret:#x}",);

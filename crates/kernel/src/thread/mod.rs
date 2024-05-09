@@ -41,6 +41,7 @@ impl Thread {
             process,
             inner: SpinMutex::new(ThreadInner {
                 trap_context,
+                clear_child_tid: 0,
                 signal_mask,
                 pending_signal: KSignalSet::empty(),
             }),

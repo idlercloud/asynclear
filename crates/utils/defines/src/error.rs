@@ -47,6 +47,7 @@ pub mod errno {
         EISDIR,         -21,    "Is a directory.",
         EINVAL,         -22,    "Invalid argument.",
         EMFILE,         -24,    "Too many open files.",
+        ENOTTY,         -25,    "Not a tty.",
         ESPIPE,         -29,    "Illegal seek.",
         ERANGE,         -34,    "Exceed range.",
         ENAMETOOLONG,   -78,    "Filename too long",

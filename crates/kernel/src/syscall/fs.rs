@@ -9,30 +9,35 @@ use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
-    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
+    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, StatMode, VFS},
     hart::local_hart,
 };
 
-// /// 操纵某个特殊文件的底层设备。目前只进行错误检验
-// ///
-// /// 参数：
-// /// - `fd` 文件描述符
-// /// - `request` 请求码，其含义依赖于设备。包含参数是入参还是出参，以及 argp
-// 指向的大小 /// - `argp` 一个指针
-// ///
-// /// 参考：<https://man7.org/linux/man-pages/man2/ioctl.2.html>
-// pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> Result {
-//     // // FIXME: 完善 sys_ioctl 的语义
-//     // info!("sys_ioctl: fd: {fd}, request: {request}, argp: {argp:#x}");
-//     // if !matches!(curr_process().inner().fd_table.get(fd), Some(Some(_))) {
-//     //     return Err(errno::EBADF);
-//     // }
-//     // if curr_page_table().trans_va_to_pa(VirtAddr(argp)).is_none() {
-//     //     return Err(errno::EFAULT);
-//     // }
-//     // Ok(0)
-//     todo!("[blocked] sys_ioctl")
-// }
+/// 操纵某个特殊文件的底层设备，尤其是字符特殊文件。目前只进行错误检验
+///
+/// 参数：
+/// - `fd` 文件描述符
+/// - `request` 请求码，其含义依赖于设备。包含参数是入参还是出参，以及 `argp` 指向的大小
+/// - `argp` 一个指针
+///
+/// 参考：<https://man7.org/linux/man-pages/man2/ioctl.2.html>
+pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
+    // TODO: [low] 完善 sys_ioctl
+    let Some(desc) = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.fd_table.get(fd).cloned())
+    else {
+        return Err(errno::EBADF);
+    };
+
+    // TODO: [low] 目前只支持字符设备，块设备不知道会不会用到
+    if !desc.meta().mode().contains(StatMode::CHAR_DEVICE) {
+        return Err(errno::ENOTTY);
+    }
+
+    // TODO: [mid] 实现 `sys_ioctl` 的逻辑
+    desc.ioctl(request, argp)
+}
 
 // pub fn sys_mkdirat(dirfd: usize, path: *const u8, mode: usize) -> Result {
 //     // let path = unsafe { check_cstr(path)? };
@@ -284,7 +289,7 @@ pub fn sys_close(fd: usize) -> KResult {
 // ///
 // /// 参数
 // /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]`
-// 为管道的读出端，`filedes[1]` 为管道的写入端。 pub fn sys_pipe2(filedes: *mut
+// 为管道的读出端，`filedes[1]` 为管道的写入端。pub fn sys_pipe2(filedes: *mut
 // i32) -> Result {     // let filedes = unsafe { check_slice_mut(filedes, 2)?
 // };     // let process = curr_process();
 //     // let mut inner = process.inner();
@@ -430,21 +435,35 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 // isize)     todo!("[blocked] sys_dup")
 // }
 
-// pub fn sys_dup3(old: usize, new: usize) -> Result {
-//     let process = curr_process();
-//     let mut inner = process.inner();
-//     if old >= inner.fd_table.len() {
-//         return Err(errno::UNSUPPORTED);
-//     }
-//     if new >= inner.fd_table.len() {
-//         inner.fd_table.resize(new + 1, None);
-//     }
-//     if inner.fd_table[old].is_none() {
-//         return Err(errno::UNSUPPORTED);
-//     }
-//     inner.fd_table[new] =
-// Some(Arc::clone(inner.fd_table[old].as_ref().unwrap()));     Ok(new as isize)
-// }
+/// 复制文件描述符 old_fd 到指定描述符 new_fd
+///
+/// 如果 `new_fd` 已经被打开，则它被原子地关闭再复用
+///
+/// 如果 `flags` 包括 CLOEXEC 位，则新描述符会被设置该标志
+///
+/// 参数：
+/// - `old_fd` 被复制的描述符
+/// - `new_fd` 要复制到的描述符
+/// - `flags` [`OpenFlags`]，实际应该只用到 [`OpenFlags::CLOEXEC`]
+pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
+    let Some(flags) = OpenFlags::from_bits(flags) else {
+        todo!("[low] unsupported OpenFlags: {flags:#b}");
+    };
+    let process = local_hart().curr_process();
+    let mut inner = process.lock_inner();
+    let Some(desc) = inner.fd_table.get(old_fd) else {
+        return Err(errno::EBADF);
+    };
+    if old_fd == new_fd {
+        return Err(errno::EINVAL);
+    }
+    let mut new_desc = desc.clone();
+    if flags.contains(OpenFlags::CLOEXEC) {
+        new_desc.set_close_on_exec();
+    }
+    inner.fd_table.insert(new_fd, new_desc);
+    Ok(new_fd as isize)
+}
 
 // /// TODO: 写 sys_fstatat 的文档
 // pub fn sys_fstatat(dir_fd: usize, file_name: *const u8, statbuf: *mut Stat,

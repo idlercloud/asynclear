@@ -325,7 +325,7 @@ pub fn sys_times(tms: *mut Tms) -> KResult {
 /// 这也是比较可移植的方式。
 ///
 /// `addr` 若有指定地址，那么内核会尝试在最近的页边界上映射，
-/// 但如果已经被映射过了， 就挑选一个新的地址。该新地址可能参考也可能不参考
+/// 但如果已经被映射过了，就挑选一个新的地址。该新地址可能参考也可能不参考
 /// `addr`。
 ///
 /// 如果映射文件，那么会以该文件 (`fd`) `offset` 开始处的 `len`
@@ -394,18 +394,18 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
     todo!("[blocked] sys_munmap")
 }
 
-// /// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的
-// tid。 ///
-// /// 参数：
-// /// - `tidptr`
-// pub fn sys_set_tid_address(tidptr: *const i32) -> Result {
-//     // NOTE: 在 linux 手册中，`tidptr` 的类型是 int*。这里设置为 i32，是参考
-// libc crate 设置 c_int=i32     let thread = curr_task().unwrap();
-//     let mut inner = thread.inner();
-//     inner.clear_child_tid = tidptr as usize;
-//     Ok(inner.res.as_ref().unwrap().tid as isize)
-//     todo!("[mid] sys_set_tid_address")
-// }
+/// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的 tid。
+///
+/// 参数：
+/// - `tidptr`。
+///   - 注意该参数此时是不进行检查的，因此该系统调用永不失败。
+///   - 在 linux 手册中，`tidptr` 的类型是 int*。
+///   - 这里设置为 i32，是参考 libc crate 设置 c_int=i32
+pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
+    let thread = local_hart().curr_thread();
+    thread.lock_inner_with(|inner| inner.clear_child_tid = tidptr as usize);
+    Ok(thread.tid() as isize)
+}
 
 // /// 将 program break 设置为 `brk`。高于当前堆顶会分配空间，低于则会释放空间。
 // ///
