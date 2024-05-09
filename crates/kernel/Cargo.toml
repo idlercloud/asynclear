@@ -33,6 +33,9 @@ defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
 crossbeam-utils = { version = "0.8", default-features = false }
+crossbeam-queue = { version = "0.3.11", default-features = false, features = [
+  "alloc",
+] }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
 virtio-drivers = "0.7"

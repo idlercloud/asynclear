@@ -4,7 +4,7 @@ use core::{future::Future, task::Poll};
 
 use async_task::{Runnable, Task};
 use common::config::TASK_LIMIT;
-use heapless::mpmc::MpMcQueue;
+use crossbeam_queue::ArrayQueue;
 use klocks::Lazy;
 pub use yield_now::yield_now;
 
@@ -13,22 +13,22 @@ static TASK_QUEUE: Lazy<TaskQueue> = Lazy::new(TaskQueue::new);
 /// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接
 /// panic
 struct TaskQueue {
-    queue: MpMcQueue<Runnable, TASK_LIMIT>,
+    queue: ArrayQueue<Runnable>,
 }
 
 impl TaskQueue {
     fn new() -> Self {
         Self {
-            queue: MpMcQueue::new(),
+            queue: ArrayQueue::new(TASK_LIMIT),
         }
     }
 
     fn push_task(&self, runnable: Runnable) {
-        self.queue.enqueue(runnable).expect("Out of task limit");
+        self.queue.push(runnable).expect("Out of task limit");
     }
 
     fn fetch_task(&self) -> Option<Runnable> {
-        self.queue.dequeue()
+        self.queue.pop()
     }
 }
 
