@@ -5,13 +5,6 @@
 //! `fork` 会继承父进程的 signal action 和线程的掩码，但是线程的待处理信号会置空。
 //!
 //! 而 `execve` 会将 signal action 置为默认值（可能与 linux 不同），但是线程掩码和待处理信号保留
-//!
-//! 信号处理的过程：
-//!
-//! 1. 将该信号从线程的待处理信号集中移除
-//! 2. ？
-
-// TODO: 参考 <https://man7.org/linux/man-pages/man7/signal.7.html> 和 <https://man7.org/linux/man-pages/man2/rt_sigaction.2.html> 完善 signal 相关文档
 
 mod handlers;
 

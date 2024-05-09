@@ -16,9 +16,6 @@ pub use span::{instrument::Instrument, Span, SpanAttr, SpanId};
 
 use klocks::Once;
 
-// NOTE: 这里将 KernelTracer 都标记为 pub 其实不是好的
-// 一般而言应该像 tracing 那样抽象出 trait 来分离
-
 pub static KERNLE_TRACER: Once<&'static (dyn Tracer + Sync)> = Once::new();
 
 pub trait Tracer {

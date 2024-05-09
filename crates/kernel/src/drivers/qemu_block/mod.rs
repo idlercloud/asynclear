@@ -1,10 +1,9 @@
-use klocks::{Lazy, SpinNoIrqMutex};
-
-use self::disk_driver::DiskDriver;
+use klocks::Lazy;
 
 mod disk_driver;
 mod virtio;
 
-// TODO: [mid] 关中断锁的可能导致延迟太高
-pub static BLOCK_DEVICE: Lazy<SpinNoIrqMutex<DiskDriver>> =
-    Lazy::new(|| SpinNoIrqMutex::new(DiskDriver::init()));
+pub use self::disk_driver::DiskDriver;
+
+pub static BLOCK_DEVICE: Lazy<DiskDriver> = Lazy::new(|| DiskDriver::init());
+pub const BLOCK_SIZE: usize = 512;

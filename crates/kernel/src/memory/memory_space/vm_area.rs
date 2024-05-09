@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use alloc::collections::BTreeMap;
 use common::config::PAGE_SIZE;
-use klocks::SpinMutexGuard;
+use klocks::RwLockReadGuard;
 use triomphe::Arc;
 
 use crate::memory::{
@@ -49,7 +49,7 @@ impl FramedVmArea {
         self.area_type
     }
 
-    pub fn mapped_frame(&self, vpn: VirtPageNum) -> Option<SpinMutexGuard<'_, Frame>> {
+    pub fn mapped_frame(&self, vpn: VirtPageNum) -> Option<RwLockReadGuard<'_, Frame>> {
         self.map.get(&vpn).map(|page| page.frame())
     }
 
@@ -63,7 +63,7 @@ impl FramedVmArea {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
-            Arc::new(Page::new(frame))
+            Arc::new(Page::with_frame(frame))
         })
     }
 
@@ -78,7 +78,7 @@ impl FramedVmArea {
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
-            self.map.insert(vpn, Arc::new(Page::new(frame)));
+            self.map.insert(vpn, Arc::new(Page::with_frame(frame)));
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
             let len = usize::min(data.len() - start, PAGE_SIZE - page_offset);
             unsafe {

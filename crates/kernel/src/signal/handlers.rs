@@ -9,17 +9,16 @@ pub enum DefaultHandler {
 }
 
 impl DefaultHandler {
-    #[allow(clippy::enum_glob_use)]
     pub fn new(signal: Signal) -> Self {
-        use DefaultHandler::*;
+        #[allow(clippy::enum_glob_use)]
         use Signal::*;
         match signal {
             SIGABRT | SIGBUS | SIGILL | SIGQUIT | SIGSEGV | SIGSYS | SIGTRAP | SIGXCPU
-            | SIGXFSZ => CoreDump,
-            SIGCHLD | SIGURG | SIGWINCH => Ignore,
-            SIGSTOP | SIGTSTP | SIGTTIN | SIGTTOU => Stop,
-            SIGCONT => Continue,
-            _ => Terminate,
+            | SIGXFSZ => DefaultHandler::CoreDump,
+            SIGCHLD | SIGURG | SIGWINCH => DefaultHandler::Ignore,
+            SIGSTOP | SIGTSTP | SIGTTIN | SIGTTOU => DefaultHandler::Stop,
+            SIGCONT => DefaultHandler::Continue,
+            _ => DefaultHandler::Terminate,
         }
     }
 }

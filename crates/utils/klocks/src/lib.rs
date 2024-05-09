@@ -6,5 +6,4 @@ mod sleep;
 
 pub use kspin::{SpinMutex, SpinMutexGuard, SpinNoIrqMutex, SpinNoIrqMutexGuard};
 pub use sleep::SleepMutex;
-pub use spin::Lazy;
-pub use spin::Once;
+pub use spin::{Lazy, Once, RwLock, RwLockReadGuard, RwLockWriteGuard};

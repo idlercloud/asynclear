@@ -1,6 +1,6 @@
 use core::{
     arch::asm,
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, SyncUnsafeCell},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -12,7 +12,8 @@ use memory::KERNEL_SPACE;
 use triomphe::Arc;
 
 use crate::{
-    drivers, memory,
+    drivers::{self, qemu_block::BLOCK_SIZE},
+    fs, memory,
     process::{Process, INITPROC},
     thread::{self, Thread},
 };
@@ -21,8 +22,12 @@ core::arch::global_asm!(include_str!("entry.S"));
 
 // `CachePadded` 可以保证 per-cpu 的结构位于不同的 cache line 中
 // 因此避免 false sharing
-static mut HARTS: [CachePadded<Hart>; HART_NUM] =
-    [const { CachePadded::new(Hart::new()) }; HART_NUM];
+static HARTS: [SyncUnsafeCell<CachePadded<Hart>>; HART_NUM] =
+    [const { SyncUnsafeCell::new(CachePadded::new(Hart::new())) }; HART_NUM];
+
+/// # SAFETY
+/// Hart 结构实际上只会被对应的 hart 访问
+unsafe impl Sync for Hart {}
 
 /// 可以认为代表一个处理器。存放一些 per-hart 的数据
 ///
@@ -33,6 +38,8 @@ pub struct Hart {
     /// 当前 hart 上正在运行的线程。
     thread: RefCell<Option<Arc<Thread>>>,
     pub span_stack: RefCell<Vec<SpanId>>,
+    /// 用于读磁盘的缓冲区，避免在栈上反复开辟空间
+    pub block_buffer: RefCell<[u8; BLOCK_SIZE]>,
 }
 
 impl Hart {
@@ -41,6 +48,7 @@ impl Hart {
             hart_id: 0,
             thread: RefCell::new(None),
             span_stack: RefCell::new(Vec::new()),
+            block_buffer: RefCell::new([0; BLOCK_SIZE]),
         }
     }
 
@@ -85,8 +93,9 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         drivers::init();
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
-
         memory::log_kernel_sections();
+
+        fs::init();
 
         thread::spawn_user_thread(INITPROC.lock_inner_with(|inner| inner.main_thread()));
         info!("Init hart {hart_id} started");
@@ -154,7 +163,7 @@ fn clear_bss() {
 /// 需保证由不同 hart 调用
 unsafe fn set_local_hart(hart_id: usize) {
     unsafe {
-        let hart_ptr = core::ptr::addr_of_mut!(HARTS[hart_id]);
+        let hart_ptr = HARTS[hart_id].get();
         (*hart_ptr).hart_id = hart_id;
         asm!("mv tp, {}", in(reg) hart_ptr as usize);
     }

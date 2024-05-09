@@ -17,37 +17,19 @@ use memory::MemorySpace;
 use triomphe::Arc;
 
 use crate::{
-    fs::FdTable,
+    fs::{self, DEntry, FdTable, VFS},
     memory,
     signal::SignalHandlers,
     thread::{self, Thread},
     trap::TrapContext,
-    uart_console::println,
 };
 
 use self::inner::ProcessInner;
 
-// FIXME: 暂时而言应用是嵌入内核的。之后需要修复
-static TMP_FS: &[(&str, &[u8])] = macros::gen_tmp_fs!();
-
-fn find_file(name: &str) -> Option<&'static [u8]> {
-    for (n, bytes) in TMP_FS {
-        if *n == name {
-            return Some(bytes);
-        }
-    }
-    None
-}
-
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
-    println!("----All Apps----");
-    for (name, _) in TMP_FS {
-        println!("{name}");
-    }
-    println!("----------------");
     Process::from_path(
-        CompactString::from_static_str("initproc"),
-        vec![CompactString::from_static_str("initproc")],
+        CompactString::from_static_str("/initproc"),
+        vec![CompactString::from_static_str("/initproc")],
     )
     .expect("INITPROC Failed.")
 });
@@ -71,9 +53,22 @@ impl Process {
             process_name.push_str(arg);
         }
 
-        let elf_data = find_file(&path).ok_or(errno::ENOENT)?;
-        let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        let (mut memory_space, elf_end) = MemorySpace::new_user(&elf, elf_data);
+        let elf_entry;
+        let elf_end;
+        let mut memory_space;
+        {
+            let DEntry::Paged(paged) = fs::find_file(Arc::clone(VFS.root_dir()), &path)? else {
+                return Err(errno::EISDIR);
+            };
+            let elf_data = fs::read_file(&paged)?;
+            let elf = Elf::parse(&elf_data).map_err(|e| {
+                warn!("parse elf error {e}");
+                errno::ENOEXEC
+            })?;
+            elf_entry = elf.entry as usize;
+            (memory_space, elf_end) = MemorySpace::new_user(&elf, &elf_data);
+        };
+
         let user_sp_vpn = Thread::alloc_user_stack(0, &mut memory_space);
 
         // 在用户栈上推入参数、环境变量、辅助向量等
@@ -87,7 +82,7 @@ impl Process {
         let tid = tid_allocator.alloc();
         // 第一个线程，主线程，tid 为 0
         assert_eq!(tid, 0);
-        let mut trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
+        let mut trap_context = TrapContext::app_init_context(elf_entry, user_sp);
         *trap_context.a0_mut() = argc;
         *trap_context.a1_mut() = argv_base;
         let process = Arc::new(Process {
@@ -101,7 +96,7 @@ impl Process {
                 heap_range: brk..brk,
                 parent: None,
                 children: Vec::new(),
-                cwd: CompactString::from_static_str("/"),
+                cwd: Arc::clone(VFS.root_dir()),
                 fd_table: FdTable::with_stdio(),
                 signal_handlers: SignalHandlers::new(),
                 tid_allocator,
@@ -154,7 +149,7 @@ impl Process {
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
                     children: Vec::new(),
-                    cwd: inner.cwd.clone(),
+                    cwd: Arc::clone(&inner.cwd),
                     fd_table: inner.fd_table.clone(),
                     signal_handlers: inner.signal_handlers.clone(),
                     tid_allocator: inner.tid_allocator.clone(),
@@ -189,25 +184,31 @@ impl Process {
             process_name.push_str(arg);
         }
 
-        let elf_data = find_file(&path).ok_or_else(|| {
-            info!("executable does not exist");
-            errno::ENOENT
+        let elf_data = {
+            let DEntry::Paged(paged) =
+                fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
+            else {
+                return Err(errno::EISDIR);
+            };
+            fs::read_file(&paged)?
+        };
+        let elf = Elf::parse(&elf_data).map_err(|e| {
+            warn!("parse elf error {e}");
+            errno::ENOEXEC
         })?;
-        // TODO: [low] 处理 elf 文件无效的情况
-        let elf = Elf::parse(elf_data).expect("Should be valid elf");
-        // TODO: [mid]: 处理 close_on_exec
         self.lock_inner_with(|inner| {
             // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
             inner.memory_space.recycle_user_pages();
-            let elf_end = inner.memory_space.load_sections(&elf, elf_data);
+            let elf_end = inner.memory_space.load_sections(&elf, &elf_data);
             inner.heap_range = {
                 let brk = elf_end.vpn_ceil().page_start();
                 brk..brk
             };
             let user_sp = Thread::alloc_user_stack(0, &mut inner.memory_space);
+            inner.fd_table.close_on_exec();
             inner.signal_handlers = SignalHandlers::new();
 
             let argc = args.len();

@@ -45,10 +45,21 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         //     args[4] as _,
         // ),
         // CHDIR => sys_chdir(args[0] as _),
-        // OPENAT => sys_openat(args[0], args[1] as _, args[2] as _, args[3] as _),
-        // CLOSE => sys_close(args[0]),
+        OPENAT => {
+            sys_openat(
+                args[0],
+                UserCheck::new(args[1] as _),
+                args[2] as _,
+                args[3] as _,
+            )
+            .await
+        }
+        CLOSE => sys_close(args[0]),
         // PIPE2 => sys_pipe2(args[0] as _),
-        // GETDENTS64 => sys_getdents64(args[0], args[1] as _, args[2]),
+        GETDENTS64 => sys_getdents64(
+            args[0],
+            UserCheckMut::new(ptr::from_raw_parts_mut(args[1] as _, args[2])),
+        ),
         READ => {
             sys_read(
                 args[0],

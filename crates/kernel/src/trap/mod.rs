@@ -1,6 +1,5 @@
 mod context;
 mod kernel_trap;
-mod timer;
 
 pub use context::TrapContext;
 
@@ -24,7 +23,7 @@ use crate::{
     hart::local_hart,
     process::{self, exit_process},
     signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
-    syscall,
+    syscall, time,
 };
 
 core::arch::global_asm!(include_str!("trap.S"));
@@ -125,7 +124,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             trace!("timer interrupt");
             riscv_time::set_next_trigger();
-            timer::check_timer();
+            time::check_timer();
             executor::yield_now().await;
             ControlFlow::Continue(())
         }
@@ -208,6 +207,7 @@ pub fn check_signal() -> bool {
             }
             DefaultHandler::Ignore => return false,
             DefaultHandler::Stop | DefaultHandler::Continue => {
+                // 被信号 stop 或者 continue 都要通知 `sys_wait4()`
                 todo!("[low] default handler Stop and Continue")
             }
         },

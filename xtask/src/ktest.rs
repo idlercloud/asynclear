@@ -5,12 +5,13 @@ use std::{
 };
 
 use clap::Parser;
-use scopeguard::defer;
+use const_format::formatcp;
 
 use crate::{
     build::{BuildArgs, USER_BINS},
     qemu::QemuArgs,
-    tool::{self, cleanup_log_file, prepare_log_file},
+    tool,
+    variables::FS_IMG_PATH,
 };
 
 /// 运行内核集成测试
@@ -35,16 +36,11 @@ impl KtestArgs {
 
         println!("Running qemu...");
 
-        let log_file_name = prepare_log_file(true);
-        defer! {
-            cleanup_log_file(&log_file_name);
-        }
-
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
             .args([
                 "-drive",
-                &format!("file={log_file_name},if=none,format=raw,id=x0"),
+                formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
             ])
             .args([
                 "-device",

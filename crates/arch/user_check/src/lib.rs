@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(naked_functions)]
 #![feature(slice_ptr_get)]
-#![feature(slice_ptr_len)]
 
 #[macro_use]
 extern crate kernel_tracer;
@@ -29,6 +28,7 @@ unsafe impl<T: ?Sized> Send for UserCheck<T> {}
 unsafe impl<T: ?Sized> Send for UserCheckMut<T> {}
 
 // TODO: 检查用户指针 page fault 时可以采取措施挽救
+// FIXME: 如果 ptr 实际是指向内核结构的指针，似乎暂时无法检测，需要修复
 
 impl<T: ?Sized> UserCheck<T> {
     pub fn new(ptr: *const T) -> Self {

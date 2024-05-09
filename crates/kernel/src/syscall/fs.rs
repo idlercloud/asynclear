@@ -1,7 +1,17 @@
-use defines::error::{errno, KResult};
+use core::ops::Deref;
+
+use compact_str::CompactString;
+use defines::{
+    error::{errno, KResult},
+    misc::{Dirent64, NAME_MAX},
+};
+use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
 
-use crate::{fs::FileDescriptor, hart::local_hart};
+use crate::{
+    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
+    hart::local_hart,
+};
 
 // /// 操纵某个特殊文件的底层设备。目前只进行错误检验
 // ///
@@ -40,16 +50,11 @@ use crate::{fs::FileDescriptor, hart::local_hart};
 //     todo!("[blocked] sys_mkdirat")
 // }
 
-#[rustfmt::skip]
-fn prepare_io(fd: usize, is_read: bool) -> KResult<FileDescriptor> {
-    let process = local_hart().curr_process_arc();
+fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
+    let process = local_hart().curr_process();
     let inner = process.lock_inner();
     let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
-    if (is_read && file.readable()) || (!is_read&& file.writable())
-    {
-        if file.is_dir() {
-            return Err(errno::EISDIR);
-        }
+    if (READ && file.readable()) || (!READ && file.writable()) {
         Ok(file.clone())
     } else {
         Err(errno::EBADF)
@@ -65,10 +70,10 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
     if fd == 0 {
         trace!("read stdin, len = {}", buf.len());
     } else {
-        debug!("fd = {fd}, len = {}", buf.len());
+        debug!("read fd = {fd}, len = {}", buf.len());
     }
 
-    let file = prepare_io(fd, true)?;
+    let file = prepare_io::<true>(fd)?;
     let nread = file.read(buf).await?;
     Ok(nread as isize)
 }
@@ -79,7 +84,13 @@ pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
 pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
-    let file = prepare_io(fd, false)?;
+    if fd == 1 || fd == 2 {
+        trace!("write stdout/stderr, len = {}", buf.len());
+    } else {
+        debug!("write fd = {fd}, len = {}", buf.len());
+    }
+
+    let file = prepare_io::<false>(fd)?;
     let nwrite = file.write(buf).await?;
     Ok(nwrite as isize)
 }
@@ -140,94 +151,131 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 //     todo!("[blocked] sys_writev")
 // }
 
-// // /// 返回一个绝对路径，它指向相对于 `fd` 的名为 `path_name` 的文件
-// // fn path_with_fd(fd: usize, path_name: &str) -> Result<String> {
-// //     const AT_FDCWD: usize = -100isize as usize;
-// //     // 绝对路径则忽视 fd
-// //     if path_name.starts_with('/') {
-// //         return Ok(path_name.to_string());
-// //     }
-// //     let process = curr_process();
-// //     let inner = process.inner();
-// //     if fd == AT_FDCWD {
-// //         if path_name == "." {
-// //             Ok(inner.cwd.clone())
-// //         } else if let Some(path_name) = path_name.strip_prefix("./") {
-// //             Ok(format!("{}{}", inner.cwd, path_name))
-// //         } else {
-// //             Ok(format!("{}{path_name}", inner.cwd))
-// //         }
-// //     } else if let Some(Some(base)) = inner.fd_table.get(fd) {
-// //         let base_path = match &base.entity {
-// //             FileEntity::Dir(dir) => dir.path(),
-// //             FileEntity::VirtDir(dir) => dir.path(),
-// //             _ => return Err(errno::ENOTDIR),
-// //         };
-// //         Ok(format!("{base_path}/{path_name}"))
-// //     } else {
-// //         Err(errno::EBADF)
-// //     }
-// // }
+/// 打开指定的文件。返回非负的文件描述符，这个文件描述符一定是当前进程尚未打开的最小的那个
+///
+/// 参数：
+/// - `dir_fd` 与 `path` 组合形成最终的路径。
+///     - 若 `path` 本身是绝对路径，则忽略。
+///     - 若 `dir_fd` 等于 `AT_FDCWD`(-100)
+/// - `path` 路径，可以是绝对路径或相对路径，以 `/` 为分隔符
+/// - `flags` 包括文件打开模式、创建标志、状态标志。
+///     - 创建标志如 `CLOEXEC`, `CREAT` 等，仅在打开文件时发生作用
+///     - 状态标志影响后续的 I/O 方式，而且可以动态修改
+/// - `mode` 是用于指定创建新文件时，该文件的 mode。目前应该不会用到
+///     - 它只会影响未来访问该文件的模式，但这一次打开该文件可以是随意的
+pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32) -> KResult {
+    let path = path.check_cstr()?;
 
-// /// 打开指定的文件。返回非负的文件描述符，这个文件描述符一定是当前进程尚未打开的最小的那个
-// ///
-// /// 参数：
-// /// - `dir_fd` 与 `path_name` 组合形成最终的路径。
-// ///     - 若 `path_name` 本身是绝对路径，则忽略。
-// ///     - 若 `dir_fd` 等于 `AT_FDCWD`(-100)
-// /// - `path_name` 路径，可以是绝对路径 (/xxx/yyy) 或相对路径 (xxx/yyy) 以 `/` 为分隔符
-// /// - `flags` 包括文件打开模式、创建标志、状态标志。
-// ///     - 创建标志如 `O_CLOEXEC`, `O_CREAT` 等，仅在打开文件时发生作用
-// ///     - 状态标志影响后续的 I/O 方式，而且可以动态修改
-// /// - `mode` 是用于指定创建新文件时，该文件的 mode。目前应该不会用到
-// ///     - 它只会影响未来访问该文件的模式，但这一次打开该文件可以是随意的
-// pub fn sys_openat(dir_fd: usize, path_name: *const u8, flags: u32, mut _mode: u32) -> Result {
-//     // let file_name = unsafe { check_cstr(path_name)? };
+    let Some(flags) = OpenFlags::from_bits(flags) else {
+        todo!("[low] unsupported OpenFlags: {flags:#b}");
+    };
+    info!("oepnat {dir_fd}, {}, {flags:?}", &*path);
 
-//     // let Some(flags) = OpenFlags::from_bits(flags) else {
-//     //     log::error!("open flags: {flags:#b}");
-//     //     log::error!("open flags: {:#b}", OpenFlags::O_DIRECTORY.bits());
-//     //     return Err(errno::UNSUPPORTED);
-//     // };
-//     // info!("oepnat {dir_fd}, {file_name}, {flags:?}");
-//     // // 不是创建文件（以及临时文件）时，mode 被忽略
-//     // if !flags.contains(OpenFlags::O_CREAT) {
-//     //     // TODO: 暂时在测试中忽略
-//     //     _mode = 0;
-//     // }
-//     // // TODO: 暂时在测试中忽略
-//     // // assert_eq!(mode, 0, "dir_fd: {dir_fd}, flags: {flags:?}");
+    // TODO: [low] OpenFlags::DIRECT 目前是被忽略的
 
-//     // // 64 位版本应当是保证可以打开大文件的
-//     // // TODO: 暂时在测试中忽略
-//     // // assert!(flags.contains(OpenFlags::O_LARGEFILE));
+    // 不是创建文件（以及临时文件）时，mode 被忽略
+    if !flags.contains(OpenFlags::CREATE) {
+        _mode = 0;
+    }
 
-//     // // 暂时先不支持这些
-//     // if flags.intersects(OpenFlags::O_ASYNC | OpenFlags::O_APPEND | OpenFlags::O_DSYNC) {
-//     //     log::error!("todo openflags: {flags:#b}");
-//     //     return Err(errno::UNSUPPORTED);
-//     // }
+    // TODO: [low] 暂时在测试中忽略 `mode` 的检查
+    // assert_eq!(_mode, 0, "dir_fd: {dir_fd}, flags: {flags:?}");
 
-//     // let absolute_path = path_with_fd(dir_fd, file_name)?;
-//     // let inode = open_file(absolute_path, flags)?;
-//     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // let fd = inner.alloc_fd();
-//     // inner.fd_table[fd] = Some(Arc::new(inode));
-//     // Ok(fd as isize)
-//     todo!("[blocked] sys_openat")
-// }
+    // 64 位版本应当是保证可以打开大文件的
+    // TODO: [low] 暂时在测试中忽略 `OpenFlags::LARGEFILE` 的检查
+    // assert!(flags.contains(OpenFlags::LARGEFILE));
 
-// pub fn sys_close(fd: usize) -> Result {
-//     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // match inner.fd_table.get(fd) {
-//     //     Some(Some(_)) => inner.fd_table[fd].take(),
-//     //     _ => return Err(errno::EBADF),
-//     // };
-//     // Ok(0)
-//     todo!("[blocked] sys_close")
-// }
+    // 暂时先不支持这些
+    if flags.intersects(OpenFlags::ASYNC | OpenFlags::APPEND | OpenFlags::DSYNC) {
+        todo!("[low] unsupported openflags: {flags:#b}");
+    }
+
+    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
+    let last_component = p2i
+        .last_component
+        .unwrap_or_else(|| CompactString::from_static_str("."));
+    let ret_fd;
+    if let Some(final_dentry) = p2i.dir.lookup(last_component) {
+        // 指定了必须要创建文件，但该文件已存在
+        if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
+            return Err(errno::EEXIST);
+        }
+
+        let new_file = match final_dentry {
+            DEntry::Dir(dir) => {
+                // 路径名指向一个目录，但是需要写入
+                if flags.intersects(OpenFlags::WRONLY | OpenFlags::RDWR) {
+                    return Err(errno::EISDIR);
+                };
+                File::Dir(dir)
+            }
+            DEntry::Paged(paged) => {
+                if flags.contains(OpenFlags::DIRECTORY) {
+                    return Err(errno::ENOTDIR);
+                }
+                File::Paged(Arc::new(PagedFile::new(paged)))
+            }
+            DEntry::Stream(_stream) => {
+                if flags.contains(OpenFlags::DIRECTORY) {
+                    return Err(errno::ENOTDIR);
+                }
+                todo!("[blocked] stream inode")
+            }
+        };
+
+        ret_fd = local_hart()
+            .curr_process()
+            .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
+    } else {
+        // 找不到该文件，而且又没有指定 `OpenFlags::CREATE`
+        if !flags.contains(OpenFlags::CREATE) {
+            return Err(errno::ENOENT);
+        }
+        todo!("[mid] openat create file");
+    }
+    Ok(ret_fd as isize)
+}
+
+fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
+    let start_dir;
+    // 忽略 fd，从当前工作目录开始
+    const AT_FDCWD: usize = -100isize as usize;
+    // 绝对路径则忽视 fd
+    if path.starts_with('/') {
+        start_dir = Arc::clone(VFS.root_dir());
+    } else {
+        let process = local_hart().curr_process();
+        let inner = process.lock_inner();
+        if dir_fd == AT_FDCWD {
+            start_dir = Arc::clone(&inner.cwd);
+        } else if let Some(base) = inner.fd_table.get(dir_fd) {
+            // 相对路径名，需要从一个目录开始
+            let File::Dir(dir) = base.deref() else {
+                return Err(errno::ENOTDIR);
+            };
+            start_dir = Arc::clone(dir);
+        } else {
+            return Err(errno::EBADF);
+        }
+    }
+
+    fs::path_walk(start_dir, path)
+}
+
+pub fn sys_close(fd: usize) -> KResult {
+    let process = local_hart().curr_process();
+    if process
+        .lock_inner_with(|inner| inner.fd_table.remove(fd))
+        .is_none()
+    {
+        return Err(errno::EBADF);
+    }
+
+    // TODO: [low] 还要释放相关的记录锁
+    // TODO: [mid] 如果文件被 `unlink()` 了且当前 fd 是最后一个引用该文件的，则要删除该文件
+
+    Ok(0)
+}
 
 // /// 创建管道，返回 0
 // ///
@@ -249,40 +297,56 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 //     todo!("[blocked] sys_pipe2")
 // }
 
-// #[repr(C)]
-// pub struct DirEnt64 {
-//     /// 索引结点号
-//     d_ino: u64,
-//     /// 到下一个 dirent 的偏移
-//     d_off: i64,
-//     /// 当前 dirent 的长度
-//     d_reclen: u16,
-//     /// 文件类型
-//     d_type: u8,
-//     /// 文件名
-//     d_name: [u8; 0],
-// }
+/// 获取目录项信息
+pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
+    let process = local_hart().curr_process();
+    let inner = process.lock_inner();
+    let Some(File::Dir(dir)) = inner.fd_table.get(fd).map(Deref::deref) else {
+        return Err(errno::EBADF);
+    };
+    let mut buf = buf.check_slice_mut()?;
+    let mut ptr = buf.as_mut_ptr();
+    let range = (ptr as usize)..(ptr as usize + buf.len());
 
-// /// 获取目录项信息
-// pub fn sys_getdents64(fd: usize, buf: *mut u8, _len: usize) -> Result {
-//     // let process = curr_process();
-//     // let inner = process.inner();
-//     // let Some(Some(_dir)) = inner.fd_table.get(fd) else {
-//     //     return Err(errno::EBADF);
-//     // };
-//     // let mut offset = 0;
-//     // let curr_dir_entry = unsafe { check_ptr_mut(buf as *mut DirEnt64)? };
-//     // // TODO: d_ino 和 d_type 暂且不管
-//     // let entry_len = mem::size_of::<DirEnt64>() + 2;
-//     // curr_dir_entry.d_off = entry_len as _; // 2 是 ".\0" 的长度
-//     // curr_dir_entry.d_reclen = entry_len as _;
-//     // unsafe { *curr_dir_entry.d_name.as_mut_ptr().cast::<[u8; 2]>() = *b".\0" };
-//     // offset += entry_len;
-//     // // 接下来应该接着遍历目录项，待后续实现
+    dir.read_dir()?;
 
-//     // Ok(offset as _)
-//     todo!("[blcoked] sys_getdents64")
-// }
+    let children = dir.lock_children();
+
+    for (name, child) in children.iter() {
+        let Some(child) = child else {
+            continue;
+        };
+        use core::mem::{align_of, offset_of};
+        let name_len = name.len().min(NAME_MAX);
+        let d_reclen = offset_of!(Dirent64, d_name) + name_len + 1;
+
+        let align_offset = ptr.align_offset(align_of::<Dirent64>());
+        if ptr as usize + align_offset + d_reclen > range.end {
+            break;
+        }
+        let meta = child.meta();
+        // SAFETY:
+        // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域，上面也对齐过指针
+        unsafe {
+            // NOTE: 不知道这里要不要把对齐的部分用 0 填充
+            ptr = ptr.add(align_offset);
+            ptr.cast::<u64>().write(meta.ino() as u64);
+            // 忽略 `d_off` 字段
+            ptr.add(offset_of!(Dirent64, d_reclen))
+                .cast::<u16>()
+                .write(d_reclen as u16);
+            ptr.add(offset_of!(Dirent64, d_type))
+                .write((meta.mode().bits() >> 12) as u8);
+            ptr.add(offset_of!(Dirent64, d_name))
+                .copy_from_nonoverlapping(name.as_bytes()[0..name_len].as_ptr(), name_len);
+            // 名字是 null-terminated 的
+            ptr.add(d_reclen).write(0);
+            ptr = ptr.add(d_reclen);
+        }
+    }
+
+    Ok((ptr as usize - range.start) as isize)
+}
 
 // /// 操控文件描述符
 // ///
@@ -416,7 +480,6 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 // ///
 // /// TODO: 完善 sys_unlinkat，写文档
 // pub fn sys_unlinkat(dirfd: usize, path: *const u8, _flags: u32) -> Result {
-//     // TODO: path 相关的操作，不如引入 `unix_path` 这个库来解决？或者自己写个专门的 utils
 //     let path = unsafe { check_cstr(path) }?;
 //     let path = path_with_fd(dirfd, path)?;
 //     let dir_path;

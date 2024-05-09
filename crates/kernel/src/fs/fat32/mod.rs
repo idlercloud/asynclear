@@ -1,72 +1,66 @@
-// mod fat_dir;
-// mod fat_file;
+//! fat32 文件系统的实现。
+//!
+//! 可以参考：
+//! - https://wiki.osdev.org/FAT
+//! - https://www.win.tue.nl/~aeb/linux/fs/fat/fat-1.html
+//! - https://github.com/rafalh/rust-fatfs
 
-// use defines::error::{errno, Error};
-// use fatfs::{FileSystem, FsOptions, LossyOemCpConverter, NullTimeProvider};
-// use klocks::Lazy;
+mod bpb;
+mod dir;
+mod dir_entry;
+mod fat;
+mod file;
 
-// use crate::drivers::qemu_block::{SeekFrom, BLOCK_DEVICE};
+use compact_str::CompactString;
+use defines::error::{errno, KResult};
+use triomphe::Arc;
+use unsize::CoerceUnsize;
 
-// pub struct FatFs {
-//     fs: FileSystem<BlockDeviceWrapper, NullTimeProvider, LossyOemCpConverter>,
-// }
+use crate::{
+    drivers::qemu_block::DiskDriver,
+    fs::{
+        dentry::DEntryDir,
+        fat32::{bpb::BiosParameterBlock, dir::FatDir, fat::FileAllocTable},
+        inode::DynDirInodeCoercion,
+    },
+    hart::local_hart,
+};
 
-// // TODO: [mid] 暂时这么做，可能有问题
-// unsafe impl Sync for FatFs {}
+use super::FileSystem;
 
-// pub static FAT_FS: Lazy<FatFs> = Lazy::new(|| FatFs {
-//     fs: FileSystem::new(BlockDeviceWrapper(()), FsOptions::new()).unwrap(),
-// });
+const SECTOR_SIZE: usize = 512;
+const BOOT_SECTOR_ID: usize = 0;
 
-// struct BlockDeviceWrapper(());
+pub fn new_fat32_fs(
+    block_device: &'static DiskDriver,
+    mount_point: CompactString,
+    device_path: CompactString,
+) -> KResult<FileSystem> {
+    let _enter = debug_span!("fat32_fs_init").entered();
+    let bpb = {
+        let _enter = debug_span!("fat_bpb").entered();
+        let mut buf = local_hart().block_buffer.borrow_mut();
+        block_device.read_blocks(BOOT_SECTOR_ID, &mut buf);
+        BiosParameterBlock::new(&buf)
+    };
+    if bpb.sector_size as usize != SECTOR_SIZE
+        || bpb.total_sector_count < 65525
+        || bpb._root_entry_count != 0
+        || bpb._sector_count != 0
+        || bpb._fat_length != 0
+        || bpb._version != 0
+    {
+        return Err(errno::EINVAL);
+    }
 
-// #[derive(Debug)]
-// struct ErrorWrapper(Error);
-
-// impl From<ErrorWrapper> for Error {
-//     fn from(value: ErrorWrapper) -> Self {
-//         value.0
-//     }
-// }
-
-// impl fatfs::IoError for ErrorWrapper {
-//     fn is_interrupted(&self) -> bool {
-//         false
-//     }
-//     fn new_unexpected_eof_error() -> Self {
-//         Self(errno::EIO)
-//     }
-//     fn new_write_zero_error() -> Self {
-//         Self(errno::EIO)
-//     }
-// }
-
-// impl fatfs::IoBase for BlockDeviceWrapper {
-//     type Error = ErrorWrapper;
-// }
-
-// impl fatfs::Read for BlockDeviceWrapper {
-//     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-//         BLOCK_DEVICE.lock().read(buf).map_err(ErrorWrapper)
-//     }
-// }
-
-// impl fatfs::Write for BlockDeviceWrapper {
-//     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-//         BLOCK_DEVICE.lock().write(buf).map_err(ErrorWrapper)
-//     }
-//     fn flush(&mut self) -> Result<(), Self::Error> {
-//         BLOCK_DEVICE.lock().flush().map_err(ErrorWrapper)
-//     }
-// }
-
-// impl fatfs::Seek for BlockDeviceWrapper {
-//     fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, Self::Error> {
-//         let pos = match pos {
-//             fatfs::SeekFrom::Start(i) => SeekFrom::Start(i),
-//             fatfs::SeekFrom::End(i) => SeekFrom::End(i),
-//             fatfs::SeekFrom::Current(i) => SeekFrom::Current(i),
-//         };
-//         Ok(BLOCK_DEVICE.lock().seek(pos))
-//     }
-// }
+    debug!("init fat");
+    let fat = Arc::new(FileAllocTable::new(block_device, &bpb)?);
+    let root_dir = Arc::new(FatDir::new_root(fat, bpb.root_cluster)).unsize(DynDirInodeCoercion!());
+    let root_dentry = Arc::new(DEntryDir::new(None, root_dir));
+    Ok(FileSystem {
+        root_dentry,
+        device_path,
+        fs_type: crate::fs::FileSystemType::Fat32,
+        mounted_dentry: None,
+    })
+}

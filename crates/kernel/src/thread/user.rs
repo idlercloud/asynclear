@@ -7,11 +7,11 @@ use core::{
 };
 
 use alloc::collections::BTreeMap;
-use compact_str::CompactString;
 use triomphe::Arc;
 
 use crate::{
     executor,
+    fs::VFS,
     hart::local_hart,
     process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
@@ -52,7 +52,6 @@ fn user_thread_loop() -> UserThreadFuture {
     }
 }
 
-// 这里对线程的引用应该是最后几个了，剩下应该只在 Hart 相关的结构中存有
 fn exit_thread(thread: &Thread) {
     debug!("thread exits");
     let process = &thread.process;
@@ -70,7 +69,8 @@ fn exit_thread(thread: &Thread) {
     // 但主要的资源是会释放的，比如地址空间、线程控制块等
     if process_inner.threads.is_empty() {
         info!("all threads exit");
-        process_inner.cwd = CompactString::new("");
+        // 不太想让 `cwd` 加个 `Option`，但是也最好不要保持原来的引用了，所以引到根目录去得了
+        process_inner.cwd = Arc::clone(VFS.root_dir());
         process_inner.memory_space.recycle_user_pages();
         process_inner.threads = BTreeMap::new();
         process_inner.tid_allocator.release();

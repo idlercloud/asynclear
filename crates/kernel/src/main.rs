@@ -1,19 +1,18 @@
 #![no_std]
 #![no_main]
-#![allow(incomplete_features)]
 #![feature(strict_provenance)]
-#![feature(generic_const_exprs)]
-#![feature(panic_info_message)]
-#![feature(inline_const)]
 #![feature(format_args_nl)]
 #![feature(const_binary_heap_constructor)]
 #![feature(arbitrary_self_types)]
 #![feature(decl_macro)]
-#![feature(assert_matches)]
 #![feature(step_trait)]
 #![feature(ptr_metadata)]
-#![feature(never_type)]
 #![feature(type_alias_impl_trait)]
+#![feature(int_roundings)]
+#![feature(array_chunks, iter_array_chunks)]
+#![feature(coroutines, iter_from_coroutine)]
+#![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init)]
+#![feature(sync_unsafe_cell)]
 
 #[macro_use]
 extern crate kernel_tracer;
@@ -31,6 +30,7 @@ mod process;
 mod signal;
 mod syscall;
 mod thread;
+mod time;
 mod tracer;
 mod trap;
 mod uart_console;

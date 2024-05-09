@@ -5,7 +5,7 @@ use riscv::register::{
     stvec::{self, TrapMode},
 };
 
-use crate::trap::timer;
+use crate::time;
 
 pub fn set_kernel_trap_entry() {
     extern "C" {
@@ -24,7 +24,7 @@ pub extern "C" fn kernel_trap_handler() {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             // TODO: 想办法通知线程让出 hart
             trace!("timer interrupt");
-            timer::check_timer();
+            time::check_timer();
             riscv_time::set_next_trigger();
         }
         Trap::Interrupt(Interrupt::SupervisorExternal) => {

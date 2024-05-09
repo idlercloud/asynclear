@@ -7,7 +7,12 @@ use idallocator::RecycleAllocator;
 use memory::{MemorySpace, VirtAddr};
 use triomphe::Arc;
 
-use crate::{fs::FdTable, memory, signal::SignalHandlers, thread::Thread};
+use crate::{
+    fs::{DEntryDir, FdTable},
+    memory,
+    signal::SignalHandlers,
+    thread::Thread,
+};
 
 use super::Process;
 
@@ -29,7 +34,7 @@ pub struct ProcessInner {
     pub parent: Option<Arc<Process>>,
     pub children: Vec<Arc<Process>>,
     /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`）
-    pub cwd: CompactString,
+    pub cwd: Arc<DEntryDir>,
 
     /* 文件 */
     pub fd_table: FdTable,

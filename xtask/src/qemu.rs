@@ -1,7 +1,13 @@
 use clap::Parser;
-use scopeguard::defer;
+use const_format::formatcp;
 
-use crate::{build::BuildArgs, cmd_util::Cmd, tool, variables::SBI_PATH, KERNEL_BIN_PATH};
+use crate::{
+    build::BuildArgs,
+    cmd_util::Cmd,
+    tool,
+    variables::{FS_IMG_PATH, SBI_PATH},
+    KERNEL_BIN_PATH,
+};
 
 /// 使用 QEMU 运行内核
 #[derive(Parser)]
@@ -24,15 +30,12 @@ impl QemuArgs {
         tool::prepare_os();
 
         println!("Running qemu...");
-        let log_file_name = tool::prepare_log_file(false);
-
-        defer! {}
 
         Self::base_qemu()
             .args(["-smp", &self.smp.to_string()])
             .args([
                 "-drive",
-                &format!("file={log_file_name},if=none,format=raw,id=x0"),
+                formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
             ])
             .args([
                 "-device",

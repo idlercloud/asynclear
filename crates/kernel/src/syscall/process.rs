@@ -23,8 +23,6 @@ use crate::{
     thread::BlockingFuture,
 };
 
-// TODO: 退出需要给其父进程发送 `SIGCHLD` 信号
-
 /// 退出当前线程，结束用户线程循环。
 pub fn sys_exit(exit_code: i32) -> KResult {
     local_hart()
@@ -172,8 +170,6 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
 ///
 /// 若成功，返回子进程 pid，若 `options` 指定了 WNOHANG 且子线程存在但状态为改变，则返回 0
 ///
-/// TODO: 信号处理的部分暂未实现
-///
 /// 参数：
 /// - `pid` 要等待的 pid
 ///     - `pid` < -1，则等待一个 pgid 为 `pid` 绝对值的子进程，目前不支持
@@ -278,8 +274,8 @@ pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> KResult {
     assert_eq!(_clock_id, CLOCK_REALTIME);
     let mut ts = UserCheckMut::new(ts).check_ptr_mut()?;
     let us = riscv_time::get_time_ns();
-    ts.sec = us / NANO_PER_SEC;
-    ts.nsec = us % NANO_PER_SEC;
+    ts.sec = (us / NANO_PER_SEC) as i64;
+    ts.nsec = (us % NANO_PER_SEC) as i64;
     Ok(0)
 }
 

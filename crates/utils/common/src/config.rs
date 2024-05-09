@@ -17,6 +17,8 @@ pub const KERNEL_HEAP_SIZE: usize = 32 * MiB;
 pub const PAGE_SIZE_BITS: usize = 12;
 /// 页大小
 pub const PAGE_SIZE: usize = 1 << PAGE_SIZE_BITS;
+/// 页偏移 mask
+pub const PAGE_OFFSET_MASK: usize = (1 << PAGE_SIZE_BITS) - 1;
 
 /// 每个页中 PTE 的数量
 pub const PTE_PER_PAGE: usize = PAGE_SIZE / PTR_SIZE;
@@ -33,8 +35,6 @@ pub const MMAP_START: usize = 0x20_0000_0000;
 pub const LOW_ADDRESS_END: usize = 0x40_0000_0000;
 
 /// 时钟频率。似乎由 qemu 中的 `RISCV_ACLINT_DEFAULT_TIMEBASE_FREQ` 宏定义
-///
-/// TODO: 后续可能需要根据实际情况修改
 pub const CLOCK_FREQ: usize = 10_000_000;
 
 /// 每秒的 Tick 数。即理想状况下每秒触发定时器中断的次数

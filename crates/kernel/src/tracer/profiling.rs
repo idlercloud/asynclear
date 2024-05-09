@@ -1,5 +1,7 @@
 // use super::KERNEL_TRACER_IMPL;
 
+// FIXME: 修复 profiling 并去除 `#[allow(unused)]`
+#[allow(unused)]
 pub enum ProfilingEvent {
     NewSpan { id: u32, name: &'static str },
     Enter { hart_id: u32, id: u32, instant: u64 },

@@ -6,23 +6,24 @@ edition.workspace = true
 
 [dependencies]
 atomic.workspace = true
+async-lock.workspace = true
 bytemuck.workspace = true
+chrono.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
+delegate.workspace = true
 goblin.workspace = true
 bitflags.workspace = true
 sbi-rt.workspace = true
+smallvec.workspace = true
 pin-project.workspace = true
 event-listener.workspace = true
 triomphe.workspace = true
+unsize.workspace = true
 extend.workspace = true
 num_enum.workspace = true
 heapless.workspace = true
 buddy_system_allocator.workspace = true
-fatfs = { path = "../../deps/rust-fatfs", default-features = false, features = [
-  "alloc",
-  "lfn",
-] }
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
 user_check = { path = "../arch/user_check" }
@@ -31,14 +32,16 @@ common = { path = "../utils/common" }
 defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
-macros = { path = "../utils/macros" }
 crossbeam-utils = { version = "0.8", default-features = false }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
 virtio-drivers = "0.7"
 uart_16550 = "0.3"
 async-task = { version = "4.7", default-features = false }
-async-trait = "0.1"
+futures = { version = "0.3", default-features = false, features = [
+  "alloc",
+  "async-await",
+] }
 
 [features]
 default = []

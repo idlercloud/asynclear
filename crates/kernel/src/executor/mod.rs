@@ -2,7 +2,7 @@ mod yield_now;
 
 pub use yield_now::yield_now;
 
-use core::future::Future;
+use core::{future::Future, task::Poll};
 
 use async_task::{Runnable, Task};
 use common::config::TASK_LIMIT;
@@ -65,5 +65,17 @@ pub fn run_utils_idle(should_shutdown: fn() -> bool) {
             break;
         }
         sbi_rt::hart_suspend(sbi_rt::Retentive, 0, 0);
+    }
+}
+
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    let waker = futures::task::noop_waker_ref();
+    let mut cx = core::task::Context::from_waker(waker);
+
+    let mut fut = core::pin::pin!(fut);
+    loop {
+        if let Poll::Ready(ret) = fut.as_mut().poll(&mut cx) {
+            return ret;
+        }
     }
 }

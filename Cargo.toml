@@ -9,14 +9,15 @@ authors = ["cxz888 <idlercloud@gmail.com>"]
 edition = "2021"
 
 [workspace.dependencies]
+async-lock = { version = "3.3", default-features = false }
 riscv = { path = "deps/riscv/riscv" }
 buddy_system_allocator = { path = "deps/buddy_system_allocator" }
 atomic = "0.6"
-bytemuck = { version = "1.13", features = ["derive"] }
+bytemuck = { version = "1.15", features = ["derive"] }
 extend = "1.2"
 pin-project = "1.1"
-bitflags = "2.4"
-tap = "1"
+bitflags = "2.5"
+tap = "1.0"
 compact_str = { version = "0.8.0-beta", default-features = false }
 goblin = { version = "0.8", default-features = false, features = [
   "elf32",
@@ -27,16 +28,19 @@ spin = { version = "0.9", default-features = false, features = [
   "lazy",
   "spin_mutex",
 ] }
+smallvec = "1.13"
+chrono = { version = "0.4", default-features = false }
 sbi-rt = { version = "0.0.3", features = ["legacy"] }
-event-listener = { version = "5.1", default-features = false }
+event-listener = { version = "5.3", default-features = false }
 heapless = "0.8"
 scopeguard = { version = "1.2", default-features = false }
-triomphe = { version = "0.1.11", default-features = false }
+triomphe = { version = "0.1", default-features = false, features = ["unsize"] }
+unsize = "1.1"
 num_enum = { version = "0.7", default-features = false }
+delegate = "0.12"
 
 [profile.dev]
 opt-level = 1
-debug = 2
 
 [profile.release]
 codegen-units = 1

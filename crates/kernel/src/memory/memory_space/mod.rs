@@ -190,7 +190,7 @@ impl MemorySpace {
                 if let Some(src_frame) = src_area.mapped_frame(vpn) {
                     let mut dst_frame = dst_area
                         .ensure_allocated(vpn, &mut memory_set.page_table)
-                        .frame();
+                        .frame_mut();
                     dst_frame.copy_from(&src_frame);
                 }
             }

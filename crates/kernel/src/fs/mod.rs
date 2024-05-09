@@ -1,160 +1,152 @@
+// FIXME: 完整实现 fs 模块并去除 `#![allow(unused)]`
+#![allow(unused)]
+
+mod dentry;
 mod fat32;
+mod file;
 mod inode;
 mod page_cache;
 mod stdio;
 
-use core::ops::Deref;
-
-use alloc::{boxed::Box, collections::BTreeMap};
+use alloc::{collections::BTreeMap, vec, vec::Vec};
+use compact_str::{CompactString, ToCompactString};
+use defines::error::{errno, KResult};
+use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 
-use async_trait::async_trait;
-use bitflags::bitflags;
-use defines::error::KResult;
-use user_check::{UserCheck, UserCheckMut};
+use crate::{drivers::qemu_block::BLOCK_DEVICE, uart_console::println};
 
-use self::{
-    // fat32::FAT_FS,
-    stdio::{read_stdin, write_stdout},
-};
+pub use dentry::{DEntry, DEntryDir, DEntryPaged};
+pub use file::{FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 
-#[derive(Clone)]
-pub struct FdTable {
-    files: BTreeMap<usize, FileDescriptor>,
+pub fn init() {
+    Lazy::force(&VFS);
 }
 
-impl FdTable {
-    pub fn with_stdio() -> Self {
-        let files = BTreeMap::from([
-            (0, FileDescriptor::new(File::Stdin, OpenFlags::RDONLY)),
-            (1, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
-            (2, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
-        ]);
-        Self { files }
-    }
-
-    pub fn get(&self, fd: usize) -> Option<&FileDescriptor> {
-        self.files.get(&fd)
-    }
+pub struct VirtFileSystem {
+    root_dir: Arc<DEntryDir>,
+    mount_table: SpinNoIrqMutex<BTreeMap<CompactString, FileSystem>>,
 }
 
-#[derive(Clone)]
-pub struct FileDescriptor {
-    file: File,
-    flags: OpenFlags,
+impl VirtFileSystem {
+    pub fn root_dir(&self) -> &Arc<DEntryDir> {
+        &self.root_dir
+    }
+
+    pub fn mount(&self, mount_point: &str, device_path: CompactString, fs_type: FileSystemType) {}
 }
 
-impl FileDescriptor {
-    pub fn new(file: File, flags: OpenFlags) -> Self {
-        Self { file, flags }
+pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
+    debug!("Init vfs");
+    let root_fs = fat32::new_fat32_fs(
+        &BLOCK_DEVICE,
+        CompactString::from_static_str("/"),
+        CompactString::from_static_str("/dev/mmcblk0"),
+    )
+    .expect("root_fs init failed");
+
+    root_fs
+        .root_dentry
+        .read_dir()
+        .expect("read root dir failed");
+    {
+        let children = root_fs.root_dentry.lock_children();
+        for name in children.keys() {
+            println!("{name}");
+        }
     }
 
-    pub fn readable(&self) -> bool {
-        self.flags.read_write().0
+    let root_dir = Arc::clone(&root_fs.root_dentry);
+    let mount_table = BTreeMap::from([(CompactString::from_static_str("/"), root_fs)]);
+    VirtFileSystem {
+        root_dir,
+        mount_table: SpinNoIrqMutex::new(mount_table),
     }
+});
 
-    pub fn writable(&self) -> bool {
-        self.flags.read_write().1
-    }
+pub struct FileSystem {
+    root_dentry: Arc<DEntryDir>,
+    device_path: CompactString,
+    fs_type: FileSystemType,
+    mounted_dentry: Option<DEntry>,
 }
 
-impl Deref for FileDescriptor {
-    type Target = File;
-    fn deref(&self) -> &Self::Target {
-        &self.file
-    }
+pub enum FileSystemType {
+    Fat32,
 }
 
-bitflags! {
-    /// 注意低 2 位指出文件的打开模式
-    /// 0、1、2 分别对应只读、只写、可读可写。3 为错误。
-    #[derive(Clone, Copy, Debug)]
-    pub struct OpenFlags: u32 {
-        const RDONLY    = 0;
-        const WRONLY    = 1 << 0;
-        const RDWR      = 1 << 1;
-
-        /// 如果所查询的路径不存在，则在该路径创建一个常规文件
-        const CREAT     = 1 << 6;
-        /// 在创建文件的情况下，保证该文件之前已经已存在，否则返回错误
-        const EXCL      = 1 << 7;
-        /// 如果路径指向一个终端设备，那么它不会称为本进程的控制终端
-        const NOCTTY    = 1 << 8;
-        /// 如果是常规文件，且允许写入，则将该文件长度截断为 0
-        const TRUNC     = 1 << 9;
-        /// 写入追加到文件末尾，可能在每次 `sys_write` 都有影响，暂时不支持
-        const APPEND    = 1 << 10;
-        /// 保持文件数据与磁盘阻塞同步。但如果该写操作不影响读取刚写入的数据，则不会等到元数据更新，暂不支持
-        const DSYNC     = 1 << 12;
-        /// 文件操作完成时发出信号，暂时不支持
-        const ASYNC     = 1 << 13;
-        /// 不经过缓存，直接写入磁盘中。目前实现仍然经过缓存
-        const DIRECT    = 1 << 14;
-        /// 允许打开文件大小超过 32 位表示范围的大文件。在 64 位系统上此标志位应永远为真
-        const LARGEFILE = 1 << 15;
-        /// 如果打开的文件不是目录，那么就返回失败
-        ///
-        /// FIXME: 在测试中，似乎 1 << 21 才被认为是 O_DIRECTORY；但 musl 似乎认为是 1 << 16
-        const DIRECTORY = 1 << 21;
-        // /// 如果路径的 basename 是一个符号链接，则打开失败并返回 `ELOOP`，目前不支持
-        // const O_NOFOLLOW    = 1 << 17;
-        // /// 读文件时不更新文件的 last access time，暂不支持
-        // const O_NOATIME     = 1 << 18;
-        /// 设置打开的文件描述符的 close-on-exec 标志
-        const CLOEXEC   = 1 << 19;
-        // /// 仅打开一个文件描述符，而不实际打开文件。后续只允许进行纯文件描述符级别的操作
-        // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
-        // const O_PATH        = 1 << 21;
-    }
+/// 类似于 linux 的 `struct nameidata`，存放 path walk 的结果。
+///
+/// 也就是路径最后一个 component 和前面的其他部分解析得到的目录 dentry
+pub struct PathToInode {
+    pub dir: Arc<DEntryDir>,
+    pub last_component: Option<CompactString>,
 }
 
-impl OpenFlags {
-    pub fn read_write(&self) -> (bool, bool) {
-        match self.bits() & 0b11 {
-            0 => (true, false),
-            1 => (false, true),
-            2 => (true, true),
-            _ => unreachable!(),
+/// 分类讨论：
+///
+/// 1. "/"，如 open("/")，返回 root_dir, None。调用者自己需要特判？
+/// 2. "/xxx"，返回 dir, Some(last_component)
+/// 3. 某个中间的 component 不存在，则返回 ENOENT
+/// 4. 某个中间的 component 存在但不是目录（即使后面跟的是 `..` 或 `.`），则返回 ENOTDIR
+pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {
+    debug!(
+        "walk path: {path}, from {}",
+        start_dir.inode().meta().name()
+    );
+    let mut split = path
+        .trim_start_matches('/')
+        .trim_end_matches('/')
+        .split('/');
+
+    let mut ret = PathToInode {
+        dir: start_dir,
+        last_component: None,
+    };
+
+    let Some(mut curr_component) = split.next() else {
+        return Ok(ret);
+    };
+    let Some(mut next_component) = split.next() else {
+        ret.last_component = Some(curr_component.to_compact_string());
+        return Ok(ret);
+    };
+
+    loop {
+        debug!("component: {curr_component}");
+
+        if let Some(new_component) = split.next() {
+            // 当前是一个中间的 component
+            let maybe_next = ret.dir.lookup(curr_component.to_compact_string());
+            curr_component = next_component;
+            next_component = new_component;
+            match maybe_next {
+                Some(DEntry::Dir(next_dir)) => ret.dir = next_dir,
+                Some(_) => return Err(errno::ENOTDIR),
+                None => return Err(errno::ENOENT),
+            }
+        } else {
+            // 当前是最后一个 component
+            ret.last_component = Some(curr_component.to_compact_string());
+            return Ok(ret);
         }
     }
 }
 
-#[derive(Clone)]
-pub enum File {
-    Stdin,
-    Stdout,
-    #[allow(unused)]
-    DynFile(Arc<dyn DynFile>),
+pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
+    let p2i = path_walk(start_dir, path)?;
+    let last_component = p2i
+        .last_component
+        .unwrap_or_else(|| CompactString::from_static_str("."));
+    p2i.dir.lookup(last_component).ok_or(errno::ENOENT)
 }
 
-impl File {
-    pub async fn read(&self, buf: UserCheckMut<[u8]>) -> KResult<usize> {
-        match self {
-            File::Stdin => read_stdin(buf).await,
-            File::Stdout => panic!("stdout cannot be read"),
-            File::DynFile(dyn_file) => dyn_file.read(buf).await,
-        }
-    }
-
-    pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
-        match self {
-            File::Stdin => panic!("stdin cannot be written"),
-            File::Stdout => write_stdout(buf),
-            File::DynFile(dyn_file) => dyn_file.write(buf).await,
-        }
-    }
-
-    pub fn is_dir(&self) -> bool {
-        false
-    }
+pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {
+    // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
+    let inner = &file.inode().inner;
+    // TODO: 这里其实可以说不定可以打点 unsafe 体操避免初始化的开销
+    let mut ret = vec![0; inner.data_len()];
+    let len = inner.read_at(file.inode().meta(), &mut ret, 0)?;
+    ret.truncate(len);
+    Ok(ret)
 }
-
-#[async_trait]
-pub trait DynFile: Send + Sync {
-    async fn read(&self, buf: UserCheckMut<[u8]>) -> KResult<usize>;
-    async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize>;
-}
-
-// pub fn init() {
-//     Lazy::force(&FAT_FS);
-// }

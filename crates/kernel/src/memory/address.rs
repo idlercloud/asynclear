@@ -1,4 +1,4 @@
-use common::config::{PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
+use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
 use core::{
     iter::Step,
     ops::{Add, Sub},
@@ -12,11 +12,11 @@ pub struct PhysAddr(pub usize);
 impl PhysAddr {
     /// 向下取整页号
     pub const fn floor(&self) -> PhysPageNum {
-        PhysPageNum(self.0 / PAGE_SIZE)
+        PhysPageNum(self.0.div_floor(PAGE_SIZE))
     }
     /// 向上取整页号
     pub const fn ceil(&self) -> PhysPageNum {
-        PhysPageNum((self.0 + PAGE_SIZE - 1) / PAGE_SIZE)
+        PhysPageNum(self.0.div_ceil(PAGE_SIZE))
     }
     pub const fn ppn(&self) -> PhysPageNum {
         self.floor()
@@ -68,7 +68,7 @@ pub struct VirtAddr(pub usize);
 
 impl VirtAddr {
     pub const fn page_offset(&self) -> usize {
-        self.0 & (PAGE_SIZE - 1)
+        self.0 & PAGE_OFFSET_MASK
     }
 
     /// 向下取整页号
