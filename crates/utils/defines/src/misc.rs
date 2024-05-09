@@ -74,13 +74,13 @@ pub struct TimeVal {
 
 pub const NAME_MAX: usize = 255;
 
-/// 参考 https://man7.org/linux/man-pages/man3/readdir.3.html
+/// 参考 <https://man7.org/linux/man-pages/man3/readdir.3.html/>
 #[derive(Debug)]
 #[repr(C)]
 pub struct Dirent64 {
     /// 64 位 inode 编号
     pub d_ino: u64,
-    /// d_off 中返回的值与在目录流中的当前位置调用 telldir(3) 返回的值相同
+    /// `d_off` 中返回的值与在目录流中的当前位置调用 telldir(3) 返回的值相同
     ///
     /// 但在现代文件系统上可能并不是目录偏移量。因此应用程序应该忽略这个字段，
     /// 不依赖于它

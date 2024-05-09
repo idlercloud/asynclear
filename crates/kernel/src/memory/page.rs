@@ -53,7 +53,7 @@ impl Page {
         self.frame.read()
     }
 
-    pub fn frame_mut(&self) -> RwLockWriteGuard<'_, Frame> {
+    pub fn frame_mut(&self) -> RwLockWriteGuard<Frame> {
         self.frame.write()
     }
 }

@@ -194,6 +194,7 @@ pub fn munmap(start: usize, len: usize) -> isize {
 //     sys_pipe(pipe_fd)
 // }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignalAction) -> isize {
     if act.is_null() {
         sys_rt_sigaction(signum, act, old_act)

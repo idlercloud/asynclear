@@ -1,6 +1,6 @@
 use core::{mem::MaybeUninit, ptr::addr_of_mut};
 
-/// 参考 https://elixir.bootlin.com/linux/v2.6.39.4/source/include/linux/msdos_fs.h#L105
+/// 参考 <https://elixir.bootlin.com/linux/v2.6.39.4/source/include/linux/msdos_fs.h#L105/>
 pub struct BiosParameterBlock {
     pub system_id: [u8; 8], // 通常是 "MSWIN4.1"
 

@@ -44,6 +44,7 @@ pub struct Plic {
 impl Plic {
     pub fn mmio() -> *mut Plic {
         const PLIC_VA: usize = PA_TO_VA + QEMU_PLIC_ADDR;
+        #[allow(clippy::assertions_on_constants)]
         const {
             assert!(PLIC_VA % 4096 == 0);
         }

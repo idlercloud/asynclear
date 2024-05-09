@@ -30,7 +30,9 @@ impl FatDir {
     pub fn new_root(fat: Arc<FileAllocTable>, first_root_cluster_id: u32) -> Inode<Self> {
         debug!("init root dir");
         assert!(first_root_cluster_id >= 2);
-        let clusters = SmallVec::from_iter(fat.cluster_chain(first_root_cluster_id));
+        let clusters = fat
+            .cluster_chain(first_root_cluster_id)
+            .collect::<SmallVec<_>>();
         debug!("root dir clusters num is {}", clusters.len());
         let meta = InodeMeta::new(StatMode::DIR, CompactString::from_static_str("/"));
         let root_dir = Self { clusters, fat };
@@ -49,7 +51,7 @@ impl FatDir {
             inner.modify_time = dir_entry.modify_time();
         });
         let fat_dir = Self {
-            clusters: SmallVec::from_iter(fat.cluster_chain(dir_entry.first_cluster_id())),
+            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
             fat,
         };
         Inode::new(meta, fat_dir)
@@ -144,20 +146,19 @@ impl DirInodeBackend for FatDir {
                 continue;
             }
 
-            let new_dentry;
-            if dir_entry.is_dir() {
+            let new_dentry = if dir_entry.is_dir() {
                 let fat_dir = FatDir::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                new_dentry = DEntry::Dir(Arc::new(DEntryDir::new(
+                DEntry::Dir(Arc::new(DEntryDir::new(
                     Some(Arc::clone(parent)),
                     Arc::new(fat_dir).unsize(DynDirInodeCoercion!()),
-                )));
+                )))
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                new_dentry = DEntry::Paged(DEntryPaged::new(
+                DEntry::Paged(DEntryPaged::new(
                     Arc::clone(parent),
                     Arc::new(fat_file).unsize(DynPagedInodeCoercion!()),
-                ));
-            }
+                ))
+            };
             let name = new_dentry.meta().name().to_compact_string();
             children.insert(name, Some(new_dentry));
         }

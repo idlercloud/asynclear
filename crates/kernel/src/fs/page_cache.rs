@@ -30,7 +30,7 @@ impl PageCache {
     }
 
     pub fn get(&self, page_id: usize) -> Option<Arc<BackedPage>> {
-        self.pages.get(&page_id).map(Arc::clone)
+        self.pages.get(&page_id).cloned()
     }
 
     pub fn create(&mut self, page_id: usize) -> Arc<BackedPage> {

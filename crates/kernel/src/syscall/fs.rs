@@ -1,6 +1,5 @@
 use core::ops::Deref;
 
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::{Dirent64, NAME_MAX},
@@ -198,11 +197,8 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     }
 
     let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
-    let last_component = p2i
-        .last_component
-        .unwrap_or_else(|| CompactString::from_static_str("."));
     let ret_fd;
-    if let Some(final_dentry) = p2i.dir.lookup(last_component) {
+    if let Some(final_dentry) = p2i.dir.lookup(p2i.last_component) {
         // 指定了必须要创建文件，但该文件已存在
         if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
             return Err(errno::EEXIST);
@@ -257,7 +253,7 @@ fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
             start_dir = Arc::clone(&inner.cwd);
         } else if let Some(base) = inner.fd_table.get(dir_fd) {
             // 相对路径名，需要从一个目录开始
-            let File::Dir(dir) = base.deref() else {
+            let File::Dir(dir) = &**base else {
                 return Err(errno::ENOTDIR);
             };
             start_dir = Arc::clone(dir);
@@ -335,6 +331,7 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
         let meta = child.meta();
         // SAFETY:
         // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域，上面也对齐过指针
+        #[allow(clippy::cast_ptr_alignment)]
         unsafe {
             // NOTE: 不知道这里要不要把对齐的部分用 0 填充
             ptr = ptr.add(align_offset);
@@ -435,7 +432,7 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 // isize)     todo!("[blocked] sys_dup")
 // }
 
-/// 复制文件描述符 old_fd 到指定描述符 new_fd
+/// 复制文件描述符 `old_fd` 到指定描述符 `new_fd`
 ///
 /// 如果 `new_fd` 已经被打开，则它被原子地关闭再复用
 ///

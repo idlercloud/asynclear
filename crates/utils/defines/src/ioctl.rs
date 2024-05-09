@@ -1,4 +1,4 @@
-//! 参考 https://man7.org/linux/man-pages/man2/ioctl_tty.2.html
+//! 参考 <https://man7.org/linux/man-pages/man2/ioctl_tty.2.html/>
 
 #[repr(C)]
 #[derive(Clone, Copy)]

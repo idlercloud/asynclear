@@ -1,9 +1,9 @@
 //! fat32 文件系统的实现。
 //!
 //! 可以参考：
-//! - https://wiki.osdev.org/FAT
-//! - https://www.win.tue.nl/~aeb/linux/fs/fat/fat-1.html
-//! - https://github.com/rafalh/rust-fatfs
+//! - <https://wiki.osdev.org/FAT/>
+//! - <https://www.win.tue.nl/~aeb/linux/fs/fat/fat-1.html/>
+//! - <https://github.com/rafalh/rust-fatfs/>
 
 mod bpb;
 mod dir;

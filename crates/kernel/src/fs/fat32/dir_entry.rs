@@ -143,7 +143,7 @@ impl DirEntryBuilder {
 
             Ok(DirEntryBuilderResult::Builder(builder))
         } else {
-            read_standard_entry(entry).map(|entry| DirEntryBuilderResult::Final(entry))
+            read_standard_entry(entry).map(DirEntryBuilderResult::Final)
         }
     }
 
@@ -170,7 +170,7 @@ impl DirEntryBuilder {
             warn!("first read lfn entry should be marked as final");
             return Err(errno::EINVAL);
         }
-        if !is_final_lfn_entry && is_final_lfn_entry {
+        if !is_first_lfn_entry && is_final_lfn_entry {
             warn!("non-first read lfn entry should not be marked as final");
             return Err(errno::EINVAL);
         }
@@ -227,7 +227,10 @@ impl DirEntryBuilder {
                 lfn_len += 1;
             }
             dir_entry.long_name =
-                CompactString::from_utf16(&self.name[..lfn_len]).map_err(|_| errno::EINVAL)?;
+                CompactString::from_utf16(&self.name[..lfn_len]).map_err(|e| {
+                    warn!("Invalid utf16 {:?}. {e}", &self.name[..lfn_len]);
+                    errno::EINVAL
+                })?;
             Ok(DirEntryBuilderResult::Final(dir_entry))
         }
     }

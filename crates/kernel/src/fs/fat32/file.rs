@@ -29,7 +29,7 @@ impl FatFile {
             inner.modify_time = dir_entry.modify_time();
         });
         let fat_file = Self {
-            clusters: SmallVec::from_iter(fat.cluster_chain(dir_entry.first_cluster_id())),
+            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
             fat,
         };
         // 文件的大小显然是不超过它占用的簇的总大小的

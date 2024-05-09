@@ -400,7 +400,7 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
 /// - `tidptr`。
 ///   - 注意该参数此时是不进行检查的，因此该系统调用永不失败。
 ///   - 在 linux 手册中，`tidptr` 的类型是 int*。
-///   - 这里设置为 i32，是参考 libc crate 设置 c_int=i32
+///   - 这里设置为 i32，是参考 libc crate 设置 `c_int` 为 i32
 pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
     let thread = local_hart().curr_thread();
     thread.lock_inner_with(|inner| inner.clear_child_tid = tidptr as usize);

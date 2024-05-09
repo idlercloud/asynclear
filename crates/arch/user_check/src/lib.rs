@@ -59,6 +59,10 @@ impl<T> UserCheck<[T]> {
         self.ptr.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.ptr.is_empty()
+    }
+
     pub fn check_slice(&self) -> KResult<UserConst<[T]>> {
         let _access_user_guard = AccessUserGuard::new();
         if check::check_const_impl(self.ptr.as_ptr(), self.ptr.len()) {
@@ -103,6 +107,10 @@ impl<T> UserCheckMut<T> {
 impl<T> UserCheckMut<[T]> {
     pub fn len(&self) -> usize {
         self.ptr.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ptr.is_empty()
     }
 
     pub fn check_slice(&self) -> KResult<UserConst<[T]>> {

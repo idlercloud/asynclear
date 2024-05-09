@@ -34,7 +34,7 @@ impl VirtFileSystem {
         &self.root_dir
     }
 
-    pub fn mount(&self, mount_point: &str, device_path: CompactString, fs_type: FileSystemType) {}
+    // pub fn mount(&self, mount_point: &str, device_path: CompactString, fs_type: FileSystemType) {}
 }
 
 pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
@@ -81,13 +81,13 @@ pub enum FileSystemType {
 /// 也就是路径最后一个 component 和前面的其他部分解析得到的目录 dentry
 pub struct PathToInode {
     pub dir: Arc<DEntryDir>,
-    pub last_component: Option<CompactString>,
+    pub last_component: CompactString,
 }
 
 /// 分类讨论：
 ///
-/// 1. "/"，如 open("/")，返回 root_dir, None。调用者自己需要特判？
-/// 2. "/xxx"，返回 dir, Some(last_component)
+/// 1. "/"，如 open("/")，返回 `root_dir()`, `.`。
+/// 2. "/xxx"，返回 `dir`, `Some(last_component)`
 /// 3. 某个中间的 component 不存在，则返回 ENOENT
 /// 4. 某个中间的 component 存在但不是目录（即使后面跟的是 `..` 或 `.`），则返回
 ///    ENOTDIR
@@ -103,14 +103,14 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
 
     let mut ret = PathToInode {
         dir: start_dir,
-        last_component: None,
+        last_component: CompactString::from_static_str("."),
     };
 
     let Some(mut curr_component) = split.next() else {
         return Ok(ret);
     };
     let Some(mut next_component) = split.next() else {
-        ret.last_component = Some(curr_component.to_compact_string());
+        ret.last_component = curr_component.to_compact_string();
         return Ok(ret);
     };
 
@@ -129,7 +129,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
             }
         } else {
             // 当前是最后一个 component
-            ret.last_component = Some(curr_component.to_compact_string());
+            ret.last_component = curr_component.to_compact_string();
             return Ok(ret);
         }
     }
@@ -137,10 +137,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
 
 pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
     let p2i = path_walk(start_dir, path)?;
-    let last_component = p2i
-        .last_component
-        .unwrap_or_else(|| CompactString::from_static_str("."));
-    p2i.dir.lookup(last_component).ok_or(errno::ENOENT)
+    p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)
 }
 
 pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {

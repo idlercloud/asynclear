@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![allow(elided_lifetimes_in_paths)]
 #![feature(strict_provenance)]
 #![feature(format_args_nl)]
 #![feature(const_binary_heap_constructor)]

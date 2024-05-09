@@ -124,9 +124,7 @@ impl FileDescriptor {
                 if self.flags.contains(OpenFlags::APPEND) {
                     *offset = inode.inner.data_len();
                 }
-                let nwrite = inode
-                    .inner
-                    .write_at(meta, &mut buf.check_slice()?, *offset)?;
+                let nwrite = inode.inner.write_at(meta, &buf.check_slice()?, *offset)?;
                 *offset += nwrite;
                 Ok(nwrite)
             }

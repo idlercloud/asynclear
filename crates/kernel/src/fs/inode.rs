@@ -153,7 +153,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
                 let mut _guard = block_on(page.state_guard.lock());
                 if page.state.load(Ordering::SeqCst) == PageState::Invalid {
                     self.backend
-                        .read_page(&mut *page.inner.frame_mut(), page_id)?;
+                        .read_page(&mut page.inner.frame_mut(), page_id)?;
                     page.state.store(PageState::Synced, Ordering::SeqCst);
                 }
             }
@@ -193,7 +193,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
                     && full_page_range.contains(&page_id)
                     && page.state.load(Ordering::SeqCst) == PageState::Invalid
                 {
-                    self.backend.read_page(&mut *frame, page_id)?;
+                    self.backend.read_page(&mut frame, page_id)?;
                 }
                 page.state.store(PageState::Dirty, Ordering::SeqCst);
             } else {
@@ -210,7 +210,9 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             inner.change_time = inner.access_time;
             inner.modify_time = inner.change_time;
         });
-        if curr_data_len < offset + buf.len() {}
+        if curr_data_len < offset + buf.len() {
+            *self.data_len.write() = offset + buf.len();
+        }
 
         Ok(nwrite)
     }

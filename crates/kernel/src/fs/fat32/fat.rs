@@ -97,13 +97,13 @@ impl FileAllocTable {
 
     pub fn alloc_cluster(&self, prev_cluster: Option<u32>) -> Option<u32> {
         let mut meta = self.alloc_meta.lock();
-        let start_cluster_id;
+
         let total_cluster_count = self.data_clusters_count + RESERVED_FAT_ENTRY_COUNT;
-        if meta.next_free != total_cluster_count {
-            start_cluster_id = meta.next_free;
+        let start_cluster_id = if meta.next_free != total_cluster_count {
+            meta.next_free
         } else {
-            start_cluster_id = RESERVED_FAT_ENTRY_COUNT;
-        }
+            RESERVED_FAT_ENTRY_COUNT
+        };
 
         let mut entries = self.fat_entries.write();
 
