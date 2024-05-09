@@ -1,18 +1,19 @@
-mod flags;
 mod fs;
 mod process;
 mod signal;
 mod sync;
 mod thread;
+mod time;
 
 use core::ptr;
 
 use defines::{error::errno, syscall::*};
 use fs::*;
 use process::*;
-// use sync::*;
 use signal::*;
 use thread::*;
+// use sync::*;
+use time::*;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{hart::local_hart, process::exit_process};

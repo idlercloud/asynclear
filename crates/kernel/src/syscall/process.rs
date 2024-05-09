@@ -4,23 +4,17 @@ use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
 use atomic::Ordering;
-use common::constant::{MICRO_PER_SEC, NANO_PER_SEC};
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
-    misc::{TimeSpec, TimeVal, UtsName},
+    misc::{CloneFlags, MmapFlags, MmapProt, UtsName, WaitFlags},
     signal::Signal,
 };
 use event_listener::listener;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
-    executor,
-    hart::local_hart,
-    memory::VirtAddr,
-    process::exit_process,
-    syscall::flags::{CloneFlags, MmapFlags, MmapProt, WaitFlags},
-    thread::BlockingFuture,
+    executor, hart::local_hart, memory::VirtAddr, process::exit_process, thread::BlockingFuture,
 };
 
 /// 退出当前线程，结束用户线程循环。
@@ -250,73 +244,8 @@ pub async fn sys_wait4(
     }
 }
 
-/// 获取自 Epoch 以来所过的时间（不过目前实现中似乎是自开机或复位以来时间）
-///
-/// 参数：
-/// - `ts` 要设置的时间值
-/// - `tz` 时区结构，但目前已经过时，不考虑
-pub fn sys_get_time_of_day(tv: *mut TimeVal, _tz: usize) -> KResult {
-    // 根据 man 所言，时区参数 tz 已经过时了，通常应当是 NULL。
-    assert_eq!(_tz, 0);
-    let mut tv = UserCheckMut::new(tv).check_ptr_mut()?;
-    let us = riscv_time::get_time_us();
-    tv.sec = us / MICRO_PER_SEC;
-    tv.usec = us % MICRO_PER_SEC;
-    Ok(0)
-}
-
-/// 全局时钟，或者说挂钟
-const CLOCK_REALTIME: usize = 0;
-
-/// 同样是获取时间，不过 `TimeSpec` 精度为 ns。
-///
-/// 可以有不同的时钟，但目前只支持挂钟 (`CLOCK_REALTIME`)。
-///
-/// 参数：
-/// - `clock_id` 时钟 id，目前仅为 `CLOCK_READTIME`
-/// - `tp` 指向要设置的用户指针
-pub fn sys_clock_gettime(_clock_id: usize, ts: *mut TimeSpec) -> KResult {
-    // TODO: 目前只考虑挂钟时间
-    assert_eq!(_clock_id, CLOCK_REALTIME);
-    let mut ts = UserCheckMut::new(ts).check_ptr_mut()?;
-    let us = riscv_time::get_time_ns();
-    ts.sec = (us / NANO_PER_SEC) as i64;
-    ts.nsec = (us % NANO_PER_SEC) as i64;
-    Ok(0)
-}
-
 pub fn sys_setpriority(_prio: isize) -> KResult {
     todo!("[low] sys_setpriority")
-}
-
-#[repr(C)]
-pub struct Tms {
-    /// 当前进程的用户态时间
-    tms_utime: usize,
-    /// 当前进程的内核态时间
-    tms_stime: usize,
-    /// 已被 wait 的子进程的用户态时间
-    tms_cutime: usize,
-    /// 已被 wait 的子进程的内核态时间
-    tms_cstime: usize,
-}
-
-// FIXME: `sys_times` 暂时是非正确的实现
-/// 获取进程和子进程运行时间，单位是**时钟 tick 数**
-///
-/// 参数：
-/// - `tms` 是一个用户指针，结果被写入其中。
-///
-/// 错误：
-/// - `EFAULT` `tms` 指向非法地址
-pub fn sys_times(tms: *mut Tms) -> KResult {
-    let ticks = riscv::register::time::read();
-    let mut tms = UserCheckMut::new(tms).check_ptr_mut()?;
-    tms.tms_utime = ticks / 4;
-    tms.tms_stime = ticks / 4;
-    tms.tms_cutime = ticks / 4;
-    tms.tms_cstime = ticks / 4;
-    Ok(0)
 }
 
 /// 映射虚拟内存。返回实际映射的地址。

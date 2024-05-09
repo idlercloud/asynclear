@@ -32,24 +32,13 @@ impl TaskQueue {
     }
 }
 
-// pub fn spawn<F>(future: F) -> (Runnable, Task<F::Output>)
-// where
-//     F: Future + Send + 'static,
-//     F::Output: Send + 'static,
-// {
-//     async_task::spawn(future, |runnable| {
-//         TASK_QUEUE.push_task(runnable);
-//     })
-// }
-
 pub fn spawn_with<F, A>(future: F, action: A) -> (Runnable, Task<F::Output>)
 where
     F: Future + Send + 'static,
     F::Output: Send + 'static,
     A: Fn() + Send + Sync + 'static,
 {
-    // TODO: 现在这么操作用于让用户线程被调度时状态设为
-    // `Ready`，其实可能可以有更好的方式
+    // TODO: 现在这么操作用于让用户线程被调度时状态设为 `Ready`，其实可能可以有更好的方式
     async_task::spawn(future, move |runnable| {
         action();
         TASK_QUEUE.push_task(runnable);

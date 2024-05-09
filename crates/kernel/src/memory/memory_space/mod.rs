@@ -4,7 +4,7 @@ use core::ops::Range;
 use bitflags::bitflags;
 use common::config::{MEMORY_END, MMIO, PA_TO_VA};
 use compact_str::CompactString;
-use defines::error::KResult;
+use defines::{error::KResult, misc::MmapProt};
 use goblin::elf::{
     program_header::{PF_R, PF_W, PF_X, PT_LOAD},
     Elf,
@@ -89,6 +89,12 @@ bitflags! {
         const X = 1 << 3;
         const U = 1 << 4;
         const G = 1 << 5;
+    }
+}
+
+impl From<MmapProt> for MapPermission {
+    fn from(mmap_prot: MmapProt) -> Self {
+        Self::from_bits_truncate((mmap_prot.bits() << 1) as u8) | MapPermission::U
     }
 }
 
