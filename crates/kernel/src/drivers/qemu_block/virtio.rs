@@ -1,7 +1,5 @@
 use core::ptr::NonNull;
 
-use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
-
 use common::config::{PA_TO_VA, QEMU_VIRTIO0};
 use virtio_drivers::{
     device::blk::VirtIOBlk,
@@ -11,6 +9,8 @@ use virtio_drivers::{
     },
     Hal,
 };
+
+use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
 
 pub struct HalImpl;
 

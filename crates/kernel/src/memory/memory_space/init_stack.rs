@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+
 use common::config::{PAGE_SIZE, PTR_SIZE};
 use compact_str::CompactString;
 use triomphe::Arc;
@@ -33,8 +34,8 @@ impl<'a, 'b> FramedVmArea {
         let ctx = &mut ctx;
         self.push_usize(0, ctx);
         // 这里应放入 16 字节的随机数。目前实现依赖运行时间
-        // 据 Hacker News 所说，它是 "used to construct stack canaries and function pointer encryption keys"
-        // 参考 https://news.ycombinator.com/item?id=24113026
+        // 据 Hacker News 所说，它是 "used to construct stack canaries and function
+        // pointer encryption keys" 参考 https://news.ycombinator.com/item?id=24113026
         self.push_usize(riscv_time::get_time(), ctx);
         self.push_usize(riscv_time::get_time(), ctx);
         let random_pos = ctx.user_sp;
@@ -77,7 +78,8 @@ impl<'a, 'b> FramedVmArea {
         (ctx.user_sp, argv_base)
     }
 
-    /// `user_sp` 和 `user_sp_kernel_va` 向下移动，如果跨越页边界，则重新翻译 `user_sp_kernel_va`
+    /// `user_sp` 和 `user_sp_kernel_va` 向下移动，如果跨越页边界，则重新翻译
+    /// `user_sp_kernel_va`
     fn sp_down(&'b mut self, len: usize, ctx: &mut StackInitCtx<'a>) {
         ctx.user_sp -= len;
 

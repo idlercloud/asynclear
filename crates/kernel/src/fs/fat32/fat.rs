@@ -1,12 +1,11 @@
+use alloc::vec::Vec;
 use core::ops::Range;
 
-use alloc::vec::Vec;
 use defines::error::{errno, KResult};
 use klocks::{RwLock, SpinMutex};
 
-use crate::{drivers::qemu_block::DiskDriver, hart::local_hart};
-
 use super::{bpb::BiosParameterBlock, SECTOR_SIZE};
+use crate::{drivers::qemu_block::DiskDriver, hart::local_hart};
 
 const FAT_ENTRY_MASK: u32 = 0x0fff_ffff;
 const RESERVED_FAT_ENTRY_COUNT: u32 = 2;
@@ -22,7 +21,8 @@ pub struct FileAllocTable {
     /// 每张 Fat 表所用的扇区数
     fat_length: u32,
     sector_per_cluster: u8,
-    /// 数据区总共可用的簇数。注意第 0 簇和第 1 簇不对应数据区中的簇，所以真正的总簇数应该是这个字段加 2
+    /// 数据区总共可用的簇数。注意第 0 簇和第 1
+    /// 簇不对应数据区中的簇，所以真正的总簇数应该是这个字段加 2
     data_clusters_count: u32,
     alloc_meta: SpinMutex<FatAllocMeta>,
     fat_entries: RwLock<Vec<u32>>,
@@ -182,9 +182,11 @@ impl FatAllocMeta {
             return Err(errno::EINVAL);
         }
 
-        // 剩余簇的数量，如果是 0xffffffff 则表示未知，需要重新计算。并不保证一定精准，但是其值一定不超过磁盘的总簇数
+        // 剩余簇的数量，如果是 0xffffffff
+        // 则表示未知，需要重新计算。并不保证一定精准，但是其值一定不超过磁盘的总簇数
         let free_count = u32::from_le_bytes(info_sector[488..492].try_into().unwrap());
-        // 从哪里开始寻找剩余簇的 hint，通常是最后一个被分配出去的簇号 + 1。如果值为 0xffffffff 则表示未知，应当从 2 号簇开始查找
+        // 从哪里开始寻找剩余簇的 hint，通常是最后一个被分配出去的簇号 + 1。如果值为
+        // 0xffffffff 则表示未知，应当从 2 号簇开始查找
         let next_free = u32::from_le_bytes(info_sector[492..496].try_into().unwrap());
 
         let trail_sig = u32::from_le_bytes(info_sector[508..512].try_into().unwrap());

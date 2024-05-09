@@ -1,10 +1,12 @@
-use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
 use core::{
     iter::Step,
     ops::{Add, Sub},
 };
 
-/// 物理地址。在 Sv39 页表机制中，虚拟地址转化得到的物理地址总共为 56 位，其中页号 44 位，页内偏移 12 位。
+use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
+
+/// 物理地址。在 Sv39 页表机制中，虚拟地址转化得到的物理地址总共为 56
+/// 位，其中页号 44 位，页内偏移 12 位。
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct PhysAddr(pub usize);
@@ -14,10 +16,12 @@ impl PhysAddr {
     pub const fn floor(&self) -> PhysPageNum {
         PhysPageNum(self.0.div_floor(PAGE_SIZE))
     }
+
     /// 向上取整页号
     pub const fn ceil(&self) -> PhysPageNum {
         PhysPageNum(self.0.div_ceil(PAGE_SIZE))
     }
+
     pub const fn ppn(&self) -> PhysPageNum {
         self.floor()
     }
@@ -25,6 +29,7 @@ impl PhysAddr {
 
 impl Add<usize> for PhysAddr {
     type Output = Self;
+
     fn add(self, rhs: usize) -> Self::Output {
         Self(self.0 + rhs)
     }
@@ -42,6 +47,7 @@ impl PhysPageNum {
 
 impl Add<usize> for PhysPageNum {
     type Output = Self;
+
     fn add(self, rhs: usize) -> Self::Output {
         Self(self.0 + rhs)
     }
@@ -51,17 +57,21 @@ impl Step for PhysPageNum {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         end.0.checked_sub(start.0)
     }
+
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_add(count).map(PhysPageNum)
     }
+
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_sub(count).map(PhysPageNum)
     }
 }
 
-/// 虚拟地址。在 Sv39 页表机制中，虚拟地址 38~0 有效，39 及高位和 38 位一致。页号 27 位，页内偏移 12 位。
+/// 虚拟地址。在 Sv39 页表机制中，虚拟地址 38~0 有效，39 及高位和 38
+/// 位一致。页号 27 位，页内偏移 12 位。
 ///
-/// 由于 63~39 和 38 位保持一致，虚拟地址空间中只有 64 位的最低 256 GB 地址和最高 256 GB 地址有效。
+/// 由于 63~39 和 38 位保持一致，虚拟地址空间中只有 64 位的最低 256 GB
+/// 地址和最高 256 GB 地址有效。
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct VirtAddr(pub usize);
@@ -148,6 +158,7 @@ impl VirtPageNum {
 
 impl Add<usize> for VirtPageNum {
     type Output = Self;
+
     fn add(self, len: usize) -> Self::Output {
         Self(self.0 + len)
     }
@@ -155,6 +166,7 @@ impl Add<usize> for VirtPageNum {
 
 impl Sub<usize> for VirtPageNum {
     type Output = Self;
+
     fn sub(self, len: usize) -> Self::Output {
         Self(self.0 - len)
     }
@@ -164,9 +176,11 @@ impl Step for VirtPageNum {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         end.0.checked_sub(start.0)
     }
+
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_add(count).map(VirtPageNum)
     }
+
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_sub(count).map(VirtPageNum)
     }

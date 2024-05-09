@@ -21,7 +21,7 @@ pub fn report_profiling() {
     //             id,
     //             instant,
     //         } => writeln!(fs, "Enter: {hart_id} {id} {instant}").unwrap(),
-    //         ProfilingEvent::Exit { id, instant } => writeln!(fs, "Exit: {id} {instant}").unwrap(),
-    //     }
+    //         ProfilingEvent::Exit { id, instant } => writeln!(fs, "Exit: {id}
+    // {instant}").unwrap(),     }
     // }
 }

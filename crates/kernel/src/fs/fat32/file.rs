@@ -2,12 +2,11 @@ use common::config::PAGE_SIZE;
 use smallvec::SmallVec;
 use triomphe::Arc;
 
+use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
     fs::inode::{Inode, InodeMeta, PagedInode, PagedInodeBackend, StatMode},
     memory::Frame,
 };
-
-use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 
 pub struct FatFile {
     clusters: SmallVec<[u32; 8]>,

@@ -1,10 +1,10 @@
+use alloc::vec::Vec;
 use core::{
     arch::asm,
     cell::{Ref, RefCell, SyncUnsafeCell},
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use alloc::vec::Vec;
 use common::config::{HART_NUM, HART_START_ADDR};
 use crossbeam_utils::CachePadded;
 use kernel_tracer::SpanId;
@@ -34,7 +34,7 @@ unsafe impl Sync for Hart {}
 /// 因此，一般可以假定不会被并行访问
 pub struct Hart {
     hart_id: usize,
-    //TODO: 内核线程是不是会不太一样？
+    // TODO: 内核线程是不是会不太一样？
     /// 当前 hart 上正在运行的线程。
     thread: RefCell<Option<Arc<Thread>>>,
     pub span_stack: RefCell<Vec<SpanId>>,

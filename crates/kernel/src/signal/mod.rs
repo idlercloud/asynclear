@@ -2,16 +2,16 @@
 //!
 //! signal action 是属于进程的，而线程可以有各自的掩码和待处理信号
 //!
-//! `fork` 会继承父进程的 signal action 和线程的掩码，但是线程的待处理信号会置空。
+//! `fork` 会继承父进程的 signal action
+//! 和线程的掩码，但是线程的待处理信号会置空。
 //!
-//! 而 `execve` 会将 signal action 置为默认值（可能与 linux 不同），但是线程掩码和待处理信号保留
+//! 而 `execve` 会将 signal action 置为默认值（可能与 linux
+//! 不同），但是线程掩码和待处理信号保留
 
 mod handlers;
 
-pub use handlers::DefaultHandler;
-pub use handlers::SignalHandlers;
-
 use defines::signal::KSignalSet;
+pub use handlers::{DefaultHandler, SignalHandlers};
 use num_enum::TryFromPrimitive;
 
 use crate::trap::TrapContext;

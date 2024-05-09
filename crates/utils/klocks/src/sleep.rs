@@ -71,8 +71,10 @@ impl<T: ?Sized> SleepMutex<T> {
     ///
     /// # Safety
     ///
-    /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
-    /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
+    /// This function provides no synchronization guarantees and so its result
+    /// should be considered 'out of date' the instant it is called. Do not
+    /// use it for synchronization purposes. However, it may be useful as a
+    /// heuristic.
     #[inline(always)]
     pub fn is_locked(&self) -> bool {
         self.base.is_locked()
@@ -117,6 +119,7 @@ impl<'a, T: ?Sized + fmt::Display> fmt::Display for SleepMutexGuard<'a, T> {
 
 impl<'a, T: ?Sized> Deref for SleepMutexGuard<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &self.spin_guard
     }

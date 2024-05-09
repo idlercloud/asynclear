@@ -10,11 +10,10 @@ mod level;
 mod record;
 mod span;
 
+use klocks::Once;
 pub use level::{Level, CLOG, FLOG, SLOG};
 pub use record::Record;
 pub use span::{instrument::Instrument, Span, SpanAttr, SpanId};
-
-use klocks::Once;
 
 pub static KERNLE_TRACER: Once<&'static (dyn Tracer + Sync)> = Once::new();
 

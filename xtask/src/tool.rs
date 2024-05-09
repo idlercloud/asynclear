@@ -1,14 +1,20 @@
+use std::{
+    fs::{self, File},
+    io::{Seek, SeekFrom, Write},
+    path::PathBuf,
+};
+
 use clap::Parser;
 use fatfs::{FileSystem, FsOptions};
-use std::fs::{self, File};
-use std::io::{Seek, SeekFrom, Write};
-use std::path::PathBuf;
 use tap::Tap;
 
-use crate::build::{BuildArgs, USER_BINS};
-use crate::cmd_util::Cmd;
-use crate::variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH};
-use crate::{tool, KERNEL_BIN_PATH, KERNEL_ELF_PATH};
+use crate::{
+    build::{BuildArgs, USER_BINS},
+    cmd_util::Cmd,
+    tool,
+    variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH},
+    KERNEL_BIN_PATH, KERNEL_ELF_PATH,
+};
 
 /// 生成内核或指定 ELF 的汇编
 #[derive(Parser)]

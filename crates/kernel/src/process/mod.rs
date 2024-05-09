@@ -1,8 +1,8 @@
 mod inner;
 
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use core::num::NonZeroUsize;
 
-use alloc::{collections::BTreeMap, vec, vec::Vec};
 use atomic::{Atomic, Ordering};
 use compact_str::CompactString;
 use defines::{
@@ -16,6 +16,7 @@ use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::MemorySpace;
 use triomphe::Arc;
 
+use self::inner::ProcessInner;
 use crate::{
     fs::{self, DEntry, FdTable, VFS},
     memory,
@@ -23,8 +24,6 @@ use crate::{
     thread::{self, Thread},
     trap::TrapContext,
 };
-
-use self::inner::ProcessInner;
 
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
     Process::from_path(
@@ -176,7 +175,8 @@ impl Process {
         child
     }
 
-    /// 根据 `path` 加载一个新的 ELF 文件并执行。目前要求原进程仅有一个线程并且没有子进程
+    /// 根据 `path` 加载一个新的 ELF
+    /// 文件并执行。目前要求原进程仅有一个线程并且没有子进程
     pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> KResult<()> {
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
@@ -272,7 +272,8 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 
 /// 退出进程，终止其所有线程。
 ///
-/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，仅仅只是标记该进程为退出，而不回收资源
+/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，
+/// 仅仅只是标记该进程为退出，而不回收资源
 ///
 /// 其他线程在进入内核时会检查对应的进程是否已标记为退出从而决定是否退出
 pub fn exit_process(process: &Process, exit_code: i8) {

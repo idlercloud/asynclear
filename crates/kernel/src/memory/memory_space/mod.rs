@@ -1,6 +1,6 @@
+use alloc::{collections::BTreeMap, vec, vec::Vec};
 use core::ops::Range;
 
-use alloc::{collections::BTreeMap, vec, vec::Vec};
 use bitflags::bitflags;
 use common::config::{MEMORY_END, MMIO, PA_TO_VA};
 use compact_str::CompactString;
@@ -17,7 +17,6 @@ use self::{
     init_stack::{StackInitCtx, AT_PAGESZ},
     vm_area::FramedVmArea,
 };
-
 use super::{
     kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
@@ -242,8 +241,8 @@ impl MemorySpace {
     }
 
     // /// 需保证 `heap_start` < `new_vpn`，且还有足够的虚地址和物理空间可以映射
-    // pub fn set_user_brk(&mut self, new_end: VirtPageNum, heap_start: VirtPageNum) {
-    //     // 堆区已经映射过了，就扩张或者收缩。否则插入堆区
+    // pub fn set_user_brk(&mut self, new_end: VirtPageNum, heap_start: VirtPageNum)
+    // {     // 堆区已经映射过了，就扩张或者收缩。否则插入堆区
     //     if let Some(map_area) = self.areas.get_mut(&heap_start) {
     //         let curr_vpn = map_area.end();
     //         if curr_vpn >= new_end {
@@ -269,7 +268,8 @@ impl MemorySpace {
     ) -> KResult<isize> {
         todo!("[mid] impl mmap with page cache")
         // if fixed {
-        //     // TODO: 应当 unmap 与其相交的部分。不过，如果是一些不该 unmap 的区域，是否该返回错误？
+        //     // TODO: 应当 unmap 与其相交的部分。不过，如果是一些不该 unmap
+        // 的区域，是否该返回错误？
         //     self.insert_framed_area(va_range.start, va_range.end, perm);
         //     Ok(va_range.start.0 as isize)
         // } else {

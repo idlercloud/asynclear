@@ -37,7 +37,8 @@ impl<T> SpinMutex<T> {
 }
 
 impl<T: ?Sized> SpinMutex<T> {
-    /// Locks the [`SpinMutex`] and returns a guard that permits access to the inner data.
+    /// Locks the [`SpinMutex`] and returns a guard that permits access to the
+    /// inner data.
     ///
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
@@ -71,8 +72,10 @@ impl<T: ?Sized> SpinMutex<T> {
     ///
     /// # Safety
     ///
-    /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
-    /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
+    /// This function provides no synchronization guarantees and so its result
+    /// should be considered 'out of date' the instant it is called. Do not
+    /// use it for synchronization purposes. However, it may be useful as a
+    /// heuristic.
     #[inline(always)]
     fn is_locked(&self) -> bool {
         self.base.is_locked()
@@ -87,6 +90,7 @@ impl<T: ?Sized> SpinMutex<T> {
 
 impl<'a, T: ?Sized> Deref for SpinMutexGuard<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         // We know statically that only we are referencing data
         &self.inner
@@ -129,7 +133,8 @@ impl<T> SpinNoIrqMutex<T> {
 }
 
 impl<T: ?Sized> SpinNoIrqMutex<T> {
-    /// Locks the [`SpinNoIrqMutex`] and returns a guard that permits access to the inner data.
+    /// Locks the [`SpinNoIrqMutex`] and returns a guard that permits access to
+    /// the inner data.
     ///
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
@@ -163,8 +168,10 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     ///
     /// # Safety
     ///
-    /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
-    /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
+    /// This function provides no synchronization guarantees and so its result
+    /// should be considered 'out of date' the instant it is called. Do not
+    /// use it for synchronization purposes. However, it may be useful as a
+    /// heuristic.
     #[inline(always)]
     fn is_locked(&self) -> bool {
         self.base.is_locked()
@@ -185,6 +192,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
 
 impl<'a, T: ?Sized> Deref for SpinNoIrqMutexGuard<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         // We know statically that only we are referencing data
         &self.spin_guard
@@ -208,11 +216,11 @@ impl<'a, T: ?Sized> Drop for SpinNoIrqMutexGuard<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use std::prelude::v1::*;
-
-    use std::sync::mpsc::channel;
-    use std::sync::Arc;
-    use std::thread;
+    use std::{
+        prelude::v1::*,
+        sync::{mpsc::channel, Arc},
+        thread,
+    };
 
     type SpinMutex<T> = super::SpinMutex<T>;
 
@@ -455,8 +463,8 @@ mod tests {
 // }
 
 // impl<T: ?Sized> SpinMutex<T> {
-//     /// Locks the [`SpinMutex`] and returns a guard that permits access to the inner data.
-//     ///
+//     /// Locks the [`SpinMutex`] and returns a guard that permits access to
+// the inner data.     ///
 //     /// The returned value may be dereferenced for data access
 //     /// and the lock will be dropped when the guard falls out of scope.
 //     ///
@@ -473,12 +481,12 @@ mod tests {
 //     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
 //         #[cfg(debug_assertions)]
 //         let begin = riscv_time::get_time_ms();
-//         // Can fail to lock even if the spinlock is not locked. May be more efficient than `try_lock`
-//         // when called in a loop.
+//         // Can fail to lock even if the spinlock is not locked. May be more
+// efficient than `try_lock`         // when called in a loop.
 //         while self
 //             .locked
-//             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-//             .is_err()
+//             .compare_exchange_weak(false, true, Ordering::Acquire,
+// Ordering::Relaxed)             .is_err()
 //         {
 //             // Wait until the lock looks unlocked before retrying
 //             while self.is_locked() {
@@ -497,9 +505,10 @@ mod tests {
 //     ///
 //     /// # Safety
 //     ///
-//     /// This function provides no synchronization guarantees and so its result should be considered 'out of date'
-//     /// the instant it is called. Do not use it for synchronization purposes. However, it may be useful as a heuristic.
-//     #[inline(always)]
+//     /// This function provides no synchronization guarantees and so its
+// result should be considered 'out of date'     /// the instant it is called.
+// Do not use it for synchronization purposes. However, it may be useful as a
+// heuristic.     #[inline(always)]
 //     pub fn is_locked(&self) -> bool {
 //         self.locked.load(Ordering::Relaxed)
 //     }
@@ -524,8 +533,8 @@ mod tests {
 //         // https://github.com/Amanieu/parking_lot/pull/207#issuecomment-575869107
 //         if self
 //             .locked
-//             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-//             .is_ok()
+//             .compare_exchange(false, true, Ordering::Acquire,
+// Ordering::Relaxed)             .is_ok()
 //         {
 //             Some(SpinMutexGuard { lock: self })
 //         } else {
@@ -535,9 +544,10 @@ mod tests {
 
 //     /// Returns a mutable reference to the underlying data.
 //     ///
-//     /// Since this call borrows the [`SpinMutex`] mutably, and a mutable reference is guaranteed to be exclusive in
-//     /// Rust, no actual locking needs to take place -- the mutable borrow statically guarantees no locks exist. As
-//     /// such, this is a 'zero-cost' operation.
+//     /// Since this call borrows the [`SpinMutex`] mutably, and a mutable
+// reference is guaranteed to be exclusive in     /// Rust, no actual locking
+// needs to take place -- the mutable borrow statically guarantees no locks
+// exist. As     /// such, this is a 'zero-cost' operation.
 //     ///
 //     /// # Example
 //     ///
@@ -548,8 +558,8 @@ mod tests {
 //     /// ```
 //     #[inline(always)]
 //     pub fn get_mut(&mut self) -> &mut T {
-//         // We know statically that there are no other references to `self`, so
-//         // there's no need to lock the inner mutex.
+//         // We know statically that there are no other references to `self`,
+// so         // there's no need to lock the inner mutex.
 //         unsafe { &mut *self.data.get() }
 //     }
 // }
@@ -603,8 +613,8 @@ mod tests {
 // }
 
 // impl<'a, T: ?Sized> Drop for SpinMutexGuard<'a, T> {
-//     /// The dropping of the MutexGuard will release the lock it was created from.
-//     fn drop(&mut self) {
+//     /// The dropping of the MutexGuard will release the lock it was created
+// from.     fn drop(&mut self) {
 //         self.lock.locked.store(false, Ordering::Release);
 //     }
 // }

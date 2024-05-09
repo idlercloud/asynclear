@@ -1,17 +1,16 @@
 #[cfg(feature = "profiling")]
 mod profiling;
 
-#[cfg(feature = "profiling")]
-pub use profiling::report_profiling;
-
 use core::{fmt::Write, num::NonZeroU32};
-#[cfg(feature = "profiling")]
-use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use anstyle::{AnsiColor, Reset};
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
+#[cfg(feature = "profiling")]
+pub use profiling::report_profiling;
 use slab::Slab;
+#[cfg(feature = "profiling")]
+use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 use crate::{hart::local_hart, uart_console::STDOUT};
 

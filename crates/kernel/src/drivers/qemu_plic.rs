@@ -52,11 +52,13 @@ impl Plic {
 
     /// Sets priority for interrupt `source` to `value`.
     ///
-    /// Write `0` to priority `value` effectively disables this interrupt `source`, for the priority
-    /// value 0 is reserved for "never interrupt" by the PLIC specification.
+    /// Write `0` to priority `value` effectively disables this interrupt
+    /// `source`, for the priority value 0 is reserved for "never interrupt"
+    /// by the PLIC specification.
     ///
-    /// The lowest active priority is priority `1`. The maximum priority depends on PLIC implementation
-    /// and can be detected with [`Plic::probe_priority_bits`].
+    /// The lowest active priority is priority `1`. The maximum priority depends
+    /// on PLIC implementation and can be detected with
+    /// [`Plic::probe_priority_bits`].
     ///
     /// See §4.
     #[inline]
@@ -169,9 +171,10 @@ impl Plic {
 
     /// Claim an interrupt in `context`, returning its source.
     ///
-    /// It is always legal for a hart to perform a claim even if `EIP` is not set.
-    /// A hart could set threshold to maximum to disable interrupt notification, but it does not mean
-    /// interrupt source has stopped to send interrupt signals. In this case, hart would instead
+    /// It is always legal for a hart to perform a claim even if `EIP` is not
+    /// set. A hart could set threshold to maximum to disable interrupt
+    /// notification, but it does not mean interrupt source has stopped to
+    /// send interrupt signals. In this case, hart would instead
     /// poll for active interrupt by periodically calling the `claim` function.
     ///
     /// See §8.

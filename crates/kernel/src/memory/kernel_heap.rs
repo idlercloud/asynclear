@@ -7,7 +7,8 @@ use buddy_system_allocator::Heap;
 use common::config::KERNEL_HEAP_SIZE;
 use klocks::SpinNoIrqMutex;
 
-// TODO: `buddy_system_allocator` 的 order 直接设为 32 了，是否有可能超出了，对性能会有影响吗？
+// TODO: `buddy_system_allocator` 的 order 直接设为 32
+// 了，是否有可能超出了，对性能会有影响吗？
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap(SpinNoIrqMutex::new(Heap::<32>::new()));
 

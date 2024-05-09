@@ -17,8 +17,8 @@ use crate::{
 // ///
 // /// 参数：
 // /// - `fd` 文件描述符
-// /// - `request` 请求码，其含义依赖于设备。包含参数是入参还是出参，以及 argp 指向的大小
-// /// - `argp` 一个指针
+// /// - `request` 请求码，其含义依赖于设备。包含参数是入参还是出参，以及 argp
+// 指向的大小 /// - `argp` 一个指针
 // ///
 // /// 参考：<https://man7.org/linux/man-pages/man2/ioctl.2.html>
 // pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> Result {
@@ -41,8 +41,8 @@ use crate::{
 
 //     // let absolute_path = path_with_fd(dirfd, path)?;
 //     // // FIXME: 目前这个语义是错误的，创建目录要抽象出另一个函数来
-//     // let inode = open_file(absolute_path, OpenFlags::O_CREAT | OpenFlags::O_DIRECTORY)?;
-//     // let process = curr_process();
+//     // let inode = open_file(absolute_path, OpenFlags::O_CREAT |
+// OpenFlags::O_DIRECTORY)?;     // let process = curr_process();
 //     // let mut inner = process.inner();
 //     // let fd = inner.alloc_fd();
 //     // inner.fd_table[fd] = Some(Arc::new(inode));
@@ -61,7 +61,8 @@ fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
     }
 }
 
-/// 从 `fd` 指示的文件中读至多 `len` 字节的数据到用户缓冲区中。成功时返回读入的字节数
+/// 从 `fd` 指示的文件中读至多 `len`
+/// 字节的数据到用户缓冲区中。成功时返回读入的字节数
 ///
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
@@ -103,8 +104,8 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 
 // /// 从 fd 中读入数据，写入多个用户缓冲区中。
 // ///
-// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行读操作，
-// /// 这一个系统调用也会读入一块连续的区域。目前未实现。
+// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd
+// 进行读操作， /// 这一个系统调用也会读入一块连续的区域。目前未实现。
 // ///
 // /// 参数：
 // /// - `fd` 指定文件描述符
@@ -128,8 +129,8 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 
 // /// 向 fd 中写入数据，数据来自多个用户缓冲区。
 // ///
-// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行写操作，
-// /// 这一个系统调用也会写入一块连续的区域。目前未实现。
+// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd
+// 进行写操作， /// 这一个系统调用也会写入一块连续的区域。目前未实现。
 // ///
 // /// 参数：
 // /// - `fd` 指定文件描述符
@@ -151,7 +152,8 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 //     todo!("[blocked] sys_writev")
 // }
 
-/// 打开指定的文件。返回非负的文件描述符，这个文件描述符一定是当前进程尚未打开的最小的那个
+/// 打开指定的文件。返回非负的文件描述符，
+/// 这个文件描述符一定是当前进程尚未打开的最小的那个
 ///
 /// 参数：
 /// - `dir_fd` 与 `path` 组合形成最终的路径。
@@ -272,7 +274,8 @@ pub fn sys_close(fd: usize) -> KResult {
     }
 
     // TODO: [low] 还要释放相关的记录锁
-    // TODO: [mid] 如果文件被 `unlink()` 了且当前 fd 是最后一个引用该文件的，则要删除该文件
+    // TODO: [mid] 如果文件被 `unlink()` 了且当前 fd
+    // 是最后一个引用该文件的，则要删除该文件
 
     Ok(0)
 }
@@ -280,18 +283,18 @@ pub fn sys_close(fd: usize) -> KResult {
 // /// 创建管道，返回 0
 // ///
 // /// 参数
-// /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
-// pub fn sys_pipe2(filedes: *mut i32) -> Result {
-//     // let filedes = unsafe { check_slice_mut(filedes, 2)? };
-//     // let process = curr_process();
+// /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]`
+// 为管道的读出端，`filedes[1]` 为管道的写入端。 pub fn sys_pipe2(filedes: *mut
+// i32) -> Result {     // let filedes = unsafe { check_slice_mut(filedes, 2)?
+// };     // let process = curr_process();
 //     // let mut inner = process.inner();
 //     // let (pipe_read, pipe_write) = make_pipe();
 //     // let read_fd = inner.alloc_fd();
-//     // inner.fd_table[read_fd] = Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));
-//     // let write_fd = inner.alloc_fd();
-//     // inner.fd_table[write_fd] = Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));
-//     // info!("read_fd {read_fd}, write_fd {write_fd}");
-//     // filedes[0] = read_fd as i32;
+//     // inner.fd_table[read_fd] =
+// Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));     // let
+// write_fd = inner.alloc_fd();     // inner.fd_table[write_fd] =
+// Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));     // info!("
+// read_fd {read_fd}, write_fd {write_fd}");     // filedes[0] = read_fd as i32;
 //     // filedes[1] = write_fd as i32;
 //     // Ok(0)
 //     todo!("[blocked] sys_pipe2")
@@ -370,8 +373,8 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 //     //         let file = Arc::clone(file);
 //     //         let new_fd = inner.alloc_fd_from(arg);
 //     //         info!(
-//     //             "sys_fcntl64: dup fd {fd}({}) to {new_fd}, with set_close_on_exec = {}",
-//     //             file.debug_name(),
+//     //             "sys_fcntl64: dup fd {fd}({}) to {new_fd}, with
+// set_close_on_exec = {}",     //             file.debug_name(),
 //     //             cmd == F_DUPFD_CLOEXEC
 //     //         );
 //     //         if cmd == F_DUPFD_CLOEXEC {
@@ -422,9 +425,9 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 //     //     return Err(errno::UNSUPPORTED);
 //     // }
 //     // let new_fd = inner.alloc_fd();
-//     // inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
-//     // Ok(new_fd as isize)
-//     todo!("[blocked] sys_dup")
+//     // inner.fd_table[new_fd] =
+// Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));     // Ok(new_fd as
+// isize)     todo!("[blocked] sys_dup")
 // }
 
 // pub fn sys_dup3(old: usize, new: usize) -> Result {
@@ -439,13 +442,13 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 //     if inner.fd_table[old].is_none() {
 //         return Err(errno::UNSUPPORTED);
 //     }
-//     inner.fd_table[new] = Some(Arc::clone(inner.fd_table[old].as_ref().unwrap()));
-//     Ok(new as isize)
+//     inner.fd_table[new] =
+// Some(Arc::clone(inner.fd_table[old].as_ref().unwrap()));     Ok(new as isize)
 // }
 
 // /// TODO: 写 sys_fstatat 的文档
-// pub fn sys_fstatat(dir_fd: usize, file_name: *const u8, statbuf: *mut Stat, flag: usize) -> Result {
-//     // TODO: 暂时先不考虑 fstatat 的 flags
+// pub fn sys_fstatat(dir_fd: usize, file_name: *const u8, statbuf: *mut Stat,
+// flag: usize) -> Result {     // TODO: 暂时先不考虑 fstatat 的 flags
 //     assert_eq!(flag, 0);
 //     let file_name = unsafe { check_cstr(file_name)? };
 //     info!("fstatat {dir_fd}, {file_name}");

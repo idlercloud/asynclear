@@ -183,7 +183,8 @@ impl UserCheck<u8> {
     }
 }
 
-// NOTE: UserConst 和 UserMut 的 Deref 和 DerefMut 不知道应不应该实现，其实很可能不是 safe 的
+// NOTE: UserConst 和 UserMut 的 Deref 和 DerefMut
+// 不知道应不应该实现，其实很可能不是 safe 的
 
 pub struct UserConst<T: ?Sized> {
     ptr: *const T,
@@ -192,6 +193,7 @@ pub struct UserConst<T: ?Sized> {
 
 impl<T: ?Sized> Deref for UserConst<T> {
     type Target = T;
+
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
@@ -204,6 +206,7 @@ pub struct UserMut<T: ?Sized> {
 
 impl<T: ?Sized> Deref for UserMut<T> {
     type Target = T;
+
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }

@@ -1,7 +1,8 @@
 #![no_std]
 #![feature(negative_impls)]
 
-// FIXME: 这些 guard 都要求 guard 的创建和析构呈严格栈结构，否则会有问题，需要改进
+// FIXME: 这些 guard 都要求 guard
+// 的创建和析构呈严格栈结构，否则会有问题，需要改进
 
 use riscv::register::sstatus;
 

@@ -11,10 +11,9 @@ const CR: u8 = 0x0du8;
 const DL: u8 = 0x7fu8;
 const BS: u8 = 0x08u8;
 
-use alloc::string::String;
-use alloc::vec::Vec;
-use user::console::getchar;
-use user::{exec, flush, fork, waitpid};
+use alloc::{string::String, vec::Vec};
+
+use user::{console::getchar, exec, flush, fork, waitpid};
 
 #[no_mangle]
 pub fn main() -> i32 {

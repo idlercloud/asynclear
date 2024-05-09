@@ -1,10 +1,12 @@
-use crate::span::Span;
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
+
 use pin_project::pin_project;
+
+use crate::span::Span;
 
 pub trait Instrument: Future + Sized {
     fn instrument(self, span: Span) -> impl Future<Output = Self::Output> {

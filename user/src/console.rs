@@ -1,6 +1,6 @@
-use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use core::fmt::{self, Write};
+
 use spin::{mutex::Mutex, Lazy};
 
 pub const STDIN: usize = 0;

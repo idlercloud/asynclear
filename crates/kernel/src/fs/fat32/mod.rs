@@ -16,6 +16,7 @@ use defines::error::{errno, KResult};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
+use super::FileSystem;
 use crate::{
     drivers::qemu_block::DiskDriver,
     fs::{
@@ -25,8 +26,6 @@ use crate::{
     },
     hart::local_hart,
 };
-
-use super::FileSystem;
 
 const SECTOR_SIZE: usize = 512;
 const BOOT_SECTOR_ID: usize = 0;

@@ -33,6 +33,7 @@ impl TtyFuture {
 
 impl Future for TtyFuture {
     type Output = KResult<usize>;
+
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;

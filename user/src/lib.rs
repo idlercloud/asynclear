@@ -11,14 +11,16 @@ mod syscall;
 
 extern crate alloc;
 
+use alloc::vec::Vec;
 use core::arch::asm;
 
-use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
 use defines::signal::{KSignalAction, Signal, SignalActionFlags};
 
-pub use self::console::{flush, STDIN, STDOUT};
-pub use self::syscall::*;
+pub use self::{
+    console::{flush, STDIN, STDOUT},
+    syscall::*,
+};
 
 const USER_HEAP_SIZE: usize = 16384;
 
@@ -203,7 +205,8 @@ pub fn sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignal
     }
 }
 
-/// 用于 `KSignalAction` 的 restorer 字段。它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
+/// 用于 `KSignalAction` 的 restorer
+/// 字段。它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
 #[naked]
 unsafe extern "C" fn signal_restorer() {
     unsafe {

@@ -9,15 +9,15 @@ mod page_cache;
 mod stdio;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
+
 use compact_str::{CompactString, ToCompactString};
 use defines::error::{errno, KResult};
+pub use dentry::{DEntry, DEntryDir, DEntryPaged};
+pub use file::{FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 
 use crate::{drivers::qemu_block::BLOCK_DEVICE, uart_console::println};
-
-pub use dentry::{DEntry, DEntryDir, DEntryPaged};
-pub use file::{FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 
 pub fn init() {
     Lazy::force(&VFS);
@@ -88,7 +88,8 @@ pub struct PathToInode {
 /// 1. "/"，如 open("/")，返回 root_dir, None。调用者自己需要特判？
 /// 2. "/xxx"，返回 dir, Some(last_component)
 /// 3. 某个中间的 component 不存在，则返回 ENOENT
-/// 4. 某个中间的 component 存在但不是目录（即使后面跟的是 `..` 或 `.`），则返回 ENOTDIR
+/// 4. 某个中间的 component 存在但不是目录（即使后面跟的是 `..` 或 `.`），则返回
+///    ENOTDIR
 pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {
     debug!(
         "walk path: {path}, from {}",

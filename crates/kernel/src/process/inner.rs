@@ -1,12 +1,13 @@
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::ops::Range;
 
-use alloc::{collections::BTreeMap, vec::Vec};
 use compact_str::CompactString;
 use defines::signal::{KSignalSet, Signal};
 use idallocator::RecycleAllocator;
 use memory::{MemorySpace, VirtAddr};
 use triomphe::Arc;
 
+use super::Process;
 use crate::{
     fs::{DEntryDir, FdTable},
     memory,
@@ -14,14 +15,12 @@ use crate::{
     thread::Thread,
 };
 
-use super::Process;
-
 pub struct ProcessInner {
-    /* 这里添加的资源都需要考虑在 `exit_thread` 和 `sys_wait4` 时候释放 */
-    /* 以及在 `Process:from_path()`、`Process::clone()`、`Process::exec()` 时初始化 */
+    // 这里添加的资源都需要考虑在 `exit_thread` 和 `sys_wait4` 时候释放 */
+    // 以及在 `Process:from_path()`、`Process::clone()`、`Process::exec()` 时初始化
     pub name: CompactString,
 
-    /* 地址空间 */
+    // 地址空间
     pub memory_space: MemorySpace,
     /// 用户堆的范围。
     ///
@@ -30,19 +29,19 @@ pub struct ProcessInner {
     /// `heap_range.end` 即 brk，由 `sys_brk` 系统调用控制
     pub heap_range: Range<VirtAddr>,
 
-    /* 进程 */
+    // 进程
     pub parent: Option<Arc<Process>>,
     pub children: Vec<Arc<Process>>,
     /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`）
     pub cwd: Arc<DEntryDir>,
 
-    /* 文件 */
+    // 文件
     pub fd_table: FdTable,
 
-    /* 信号 */
+    // 信号
     pub signal_handlers: SignalHandlers,
 
-    /* 线程 */
+    // 线程
     pub tid_allocator: RecycleAllocator,
     pub threads: BTreeMap<usize, Arc<Thread>>,
 }
@@ -56,10 +55,10 @@ impl ProcessInner {
     // pub fn alloc_fd_from(&mut self, min: usize) -> usize {
     //     if min > self.fd_table.len() {
     //         self.fd_table
-    //             .extend(core::iter::repeat(None).take(min - self.fd_table.len()));
-    //     }
-    //     if let Some(fd) = (min..self.fd_table.len()).find(|fd| self.fd_table[*fd].is_none()) {
-    //         fd
+    //             .extend(core::iter::repeat(None).take(min -
+    // self.fd_table.len()));     }
+    //     if let Some(fd) = (min..self.fd_table.len()).find(|fd|
+    // self.fd_table[*fd].is_none()) {         fd
     //     } else {
     //         self.fd_table.push(None);
     //         self.fd_table.len() - 1

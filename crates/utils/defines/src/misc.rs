@@ -2,7 +2,8 @@
 
 use core::time::Duration;
 
-/// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65 字节长
+/// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65
+/// 字节长
 #[repr(C)]
 pub struct UtsName {
     /// 系统名称
@@ -81,12 +82,14 @@ pub struct Dirent64 {
     pub d_ino: u64,
     /// d_off 中返回的值与在目录流中的当前位置调用 telldir(3) 返回的值相同
     ///
-    /// 但在现代文件系统上可能并不是目录偏移量。因此应用程序应该忽略这个字段，不依赖于它
+    /// 但在现代文件系统上可能并不是目录偏移量。因此应用程序应该忽略这个字段，
+    /// 不依赖于它
     pub d_off: u64,
     /// 这个 Dirent64 本身的大小
     pub d_reclen: u16,
     /// 文件类型
     pub d_type: u8,
-    /// 文件名。实际上是一个 null terminated 的不定长字符串，在 `\0` 之前至多有 `NAME_MAX` 个字符
+    /// 文件名。实际上是一个 null terminated 的不定长字符串，在 `\0` 之前至多有
+    /// `NAME_MAX` 个字符
     pub d_name: [u8; NAME_MAX + 1],
 }

@@ -10,12 +10,11 @@ use futures::future::BoxFuture;
 use klocks::{RwLock, SpinMutex};
 use triomphe::Arc;
 
-use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time::curr_time};
-
 use super::{
     dentry::DEntryDir,
     page_cache::{BackedPage, PageCache},
 };
+use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time::curr_time};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 

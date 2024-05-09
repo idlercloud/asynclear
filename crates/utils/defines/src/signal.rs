@@ -100,7 +100,8 @@ impl From<Signal> for KSignalSet {
     }
 }
 
-/// 注意，和 linux 不同，信号的编号从 0 开始而非从 1 开始。因此在一些系统调用上应当将传入的值减 1
+/// 注意，和 linux 不同，信号的编号从 0 开始而非从 1
+/// 开始。因此在一些系统调用上应当将传入的值减 1
 #[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
 #[repr(u8)]
 #[allow(clippy::upper_case_acronyms)]

@@ -1,6 +1,6 @@
-use klocks::SpinNoIrqMutex;
-
 use core::fmt::{Arguments, Result, Write};
+
+use klocks::SpinNoIrqMutex;
 
 use crate::drivers::qemu_uart::UART0;
 

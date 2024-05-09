@@ -9,9 +9,8 @@ use core::{
 
 use compact_str::CompactString;
 
-use crate::{Level, KERNLE_TRACER};
-
 use self::loggable::Loggable;
+use crate::{Level, KERNLE_TRACER};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SpanId(NonZeroU32);

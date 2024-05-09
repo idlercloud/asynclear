@@ -1,10 +1,9 @@
 mod context;
 mod kernel_trap;
 
-pub use context::TrapContext;
-
 use core::ops::ControlFlow;
 
+pub use context::TrapContext;
 use defines::{
     error::errno,
     signal::{KSignalSet, Signal, SignalActionFlags},
@@ -111,7 +110,8 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             let thread = local_hart().curr_thread();
             {
                 let inner = thread.lock_inner();
-                // .lock_inner_with(|inner| (inner.trap_context.user_regs, inner.trap_context.sepc));
+                // .lock_inner_with(|inner| (inner.trap_context.user_regs,
+                // inner.trap_context.sepc));
                 info!("regs: {:x?}", inner.trap_context.user_regs);
                 error!(
                     "IllegalInstruction(pc={:#x}) in application, core dumped.",

@@ -7,7 +7,8 @@ use std::{
 use clap::Parser;
 use serde_json::{json, Map};
 
-/// 从内核日志的 profiling report 中进行分析，并输出 Google Trace Event 格式的记录
+/// 从内核日志的 profiling report 中进行分析，并输出 Google Trace Event
+/// 格式的记录
 #[derive(Parser)]
 pub struct ProfilingArgs {
     /// 输入的 Log 文件的路径

@@ -1,8 +1,8 @@
 //! Process management syscalls
 
+use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
-use alloc::vec::Vec;
 use atomic::Ordering;
 use common::constant::{MICRO_PER_SEC, NANO_PER_SEC};
 use compact_str::CompactString;
@@ -64,7 +64,8 @@ pub fn sys_getppid() -> KResult {
 /// TODO: 完善 `sys_clone()` 及文档
 ///
 /// 参数：
-/// - `flags` 低八位 `exit_signal`，高位指定 clone 的方式。具体参看 [`CloneFlags`]
+/// - `flags` 低八位 `exit_signal`，高位指定 clone 的方式。具体参看
+///   [`CloneFlags`]
 /// - `user_stack` 指定用户栈的
 pub fn sys_clone(
     flags: usize,
@@ -137,7 +138,8 @@ pub fn sys_clone(
     }
 }
 
-/// 将当前进程的地址空间清空并加载一个特定的可执行文件，返回用户态后开始它的执行。返回参数个数
+/// 将当前进程的地址空间清空并加载一个特定的可执行文件，
+/// 返回用户态后开始它的执行。返回参数个数
 ///
 /// 参数：
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
@@ -166,17 +168,21 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
     Ok(argc as isize)
 }
 
-/// 挂起本线程，等待子进程改变状态（终止、或信号处理）。默认而言，会阻塞式等待子进程终止。
+/// 挂起本线程，等待子进程改变状态（终止、或信号处理）。默认而言，
+/// 会阻塞式等待子进程终止。
 ///
-/// 若成功，返回子进程 pid，若 `options` 指定了 WNOHANG 且子线程存在但状态为改变，则返回 0
+/// 若成功，返回子进程 pid，若 `options` 指定了 WNOHANG
+/// 且子线程存在但状态为改变，则返回 0
 ///
 /// 参数：
 /// - `pid` 要等待的 pid
 ///     - `pid` < -1，则等待一个 pgid 为 `pid` 绝对值的子进程，目前不支持
 ///     - `pid` == -1，则等待任意一个子进程
-///     - `pid` == 0，则等待一个 pgid 与调用进程**调用时**的 pgid 相同的子进程，目前不支持
+///     - `pid` == 0，则等待一个 pgid 与调用进程**调用时**的 pgid
+///       相同的子进程，目前不支持
 ///     - `pid` > 0，则等待指定 `pid` 的子进程
-/// - `wstatus: *mut i32` 指向一个 int，若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
+/// - `wstatus: *mut i32` 指向一个
+///   int，若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
 /// - `options` 控制等待方式，详细查看 [`WaitFlags`]，目前只支持 `WNOHANG`
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
 pub async fn sys_wait4(
@@ -315,18 +321,22 @@ pub fn sys_times(tms: *mut Tms) -> KResult {
 
 /// 映射虚拟内存。返回实际映射的地址。
 ///
-/// `addr` 若是 NULL，那么内核会自动选择一个按页对齐的地址进行映射，这也是比较可移植的方式。
+/// `addr` 若是 NULL，那么内核会自动选择一个按页对齐的地址进行映射，
+/// 这也是比较可移植的方式。
 ///
-/// `addr` 若有指定地址，那么内核会尝试在最近的页边界上映射，但如果已经被映射过了，
-/// 就挑选一个新的地址。该新地址可能参考也可能不参考 `addr`。
+/// `addr` 若有指定地址，那么内核会尝试在最近的页边界上映射，
+/// 但如果已经被映射过了， 就挑选一个新的地址。该新地址可能参考也可能不参考
+/// `addr`。
 ///
-/// 如果映射文件，那么会以该文件 (`fd`) `offset` 开始处的 `len` 个字节初始化映射内容。
+/// 如果映射文件，那么会以该文件 (`fd`) `offset` 开始处的 `len`
+/// 个字节初始化映射内容。
 ///
 /// `mmap()` 返回之后，就算 `fd` 指向的文件被立刻关闭，也不会影响映射的结果
 ///
 /// `prot` 要么是 `PROT_NONE`，要么是多个标志位的或。
 ///
-/// `flags` 决定该映射是否对其他映射到同一区域的进程可见，以及更新是否会同步到底层文件上。
+/// `flags` 决定该映射是否对其他映射到同一区域的进程可见，
+/// 以及更新是否会同步到底层文件上。
 ///
 /// 参数：
 /// - `addr` 映射的目标地址。
@@ -384,13 +394,13 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
     todo!("[blocked] sys_munmap")
 }
 
-// /// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的 tid。
-// ///
+// /// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的
+// tid。 ///
 // /// 参数：
 // /// - `tidptr`
 // pub fn sys_set_tid_address(tidptr: *const i32) -> Result {
-//     // NOTE: 在 linux 手册中，`tidptr` 的类型是 int*。这里设置为 i32，是参考 libc crate 设置 c_int=i32
-//     let thread = curr_task().unwrap();
+//     // NOTE: 在 linux 手册中，`tidptr` 的类型是 int*。这里设置为 i32，是参考
+// libc crate 设置 c_int=i32     let thread = curr_task().unwrap();
 //     let mut inner = thread.inner();
 //     inner.clear_child_tid = tidptr as usize;
 //     Ok(inner.res.as_ref().unwrap().tid as isize)
@@ -399,8 +409,8 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
 
 // /// 将 program break 设置为 `brk`。高于当前堆顶会分配空间，低于则会释放空间。
 // ///
-// /// `brk` 为 0 时返回当前堆顶地址。设置成功时返回新的 brk，设置失败返回原来的 brk
-// ///
+// /// `brk` 为 0 时返回当前堆顶地址。设置成功时返回新的 brk，设置失败返回原来的
+// brk ///
 // /// 参数：
 // /// - `brk` 希望设置的 program break 值
 // pub fn sys_brk(brk: usize) -> Result {
@@ -422,8 +432,8 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
 //     act: *const SignalAction,
 //     old_act: *mut SignalAction,
 // ) -> Result {
-//     let signal = Signal::try_from_primitive(signum as u8).or(Err(errno::EINVAL))?;
-//     // `SIGKILL` 和 `SIGSTOP` 的行为不可修改
+//     let signal = Signal::try_from_primitive(signum as
+// u8).or(Err(errno::EINVAL))?;     // `SIGKILL` 和 `SIGSTOP` 的行为不可修改
 //     if matches!(signal, Signal::SIGKILL | Signal::SIGSTOP) {
 //         return Err(errno::EINVAL);
 //     }
@@ -446,13 +456,13 @@ pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
 // /// 修改当前线程的信号掩码，返回 0
 // ///
 // /// 参数：
-// /// - `how` 只应取 0(`SIG_BLOCK`)、1(`SIG_UNBLOCK`)、2(`SIG_SETMASK`)，表示函数的处理方式。
-// ///     - `SIG_BLOCK` 向掩码 bitset 中添入新掩码
-// ///     - `SIG_UNBLOCK` 从掩码 bitset 中取消掩码
-// ///     - `SIG_SETMASK` 直接设置掩码 bitset
-// /// - `set` 为空时，信号掩码不会被修改（无论 `how` 取何值）。其余时候则是新掩码参数，根据 `how` 进行设置
-// /// - `old_set` 非空时，将旧掩码的值放入其中
-// pub fn sys_sigprocmask(
+// /// - `how` 只应取
+// 0(`SIG_BLOCK`)、1(`SIG_UNBLOCK`)、2(`SIG_SETMASK`)，表示函数的处理方式。 ///
+// - `SIG_BLOCK` 向掩码 bitset 中添入新掩码 ///     - `SIG_UNBLOCK` 从掩码
+// bitset 中取消掩码 ///     - `SIG_SETMASK` 直接设置掩码 bitset
+// /// - `set` 为空时，信号掩码不会被修改（无论 `how`
+// 取何值）。其余时候则是新掩码参数，根据 `how` 进行设置 /// - `old_set`
+// 非空时，将旧掩码的值放入其中 pub fn sys_sigprocmask(
 //     how: usize,
 //     set: *const SignalSet,
 //     old_set: *mut SignalSet,

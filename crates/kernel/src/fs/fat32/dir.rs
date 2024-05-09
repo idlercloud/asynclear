@@ -4,6 +4,10 @@ use smallvec::SmallVec;
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
+use super::{
+    dir_entry::{DirEntry, DirEntryBuilder, DIR_ENTRY_SIZE},
+    fat::FileAllocTable,
+};
 use crate::{
     drivers::qemu_block::BLOCK_SIZE,
     fs::{
@@ -15,11 +19,6 @@ use crate::{
         },
     },
     hart::local_hart,
-};
-
-use super::{
-    dir_entry::{DirEntry, DirEntryBuilder, DIR_ENTRY_SIZE},
-    fat::FileAllocTable,
 };
 
 pub struct FatDir {

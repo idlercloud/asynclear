@@ -1,13 +1,13 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
 use alloc::vec::Vec;
+
 use bitflags::*;
 use common::config::{PAGE_SIZE, PTE_PER_PAGE};
 use riscv::register::satp;
 
-use crate::memory::{frame_allocator::Frame, MapPermission, PhysPageNum, VirtPageNum};
-
 use super::{flush_tlb, KERNEL_SPACE};
+use crate::memory::{frame_allocator::Frame, MapPermission, PhysPageNum, VirtPageNum};
 
 bitflags! {
     /// page table entry flags
@@ -43,16 +43,20 @@ impl PageTableEntry {
             bits: ppn.0 << 10 | flags.bits() as usize,
         }
     }
+
     pub fn empty() -> Self {
         PageTableEntry { bits: 0 }
     }
+
     pub fn ppn(&self) -> PhysPageNum {
         const LOW_44_MASK: usize = (1 << 44) - 1;
         PhysPageNum((self.bits >> 10) & LOW_44_MASK)
     }
+
     pub fn flags(&self) -> PTEFlags {
         PTEFlags::from_bits_truncate(self.bits as u16)
     }
+
     pub fn is_valid(&self) -> bool {
         self.flags().contains(PTEFlags::V)
     }

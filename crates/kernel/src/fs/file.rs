@@ -1,6 +1,6 @@
+use alloc::collections::BTreeMap;
 use core::ops::Deref;
 
-use alloc::collections::BTreeMap;
 use bitflags::bitflags;
 use defines::error::{errno, KResult};
 use klocks::SpinMutex;
@@ -135,6 +135,7 @@ impl FileDescriptor {
 
 impl Deref for FileDescriptor {
     type Target = File;
+
     fn deref(&self) -> &Self::Target {
         &self.file
     }

@@ -1,3 +1,4 @@
+use alloc::collections::BinaryHeap;
 use core::{
     cmp::{Ordering, Reverse},
     future::Future,
@@ -5,7 +6,6 @@ use core::{
     task::{Context, Poll, Waker},
 };
 
-use alloc::collections::BinaryHeap;
 use klocks::SpinNoIrqMutex;
 
 struct TimerFuture {
@@ -15,6 +15,7 @@ struct TimerFuture {
 
 impl Future for TimerFuture {
     type Output = ();
+
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.expire_ms > riscv_time::get_time_ms() {
             if !self.timer_activated {

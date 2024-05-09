@@ -1,17 +1,17 @@
 mod yield_now;
 
-pub use yield_now::yield_now;
-
 use core::{future::Future, task::Poll};
 
 use async_task::{Runnable, Task};
 use common::config::TASK_LIMIT;
 use heapless::mpmc::MpMcQueue;
 use klocks::Lazy;
+pub use yield_now::yield_now;
 
 static TASK_QUEUE: Lazy<TaskQueue> = Lazy::new(TaskQueue::new);
 
-/// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接 panic
+/// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接
+/// panic
 struct TaskQueue {
     queue: MpMcQueue<Runnable, TASK_LIMIT>,
 }
@@ -48,7 +48,8 @@ where
     F::Output: Send + 'static,
     A: Fn() + Send + Sync + 'static,
 {
-    // TODO: 现在这么操作用于让用户线程被调度时状态设为 `Ready`，其实可能可以有更好的方式
+    // TODO: 现在这么操作用于让用户线程被调度时状态设为
+    // `Ready`，其实可能可以有更好的方式
     async_task::spawn(future, move |runnable| {
         action();
         TASK_QUEUE.push_task(runnable);

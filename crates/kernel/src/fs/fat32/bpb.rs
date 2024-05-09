@@ -38,14 +38,17 @@ impl BiosParameterBlock {
                 self.offset += N;
                 self.src[self.offset - N..self.offset].try_into().unwrap()
             }
+
             fn read_u8(&mut self) -> u8 {
                 self.offset += 1;
                 self.src[self.offset - 1]
             }
+
             fn read_u16(&mut self) -> u16 {
                 self.offset += 2;
                 u16::from_le_bytes(self.src[self.offset - 2..self.offset].try_into().unwrap())
             }
+
             fn read_u32(&mut self) -> u32 {
                 self.offset += 4;
                 u32::from_le_bytes(self.src[self.offset - 4..self.offset].try_into().unwrap())
