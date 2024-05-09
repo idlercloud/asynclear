@@ -5,7 +5,6 @@ version = "Two"
 group_imports = "StdExternalCrate"
 imports_granularity = "Crate"
 
-wrap_comments = true
 normalize_comments = true
 
 reorder_impl_items = true
