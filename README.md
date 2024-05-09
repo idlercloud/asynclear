@@ -220,8 +220,6 @@ sudo make install
 
 按优先级排列：
 
-- [ ] 虚拟文件系统和页缓存
-- [ ] 添加 rustfmt.toml
 - [ ] 添加文件系统的测试，包括且不限于：多次打开同一文件、append、lseek 超出文件末尾后再写
 - [ ] CoW、Lazy Page
 - [ ] 用户堆分配 syscall 支持以及对应的用户测试
@@ -229,23 +227,6 @@ sudo make install
 - [ ] kernel 内容能否放入 huge page？
 
 rustfmt.toml 内容
-
-```toml
-unstable_features = true
-
-version = "Two"
-
-group_imports = "StdExternalCrate"
-imports_granularity = "Crate"
-
-wrap_comments = true
-normalize_comments = true
-
-reorder_impl_items = true
-condense_wildcard_suffixes = true
-use_field_init_shorthand = true
-format_macro_matchers = true
-```
 
 ## 参考资料
 
