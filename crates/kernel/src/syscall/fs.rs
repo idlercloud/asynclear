@@ -348,65 +348,76 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
     Ok((ptr as usize - range.start) as isize)
 }
 
-// /// 操控文件描述符
-// ///
-// /// 参数：
-// /// - `fd` 是指定的文件描述符
-// /// - `cmd` 指定需要进行的操作
-// /// - `arg` 是该操作可选的参数
-// pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> Result {
-//     // const F_DUPFD: usize = 0;
-//     // const F_GETFD: usize = 1;
-//     // const F_SETFD: usize = 2;
-//     // const F_DUPFD_CLOEXEC: usize = 1030;
+/// 操控文件描述符
+///
+/// 参数：
+/// - `fd` 是指定的文件描述符
+/// - `cmd` 指定需要进行的操作
+/// - `arg` 是该操作可选的参数
+pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
+    // 未说明返回值的命令成功时都返回 0
+    /// 复制该 fd 到大于等于 `arg` 的第一个可用 fd。成功后返回新的 fd
+    /// 同 `F_DUPFD`，不过为新 fd 设置 `CLOEXEC` 标志
+    const F_DUPFD_CLOEXEC: usize = 1030;
+    const F_DUPFD: usize = 0;
+    // 下面两个是文件描述符标志操作。目前只有一个 `FD_CLOEXEC` 标志
+    /// 返回文件描述符标志，`arg` 将被忽略
+    const F_GETFD: usize = 1;
+    /// 将文件描述符标志设置为 `arg` 指定的值
+    const F_SETFD: usize = 2;
+    // 下面两个是文件状态标志操作
+    // /// 返回文件访问模式和文件状态标志，`arg` 将被忽略
+    // const F_GETFL: i32 = 3;
+    // /// 将文件状态标志设置为 `arg` 指定的值。
+    // ///
+    // /// 在 Linux 上，此命令只能更改 `O_APPEND`、`O_ASYNC`、`O_DIRECT`、`O_NOATIME`` 和 `O_NONBLOCK` 标志。
+    // /// 无法更改 `O_DSYNC` 和 `O_SYNC` 标志。
+    // const F_SETFL: i32 = 4;
 
-//     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // let Some(Some(file)) = inner.fd_table.get(fd) else {
-//     //     return Err(errno::EBADF);
-//     // };
-//     // match cmd {
-//     //     F_DUPFD | F_DUPFD_CLOEXEC => {
-//     //         let file = Arc::clone(file);
-//     //         let new_fd = inner.alloc_fd_from(arg);
-//     //         info!(
-//     //             "sys_fcntl64: dup fd {fd}({}) to {new_fd}, with
-// set_close_on_exec = {}",     //             file.debug_name(),
-//     //             cmd == F_DUPFD_CLOEXEC
-//     //         );
-//     //         if cmd == F_DUPFD_CLOEXEC {
-//     //             file.set_close_on_exec(true);
-//     //         }
-//     //         inner.fd_table[new_fd] = Some(file);
-//     //         Ok(new_fd as isize)
-//     //     }
-//     //     F_GETFD => {
-//     //         info!(
-//     //             "sys_fcntl64: get the flag of fd {fd}({})",
-//     //             file.debug_name()
-//     //         );
-//     //         if file.status().contains(OpenFlags::O_CLOEXEC) {
-//     //             Ok(1)
-//     //         } else {
-//     //             Ok(0)
-//     //         }
-//     //     }
-//     //     F_SETFD => {
-//     //         info!(
-//     //             "sys_fcntl64: set the flag of fd {fd}({}) to {}",
-//     //             file.debug_name(),
-//     //             arg & 1 != 0
-//     //         );
-//     //         file.set_close_on_exec(arg & 1 != 0);
-//     //         Ok(0)
-//     //     }
-//     //     _ => {
-//     //         log::error!("unsupported cmd: {cmd}, with arg: {arg}");
-//     //         Err(errno::EINVAL)
-//     //     }
-//     // }
-//     todo!("[blocked] sys_fcntl64")
-// }
+    debug!("fd: {fd}, cmd: {cmd:#x}, arg: {arg:#x}");
+
+    let process = local_hart().curr_process();
+    let mut inner = process.lock_inner();
+
+    match cmd {
+        F_DUPFD | F_DUPFD_CLOEXEC => {
+            let mut desc = inner.fd_table.get(fd).ok_or(errno::EBADF)?.clone();
+            if cmd == F_DUPFD_CLOEXEC {
+                desc.set_close_on_exec(true);
+            }
+            let new_fd = inner.fd_table.add_from(desc, arg);
+            debug!(
+                "dup fd {fd}({}) to {new_fd}, with close_on_exec = {}",
+                inner.fd_table.get(new_fd).unwrap().meta().name(),
+                cmd == F_DUPFD_CLOEXEC
+            );
+            Ok(new_fd as isize)
+        }
+        F_GETFD => {
+            let desc = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
+            debug!("get the flag of fd {fd}({})", desc.meta().name());
+            if desc.flags().contains(OpenFlags::CLOEXEC) {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
+        }
+        F_SETFD => {
+            let desc = inner.fd_table.get_mut(fd).ok_or(errno::EBADF)?;
+            debug!(
+                "set the flag of fd {fd}({}) to {}",
+                desc.meta().name(),
+                arg & 1 != 0
+            );
+            desc.set_close_on_exec(arg & 1 != 0);
+            Ok(0)
+        }
+        _ => {
+            error!("unsupported cmd: {cmd}, with arg: {arg}");
+            Err(errno::EINVAL)
+        }
+    }
+}
 
 // /// 复制文件描述符，复制到当前进程最小可用 fd
 // ///
@@ -451,7 +462,7 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
     }
     let mut new_desc = desc.clone();
     if flags.contains(OpenFlags::CLOEXEC) {
-        new_desc.set_close_on_exec();
+        new_desc.set_close_on_exec(true);
     }
     inner.fd_table.insert(new_fd, new_desc);
     Ok(new_fd as isize)

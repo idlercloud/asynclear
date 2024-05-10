@@ -15,7 +15,7 @@ declare_syscall_id!(
     // GETCWD,             17,
     // DUP,                23,
     DUP3,               24,
-    // FCNTL64,            25,
+    FCNTL64,            25,
     IOCTL,              29,
     // MKDIRAT,            34,
     // UNLINKAT,           35,

@@ -46,10 +46,15 @@ impl FdTable {
         Self { files }
     }
 
-    /// 添加一个描述符，并返回其 fd
+    /// 找到最小可用的 fd，插入一个描述符，并返回该 fd
     pub fn add(&mut self, desc: FileDescriptor) -> usize {
+        self.add_from(desc, 0)
+    }
+
+    /// 找到自 `from` 最小可用的 fd，插入一个描述符，并返回该 fd
+    pub fn add_from(&mut self, desc: FileDescriptor, from: usize) -> usize {
         let mut new_fd = 0;
-        for &existed_fd in self.files.keys() {
+        for (&existed_fd, _) in self.files.range(from..) {
             if new_fd != existed_fd {
                 break;
             }
@@ -61,6 +66,10 @@ impl FdTable {
 
     pub fn get(&self, fd: usize) -> Option<&FileDescriptor> {
         self.files.get(&fd)
+    }
+
+    pub fn get_mut(&mut self, fd: usize) -> Option<&mut FileDescriptor> {
+        self.files.get_mut(&fd)
     }
 
     pub fn insert(&mut self, fd: usize, desc: FileDescriptor) -> Option<FileDescriptor> {
@@ -146,8 +155,12 @@ impl FileDescriptor {
         }
     }
 
-    pub fn set_close_on_exec(&mut self) {
-        self.flags |= OpenFlags::CLOEXEC;
+    pub fn set_close_on_exec(&mut self, set: bool) {
+        self.flags.set(OpenFlags::CLOEXEC, set);
+    }
+
+    pub fn flags(&self) -> OpenFlags {
+        self.flags
     }
 }
 

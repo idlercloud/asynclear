@@ -28,8 +28,8 @@ pub trait Tracer {
 
 #[inline]
 pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
-    let record = Record::new(level, args);
     if let Some(logger) = KERNLE_TRACER.get() {
+        let record = Record::new(level, args);
         if level <= crate::CLOG {
             logger.log_to_console(&record);
         }

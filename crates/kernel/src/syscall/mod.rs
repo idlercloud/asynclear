@@ -31,7 +31,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // GETCWD => sys_getcwd(args[0] as _, args[1]),
         // DUP => sys_dup(args[0]),
         DUP3 => sys_dup3(args[0], args[1], args[2] as _),
-        // FCNTL64 => sys_fcntl64(args[0], args[1], args[2]),
+        FCNTL64 => sys_fcntl64(args[0], args[1], args[2]),
         IOCTL => sys_ioctl(args[0], args[1], args[2]),
         // MKDIRAT => sys_mkdirat(args[0], args[1] as _, args[2]),
         // UNLINKAT => sys_unlinkat(args[0], args[1] as _, args[2] as _),
