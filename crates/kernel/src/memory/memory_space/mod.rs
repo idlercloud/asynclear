@@ -246,24 +246,28 @@ impl MemorySpace {
         self.page_table.map_kernel_areas();
     }
 
-    // /// 需保证 `heap_start` < `new_vpn`，且还有足够的虚地址和物理空间可以映射
-    // pub fn set_user_brk(&mut self, new_end: VirtPageNum, heap_start: VirtPageNum)
-    // {     // 堆区已经映射过了，就扩张或者收缩。否则插入堆区
-    //     if let Some(map_area) = self.areas.get_mut(&heap_start) {
-    //         let curr_vpn = map_area.end();
-    //         if curr_vpn >= new_end {
-    //             map_area.shrink(new_end, &mut self.page_table);
-    //         } else {
-    //             map_area.expand(new_end, &mut self.page_table);
-    //         }
-    //     } else {
-    //         self.insert_framed_area(
-    //             heap_start,
-    //             new_end,
-    //             MapPermission::R | MapPermission::W | MapPermission::U,
-    //         );
-    //     }
-    // }
+    /// 需保证 `heap_start` < `new_end`，且还有足够的虚地址和物理空间可以映射
+    pub fn set_user_brk(&mut self, heap_start: VirtPageNum, new_end: VirtPageNum) {
+        // TODO: [low] 其实这里还需要考虑堆区之上有没有已经映射过的地址吧？
+        // 堆区已经映射过了，就扩张或者收缩。否则插入堆区
+        // 注意扩张和插入的堆区都是懒分配的
+        if let Some(map_area) = self.user_areas.get_mut(&heap_start) {
+            if new_end <= map_area.vpn_range().end {
+                map_area.shrink(new_end, &mut self.page_table);
+            } else {
+                map_area.expand(new_end);
+            }
+        } else {
+            unsafe {
+                self.user_map(
+                    heap_start.page_start(),
+                    new_end.page_start(),
+                    MapPermission::R | MapPermission::W | MapPermission::U,
+                    AreaType::Lazy,
+                )
+            }
+        }
+    }
 
     /// 尝试根据 `va_range` 进行映射
     pub fn try_map(
@@ -372,7 +376,7 @@ impl MemorySpace {
                     return false;
                 }
                 match area.area_type() {
-                    AreaType::Stack => {
+                    AreaType::Lazy => {
                         area.ensure_allocated(vpn, &mut self.page_table);
                         flush_tlb(Some(vpn.page_start()));
                         return true;

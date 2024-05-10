@@ -57,7 +57,7 @@ declare_syscall_id!(
     GETGID,             176,
     GETEGID,            177,
     GETTID,             178,
-    // BRK,                214,
+    BRK,                214,
     MUNMAP,             215,
     CLONE,              220,
     EXECVE,             221,

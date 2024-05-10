@@ -21,7 +21,7 @@ pub struct FramedVmArea {
 
 #[derive(Clone, Copy, Debug)]
 pub enum AreaType {
-    Stack,
+    Lazy,
     Elf,
 }
 
@@ -91,31 +91,25 @@ impl FramedVmArea {
     }
 
     pub(super) fn unmap(&mut self, page_table: &mut PageTable) {
-        for vpn in self.vpn_range() {
-            if self.map.remove(&vpn).is_some() {
-                page_table.unmap(vpn);
-            }
+        for &mapped in self.map.keys() {
+            page_table.unmap(mapped);
         }
+        self.map.clear();
     }
 
-    // #[inline]
-    // pub fn end(&self) -> VirtPageNum {
-    //     self.vpn_range.end
-    // }
+    /// 尝试收缩末尾区域
+    pub fn shrink(&mut self, new_end: VirtPageNum, page_table: &mut PageTable) {
+        {
+            let split = self.map.split_off(&new_end);
+            for &mapped in split.keys() {
+                page_table.unmap(mapped);
+            }
+        }
+        self.vpn_range.end = new_end;
+    }
 
-    // /// 尝试收缩末尾区域
-    // pub fn shrink(&mut self, new_end: VirtPageNum, page_table: &mut PageTable) {
-    //     for vpn in new_end..self.end() {
-    //         self.unmap_one(page_table, vpn);
-    //     }
-    //     self.vpn_range.end = new_end;
-    // }
-
-    // /// 尝试扩展末尾区域
-    // pub fn expand(&mut self, new_end: VirtPageNum, page_table: &mut PageTable) {
-    //     for vpn in self.end()..new_end {
-    //         self.map_one(page_table, vpn);
-    //     }
-    //     self.vpn_range.end = new_end;
-    // }
+    /// 尝试扩展末尾区域
+    pub fn expand(&mut self, new_end: VirtPageNum) {
+        self.vpn_range.end = new_end;
+    }
 }

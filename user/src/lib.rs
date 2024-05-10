@@ -12,22 +12,86 @@ mod syscall;
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::arch::asm;
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    arch::asm,
+    ptr::NonNull,
+};
 
-use buddy_system_allocator::LockedHeap;
+use buddy_system_allocator::Heap;
 use defines::signal::{KSignalAction, Signal, SignalActionFlags};
+use spin::mutex::Mutex;
 
 pub use self::{
     console::{flush, STDIN, STDOUT},
     syscall::*,
 };
 
-const USER_HEAP_SIZE: usize = 16384;
-
-static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
-
 #[global_allocator]
-static HEAP: LockedHeap<32> = LockedHeap::empty();
+static HEAP: BrkBasedHeap = BrkBasedHeap::new();
+
+struct BrkBasedHeap {
+    inner: Mutex<HeapInner>,
+}
+
+unsafe impl Sync for BrkBasedHeap {}
+
+impl BrkBasedHeap {
+    const fn new() -> Self {
+        Self {
+            inner: Mutex::new(HeapInner {
+                brk: 0,
+                buddy_system: Heap::new(),
+            }),
+        }
+    }
+
+    fn init(&self) {
+        let brk = sys_brk(0);
+        self.inner.lock().brk = brk as usize;
+    }
+}
+
+const PAGE_SIZE: usize = 4096;
+
+unsafe impl GlobalAlloc for BrkBasedHeap {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let mut inner = self.inner.lock();
+        if let Ok(ret) = inner.buddy_system.alloc(layout) {
+            return ret.as_ptr();
+        }
+        let size = usize::max(
+            layout.size().next_power_of_two(),
+            usize::max(layout.align(), core::mem::size_of::<usize>()),
+        );
+        let new_brk = sys_brk((inner.brk + size).next_multiple_of(PAGE_SIZE * 4)) as usize;
+        if new_brk <= inner.brk {
+            return core::ptr::null_mut();
+        }
+        let old_brk = inner.brk;
+        unsafe { inner.buddy_system.add_to_heap(old_brk, new_brk) };
+        inner.brk = new_brk;
+        inner
+            .buddy_system
+            .alloc(layout)
+            .ok()
+            .map_or(0 as *mut u8, |allocation| allocation.as_ptr())
+
+        // sys_brk(inner.brk + )
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        self.inner
+            .lock()
+            .buddy_system
+            .dealloc(unsafe { NonNull::new_unchecked(ptr) }, layout)
+    }
+}
+
+struct HeapInner {
+    brk: usize,
+    buddy_system: Heap<32>,
+}
 
 #[alloc_error_handler]
 pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
@@ -52,10 +116,7 @@ fn clear_bss() {
 #[link_section = ".text.entry"]
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     clear_bss();
-    unsafe {
-        HEAP.lock()
-            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
-    }
+    HEAP.init();
     let mut v: Vec<&'static str> = Vec::new();
     for i in 0..argc {
         let str_start =

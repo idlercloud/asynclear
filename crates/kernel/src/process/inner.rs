@@ -1,6 +1,7 @@
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::ops::Range;
 
+use common::config::LOW_ADDRESS_END;
 use compact_str::CompactString;
 use defines::signal::{KSignalSet, Signal};
 use idallocator::RecycleAllocator;
@@ -47,38 +48,26 @@ pub struct ProcessInner {
 }
 
 impl ProcessInner {
-    // pub fn alloc_fd(&mut self) -> usize {
-    //     self.alloc_fd_from(0)
-    // }
-
-    // /// 分配出来的 fd 必然不小于 `min`
-    // pub fn alloc_fd_from(&mut self, min: usize) -> usize {
-    //     if min > self.fd_table.len() {
-    //         self.fd_table
-    //             .extend(core::iter::repeat(None).take(min -
-    // self.fd_table.len()));     }
-    //     if let Some(fd) = (min..self.fd_table.len()).find(|fd|
-    // self.fd_table[*fd].is_none()) {         fd
-    //     } else {
-    //         self.fd_table.push(None);
-    //         self.fd_table.len() - 1
-    //     }
-    // }
-
     pub fn main_thread(&self) -> Arc<Thread> {
         Arc::clone(self.threads.get(&0).unwrap())
     }
 
-    // /// 设置用户堆顶。失败返回原来的 brk，成功则返回新的 brk
-    // pub fn set_user_brk(&mut self, new_brk: usize) -> usize {
-    //     if new_end <= self.heap_range.end {
-    //         return self.brk;
-    //     }
-    //     // TODO: 注，这里是假定地址空间和物理内存都够用
-    //     self.memory_space.set_user_brk(new_end, self.heap_range);
-    //     self.brk = new_brk;
-    //     new_brk
-    // }
+    /// 设置用户堆顶。失败返回原来的 brk，成功则返回新的 brk
+    ///
+    /// 失败的情况包括：
+    ///
+    /// - `new_brk` 不大于堆的开头
+    /// - `new_brk` 超过低地址空间末端
+    pub fn set_user_brk(&mut self, new_brk: VirtAddr) -> VirtAddr {
+        if new_brk <= self.heap_range.start || new_brk.0 > LOW_ADDRESS_END {
+            return self.heap_range.end;
+        }
+        // 由于上面的条件语句，下面一定有 `heap_start < new_end`
+        let heap_start = self.heap_range.start.vpn_floor();
+        let new_end = new_brk.vpn_ceil();
+        self.memory_space.set_user_brk(heap_start, new_end);
+        new_brk
+    }
 
     /// 挑选一个合适的线程让其处理信号
     pub fn receive_signal(&mut self, signal: Signal) {

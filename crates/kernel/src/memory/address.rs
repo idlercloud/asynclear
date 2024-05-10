@@ -88,7 +88,7 @@ impl VirtAddr {
 
     /// 向上取整页号
     pub const fn vpn_ceil(&self) -> VirtPageNum {
-        VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
+        VirtPageNum(self.0.div_ceil(PAGE_SIZE))
     }
 
     /// # Safety

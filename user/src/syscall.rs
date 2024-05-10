@@ -178,3 +178,7 @@ pub fn sys_rt_sigprocmask(how: usize, set: *const KSignalSet, old_set: *mut KSig
         [how, set as _, old_set as _, SIGSET_SIZE_BYTES],
     )
 }
+
+pub fn sys_brk(brk: usize) -> isize {
+    syscall3(BRK, [brk, 0, 0])
+}

@@ -97,7 +97,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         GETPPID => sys_getppid(),
         GETUID | GETEUID | GETGID | GETEGID => Ok(0), // TODO: 目前不实现用户和用户组相关的部分
         GETTID => sys_gettid(),
-        // BRK => sys_brk(args[0]),
+        BRK => sys_brk(args[0]),
         MUNMAP => sys_munmap(args[0], args[1]),
         CLONE => sys_clone(args[0], args[1], args[2], args[3], args[4]),
         EXECVE => sys_execve(args[0] as _, args[1] as _, args[2] as _),

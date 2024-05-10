@@ -82,7 +82,7 @@ impl Thread {
                 ustack_low_addr,
                 ustack_high_addr,
                 MapPermission::R | MapPermission::W | MapPermission::U,
-                AreaType::Stack,
+                AreaType::Lazy,
             );
         }
         ustack_high_vpn
