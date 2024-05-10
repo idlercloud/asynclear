@@ -6,6 +6,7 @@
 #![feature(format_args_nl)]
 
 pub mod error;
+pub mod fs;
 pub mod ioctl;
 pub mod misc;
 pub mod signal;

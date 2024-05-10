@@ -86,28 +86,6 @@ pub struct Tms {
     pub tms_cstime: usize,
 }
 
-pub const NAME_MAX: usize = 255;
-
-/// 参考 <https://man7.org/linux/man-pages/man3/readdir.3.html/>
-#[derive(Debug)]
-#[repr(C)]
-pub struct Dirent64 {
-    /// 64 位 inode 编号
-    pub d_ino: u64,
-    /// `d_off` 中返回的值与在目录流中的当前位置调用 telldir(3) 返回的值相同
-    ///
-    /// 但在现代文件系统上可能并不是目录偏移量。因此应用程序应该忽略这个字段，
-    /// 不依赖于它
-    pub d_off: u64,
-    /// 这个 Dirent64 本身的大小
-    pub d_reclen: u16,
-    /// 文件类型
-    pub d_type: u8,
-    /// 文件名。实际上是一个 null terminated 的不定长字符串，在 `\0` 之前至多有
-    /// `NAME_MAX` 个字符
-    pub d_name: [u8; NAME_MAX + 1],
-}
-
 bitflags! {
     #[derive(Clone,Copy,Debug)]
     /// sys_wait4 的选项，描述等待方式

@@ -77,7 +77,12 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // READV => sys_readv(args[0], args[1] as _, args[2]),
         // WRITEV => sys_writev(args[0], args[1] as _, args[2]),
         // PPOLL => sys_ppoll(),
-        // NEWFSTATAT => sys_fstatat(args[0], args[1] as _, args[2] as _, args[3]),
+        NEWFSTATAT => sys_newfstatat(
+            args[0],
+            UserCheck::new(args[1] as _),
+            UserCheckMut::new(args[2] as _),
+            args[3],
+        ),
         // NEWFSTAT => sys_fstat(args[0], args[1] as _),
         EXIT => sys_exit(args[0] as _),
         EXIT_GROUP => sys_exit_group(args[0] as _),

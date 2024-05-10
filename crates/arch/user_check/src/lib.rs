@@ -29,6 +29,7 @@ unsafe impl<T: ?Sized> Send for UserCheckMut<T> {}
 
 // TODO: 检查用户指针 page fault 时可以采取措施挽救
 // FIXME: 如果 ptr 实际是指向内核结构的指针，似乎暂时无法检测，需要修复
+// NOTE: 这一些检查用户指针的基础设施其实不是完全 safe 的，无法避免 alias 等，需要注意
 
 impl<T: ?Sized> UserCheck<T> {
     pub fn new(ptr: *const T) -> Self {
@@ -166,8 +167,7 @@ impl UserCheck<u8> {
             }
         }
 
-        let bytes =
-            unsafe { core::slice::from_raw_parts(self.ptr.cast::<u8>(), end - self.ptr as usize) };
+        let bytes = unsafe { core::slice::from_raw_parts(self.ptr, end - self.ptr as usize) };
         let ret = core::str::from_utf8(bytes).map_err(|_error| {
             warn!("Not utf8 in {:#x}..{:#x}", self.ptr as usize, end);
             errno::EINVAL
@@ -190,9 +190,6 @@ impl UserCheck<u8> {
         va
     }
 }
-
-// NOTE: UserConst 和 UserMut 的 Deref 和 DerefMut
-// 不知道应不应该实现，其实很可能不是 safe 的
 
 pub struct UserConst<T: ?Sized> {
     ptr: *const T,

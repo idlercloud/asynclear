@@ -1,10 +1,11 @@
 use common::config::PAGE_SIZE;
+use defines::fs::StatMode;
 use smallvec::SmallVec;
 use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
-    fs::inode::{Inode, InodeMeta, PagedInode, PagedInodeBackend, StatMode},
+    fs::inode::{Inode, InodeMeta, PagedInode, PagedInodeBackend},
     memory::Frame,
 };
 

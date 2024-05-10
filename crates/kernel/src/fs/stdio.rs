@@ -7,6 +7,7 @@ use core::{
 use compact_str::CompactString;
 use defines::{
     error::KResult,
+    fs::StatMode,
     ioctl::{
         Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
@@ -15,7 +16,7 @@ use defines::{
 use klocks::{Lazy, SpinMutex};
 use user_check::{UserCheck, UserCheckMut};
 
-use super::inode::{Inode, InodeMeta, StatMode};
+use super::inode::{Inode, InodeMeta};
 use crate::{drivers::qemu_uart::TTY, thread::BlockingFuture, uart_console::print};
 
 pub async fn read_stdin(buf: UserCheckMut<[u8]>) -> KResult<usize> {

@@ -1,5 +1,5 @@
 use compact_str::{CompactString, ToCompactString};
-use defines::error::KResult;
+use defines::{error::KResult, fs::StatMode};
 use smallvec::SmallVec;
 use triomphe::Arc;
 use unsize::CoerceUnsize;
@@ -7,6 +7,7 @@ use unsize::CoerceUnsize;
 use super::{
     dir_entry::{DirEntry, DirEntryBuilder, DIR_ENTRY_SIZE},
     fat::FileAllocTable,
+    SECTOR_SIZE,
 };
 use crate::{
     drivers::qemu_block::BLOCK_SIZE,
@@ -15,7 +16,7 @@ use crate::{
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInodeCoercion,
-            Inode, InodeMeta, StatMode,
+            Inode, InodeMeta,
         },
     },
     hart::local_hart,
@@ -163,5 +164,9 @@ impl DirInodeBackend for FatDir {
             children.insert(name, Some(new_dentry));
         }
         Ok(())
+    }
+
+    fn len(&self) -> usize {
+        self.clusters.len() * self.fat.sector_per_cluster() as usize * SECTOR_SIZE
     }
 }

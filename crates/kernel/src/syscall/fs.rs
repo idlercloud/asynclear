@@ -2,13 +2,14 @@ use core::ops::Deref;
 
 use defines::{
     error::{errno, KResult},
-    misc::{Dirent64, NAME_MAX},
+    fs::{Dirent64, Stat, StatMode, NAME_MAX},
 };
 use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
-    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, StatMode, VFS},
+    drivers::qemu_block::BLOCK_SIZE,
+    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
     hart::local_hart,
 };
 
@@ -175,7 +176,7 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
     };
-    info!("oepnat {dir_fd}, {}, {flags:?}", &*path);
+    info!("oepnat flags {flags:?}");
 
     // TODO: [low] OpenFlags::DIRECT 目前是被忽略的
 
@@ -462,23 +463,46 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
     Ok(new_fd as isize)
 }
 
-// /// TODO: 写 sys_fstatat 的文档
-// pub fn sys_fstatat(dir_fd: usize, file_name: *const u8, statbuf: *mut Stat,
-// flag: usize) -> Result {     // TODO: 暂时先不考虑 fstatat 的 flags
-//     assert_eq!(flag, 0);
-//     let file_name = unsafe { check_cstr(file_name)? };
-//     info!("fstatat {dir_fd}, {file_name}");
-//     let absolute_path = path_with_fd(dir_fd, file_name)?;
-//     info!("absolute path: {absolute_path}");
-
-//     // TODO: 注意，可以尝试用 OpenFlags::O_PATH 打开试试
-//     let file = open_file(absolute_path, OpenFlags::empty())?;
-
-//     let statbuf = unsafe { check_ptr_mut(statbuf)? };
-//     *statbuf = file.fstat();
-
-//     Ok(0)
-// }
+/// 获取一个文件的信息
+///
+/// 参数：
+/// - `dir_fd` 开始搜索文件的目录，参考 [`sys_openat()`]
+/// - `path` 相对路径或绝对路径
+/// - `statbuf` 文件信息写入的目的地
+/// - `flags` fstat 的一些 flags
+pub fn sys_newfstatat(
+    dir_fd: usize,
+    path: UserCheck<u8>,
+    statbuf: UserCheckMut<Stat>,
+    flag: usize,
+) -> KResult {
+    // TODO: 暂时先不考虑 fstatat 的 flags
+    assert_eq!(flag, 0);
+    let file_name = path.check_cstr()?;
+    let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
+    let mut statbuf = statbuf.check_ptr_mut()?;
+    let file = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+    let meta = file.meta();
+    // TODO: fstat 的 device id 暂时是一个随意的数字
+    statbuf.st_dev = 114514;
+    statbuf.st_ino = meta.ino() as u64;
+    statbuf.st_mode = meta.mode();
+    statbuf.st_nlink = 1;
+    statbuf.st_uid = 0;
+    statbuf.st_gid = 0;
+    statbuf.st_rdev = 0;
+    statbuf.st_size = file.len() as u64;
+    // TODO: 特殊文件也先填成 BLOCK_SIZE 吧
+    statbuf.st_blksize = BLOCK_SIZE as u32;
+    // TODO: 文件有空洞时，可能小于 st_size/512。而且可能实际占用的块数量会更多
+    statbuf.st_blocks = statbuf.st_size.div_ceil(statbuf.st_blksize as u64);
+    meta.lock_inner_with(|meta_inner| {
+        statbuf.st_atime = meta_inner.access_time;
+        statbuf.st_mtime = meta_inner.modify_time;
+        statbuf.st_ctime = meta_inner.change_time;
+    });
+    Ok(0)
+}
 
 // /// FIXME: 由于 mount 未实现，fstat test.txt 也是不成功的
 // pub fn sys_fstat(fd: usize, kst: *mut Stat) -> Result {

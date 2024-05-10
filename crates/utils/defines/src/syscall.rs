@@ -32,7 +32,7 @@ declare_syscall_id!(
     READV,              65,
     WRITEV,             66,
     PPOLL,              73,
-    // NEWFSTATAT,         79,
+    NEWFSTATAT,         79,
     // NEWFSTAT,           80,
     EXIT,               93,
     EXIT_GROUP,         94,

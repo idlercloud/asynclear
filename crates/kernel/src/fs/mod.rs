@@ -14,7 +14,6 @@ use compact_str::{CompactString, ToCompactString};
 use defines::error::{errno, KResult};
 pub use dentry::{DEntry, DEntryDir, DEntryPaged};
 pub use file::{FdTable, File, FileDescriptor, OpenFlags, PagedFile};
-pub use inode::StatMode;
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 
