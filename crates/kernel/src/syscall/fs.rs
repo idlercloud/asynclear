@@ -219,12 +219,6 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
                 }
                 File::Paged(Arc::new(PagedFile::new(paged)))
             }
-            DEntry::Stream(_stream) => {
-                if flags.contains(OpenFlags::DIRECTORY) {
-                    return Err(errno::ENOTDIR);
-                }
-                todo!("[blocked] stream inode")
-            }
         };
 
         ret_fd = local_hart()

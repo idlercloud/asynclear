@@ -264,7 +264,7 @@ impl MemorySpace {
                     new_end.page_start(),
                     MapPermission::R | MapPermission::W | MapPermission::U,
                     AreaType::Lazy,
-                )
+                );
             }
         }
     }

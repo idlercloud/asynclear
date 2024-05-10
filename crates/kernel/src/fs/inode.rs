@@ -20,7 +20,6 @@ static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
 pub type DynDirInode = Inode<dyn DirInodeBackend>;
 pub type DynPagedInode = Inode<PagedInode<dyn PagedInodeBackend>>;
-pub type DynStreamInode = Inode<dyn StreamInodeBackend>;
 
 pub struct Inode<T: ?Sized> {
     meta: InodeMeta,
@@ -224,15 +223,9 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
     }
 }
 
-pub trait StreamInodeBackend: Send + Sync {
-    fn read(&self, meta: &InodeMeta, buf: &mut [u8]) -> BoxFuture<'_, KResult<usize>>;
-    fn write(&self, meta: &InodeMeta, buf: &[u8]) -> BoxFuture<'_, KResult<usize>>;
-}
-
 pub enum DynInode {
     Dir(Arc<DynDirInode>),
     Paged(Arc<DynPagedInode>),
-    Stream(Arc<DynStreamInode>),
 }
 
 impl DynInode {
@@ -240,7 +233,6 @@ impl DynInode {
         match self {
             DynInode::Dir(dir) => dir.meta(),
             DynInode::Paged(paged) => paged.meta(),
-            DynInode::Stream(stream) => stream.meta(),
         }
     }
 }

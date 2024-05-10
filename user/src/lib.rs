@@ -75,7 +75,7 @@ unsafe impl GlobalAlloc for BrkBasedHeap {
             .buddy_system
             .alloc(layout)
             .ok()
-            .map_or(0 as *mut u8, |allocation| allocation.as_ptr())
+            .map_or(core::ptr::null_mut(), |allocation| allocation.as_ptr())
 
         // sys_brk(inner.brk + )
     }
@@ -84,7 +84,7 @@ unsafe impl GlobalAlloc for BrkBasedHeap {
         self.inner
             .lock()
             .buddy_system
-            .dealloc(unsafe { NonNull::new_unchecked(ptr) }, layout)
+            .dealloc(unsafe { NonNull::new_unchecked(ptr) }, layout);
     }
 }
 

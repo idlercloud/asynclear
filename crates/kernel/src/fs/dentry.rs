@@ -5,13 +5,12 @@ use defines::error::KResult;
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
-use super::inode::{DynDirInode, DynInode, DynPagedInode, DynStreamInode, InodeMeta};
+use super::inode::{DynDirInode, DynInode, DynPagedInode, InodeMeta};
 
 #[derive(Clone)]
 pub enum DEntry {
     Dir(Arc<DEntryDir>),
     Paged(DEntryPaged),
-    Stream(DEntryStream),
 }
 
 impl DEntry {
@@ -19,7 +18,6 @@ impl DEntry {
         match self {
             DEntry::Dir(dir) => dir.inode.meta(),
             DEntry::Paged(paged) => paged.inode.meta(),
-            DEntry::Stream(stream) => stream.inode.meta(),
         }
     }
 
@@ -27,7 +25,6 @@ impl DEntry {
         match self {
             DEntry::Dir(dir) => dir.inode.inner.len(),
             DEntry::Paged(paged) => paged.inode.inner.data_len(),
-            DEntry::Stream(_) => todo!(),
         }
     }
 }
@@ -70,9 +67,6 @@ impl DEntryDir {
                     DynInode::Paged(paged) => {
                         DEntry::Paged(DEntryPaged::new(Arc::clone(self), paged))
                     }
-                    DynInode::Stream(stream) => {
-                        DEntry::Stream(DEntryStream::new(Arc::clone(self), stream))
-                    }
                 };
                 vacant.insert(Some(new_dentry.clone()));
                 Some(new_dentry)
@@ -107,26 +101,6 @@ impl DEntryPaged {
     }
 
     pub fn inode(&self) -> &Arc<DynPagedInode> {
-        &self.inode
-    }
-
-    pub fn parent(&self) -> &Arc<DEntryDir> {
-        &self.parent
-    }
-}
-
-#[derive(Clone)]
-pub struct DEntryStream {
-    parent: Arc<DEntryDir>,
-    inode: Arc<DynStreamInode>,
-}
-
-impl DEntryStream {
-    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynStreamInode>) -> Self {
-        Self { parent, inode }
-    }
-
-    pub fn inode(&self) -> &Arc<DynStreamInode> {
         &self.inode
     }
 
