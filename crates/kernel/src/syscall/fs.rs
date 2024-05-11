@@ -5,11 +5,11 @@ use defines::{
     fs::{FstatFlags, IoVec, Stat, StatMode},
 };
 use triomphe::Arc;
-use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
     fs::{self, DEntry, DirFile, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
     hart::local_hart,
+    memory::UserCheck,
 };
 
 /// 操纵某个特殊文件的底层设备，尤其是字符特殊文件。目前只进行错误检验
@@ -71,7 +71,7 @@ fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，若无效则返回 `EINVAL`
-pub async fn sys_read(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
+pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     if fd == 0 {
         trace!("read stdin, len = {}", buf.len());
     } else {
@@ -119,12 +119,9 @@ pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     // TODO: [mid] 改变 `sys_readv` 的实现方式使其满足原子性
     // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
     let mut iov_index = 0;
-    while iov_index < iovec.len() {
-        let buf = UserCheckMut::new(ptr::slice_from_raw_parts_mut(
-            iovec[iov_index].iov_base,
-            iovec[iov_index].iov_len,
-        ));
+    while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
+        let buf = UserCheck::new_slice(ptr::slice_from_raw_parts_mut(iov.iov_base, iov.iov_len));
         let nread = file.read(buf).await?;
         if nread == 0 {
             break;
@@ -154,12 +151,9 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     let mut iov_index = 0;
     // TODO: [mid] 改变 `sys_writev` 的实现方式使其满足原子性
     // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
-    while iov_index < iovec.len() {
-        let buf = UserCheck::new(ptr::slice_from_raw_parts(
-            iovec[iov_index].iov_base,
-            iovec[iov_index].iov_len,
-        ));
+    while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
+        let buf = UserCheck::new_slice(ptr::slice_from_raw_parts_mut(iov.iov_base, iov.iov_len));
         let nwrite = file.write(buf).await?;
         if nwrite == 0 {
             break;
@@ -307,16 +301,15 @@ pub fn sys_close(fd: usize) -> KResult {
 // }
 
 /// 获取目录项信息
-pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
+pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     let process = local_hart().curr_process();
     let Some(File::Dir(dir)) =
         process.lock_inner_with(|inner| inner.fd_table.get(fd).map(Deref::deref).cloned())
     else {
         return Err(errno::EBADF);
     };
-    let mut buf = buf.check_slice_mut()?;
-
-    let ret = dir.getdirents(&mut buf)?;
+    let buf = unsafe { buf.check_slice_mut()? };
+    let ret = dir.getdirents(buf.out())?;
     Ok(ret as isize)
 }
 
@@ -450,7 +443,7 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
 pub fn sys_newfstatat(
     dir_fd: usize,
     path: UserCheck<u8>,
-    statbuf: UserCheckMut<Stat>,
+    statbuf: UserCheck<Stat>,
     flags: usize,
 ) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
@@ -459,17 +452,18 @@ pub fn sys_newfstatat(
     if file_name.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
     }
-    let mut statbuf = statbuf.check_ptr_mut()?;
-    if file_name.is_empty() {
+    let statbuf = unsafe { statbuf.check_ptr_mut()? };
+    let stat = if file_name.is_empty() {
         let process = local_hart().curr_process();
         let inner = process.lock_inner();
         let file = inner.fd_table.get(dir_fd).ok_or(errno::EBADF)?;
-        fs::stat_from_meta(&mut statbuf, file.meta());
+        fs::stat_from_meta(file.meta())
     } else {
         let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
         let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
-        fs::stat_from_meta(&mut statbuf, dentry.meta());
+        fs::stat_from_meta(dentry.meta())
     };
+    statbuf.write(stat);
 
     Ok(0)
 }
@@ -552,24 +546,45 @@ pub fn sys_newfstatat(
 //     Ok(0)
 // }
 
-// /// 获取当前进程当前工作目录的绝对路径。
+// /// 获取当前进程当前工作目录的绝对路径
 // ///
 // /// 参数：
 // /// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
 // /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
-// pub fn sys_getcwd(buf: *mut u8, size: usize) -> Result {
-//     let process = curr_process();
-//     let inner = process.inner();
-//     let cwd = &inner.cwd;
-//     // 包括 '\0'
-//     let buf_len = cwd.len() + 1;
-//     if buf_len > size {
+// pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
+//     let mut cwd = local_hart()
+//         .curr_process()
+//         .lock_inner_with(|inner| Arc::clone(&inner.cwd));
+//     let mut components = Vec::new();
+//     // 根目录 `/` 和 `\0`
+//     let mut path_len = 2;
+//     loop {
+//         let Some(parent) = cwd.parent().cloned() else {
+//             break;
+//         };
+//         path_len += cwd.inode().meta().name().len();
+//         components.push(cwd);
+//         cwd = parent;
+//     }
+
+//     if path_len > buf.len() {
 //         return Err(errno::ERANGE);
 //     }
+//     let mut buf = buf.check_slice_mut()?;
 //     {
-//         let buf = unsafe { check_slice_mut(buf, buf_len)? };
-//         buf[..buf_len - 1].copy_from_slice(cwd.as_bytes());
-//         buf[buf_len - 1] = 0;
+//         buf[0] = b'/';
+//         let mut curr = 1;
+//         for component in &components[0..(components.len() - 1).max(0)] {
+//             let name = component.inode().meta().name().as_bytes();
+//             buf[curr..curr + name.len()].copy_from_slice(name);
+//         }
+//         let name = components[components.len() - 1]
+//             .inode()
+//             .meta()
+//             .name()
+//             .as_bytes();
+//         buf[curr..curr + name.len()].copy_from_slice(name);
+//         buf[path_len - 1] = 0;
 //     }
 //     Ok(buf as isize)
 // }

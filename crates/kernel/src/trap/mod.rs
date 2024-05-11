@@ -14,12 +14,12 @@ use riscv::register::{
     sie, sstatus, stval,
     stvec::{self, TrapMode},
 };
-use user_check::UserCheckMut;
 
 use crate::{
     drivers::{qemu_plic::Plic, qemu_uart::UART0, InterruptSource},
     executor,
     hart::local_hart,
+    memory::UserCheck,
     process::{self, exit_process},
     signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
     syscall, time,
@@ -234,17 +234,18 @@ pub fn check_signal() -> bool {
     };
 
     let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
-    let Ok(mut user_ptr) = UserCheckMut::new(sp as *mut SignalContext).check_ptr_mut() else {
+    let user_ptr = unsafe { UserCheck::new(sp as *mut SignalContext).check_ptr_mut() };
+    if let Ok(user_ptr) = user_ptr {
+        user_ptr.write(signal_context);
+        false
+    } else {
         // TODO:[blocked] 这里其实可以试着补救
         exit_process(
             &local_hart().curr_process(),
             (first_pending as i8).wrapping_add_unsigned(128),
         );
-        return true;
-    };
-    *user_ptr = signal_context;
-
-    false
+        true
+    }
 }
 
 pub fn init() {

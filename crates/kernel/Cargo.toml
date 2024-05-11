@@ -19,6 +19,7 @@ smallvec.workspace = true
 pin-project.workspace = true
 event-listener.workspace = true
 triomphe.workspace = true
+scopeguard.workspace = true
 unsize.workspace = true
 extend.workspace = true
 num_enum.workspace = true
@@ -26,7 +27,6 @@ heapless.workspace = true
 buddy_system_allocator.workspace = true
 riscv_time = { path = "../arch/riscv_time" }
 riscv_guard = { path = "../arch/riscv_guard" }
-user_check = { path = "../arch/user_check" }
 idallocator = { path = "../utils/idallocator" }
 common = { path = "../utils/common" }
 defines = { path = "../utils/defines" }
@@ -45,6 +45,7 @@ futures = { version = "0.3", default-features = false, features = [
   "alloc",
   "async-await",
 ] }
+uninit = { version = "0.6", default-features = false, features = ["alloc"] }
 
 [features]
 default = []

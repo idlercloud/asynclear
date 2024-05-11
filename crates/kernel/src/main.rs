@@ -11,6 +11,8 @@
 #![feature(coroutines, iter_from_coroutine)]
 #![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init)]
 #![feature(sync_unsafe_cell)]
+#![feature(naked_functions)]
+#![feature(slice_ptr_get)]
 
 #[macro_use]
 extern crate kernel_tracer;

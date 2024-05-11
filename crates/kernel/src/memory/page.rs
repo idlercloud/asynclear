@@ -28,7 +28,7 @@
 //!
 //! 排除用户态通过 mmap 直接读写后。主要的 race 就来自于 `read()`、`write()` 系统调用，需要有锁来保护。
 
-use klocks::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use klocks::{RwLock, RwLockReadGuard, RwLockWriteGuard, Spin};
 
 use super::frame_allocator::Frame;
 
@@ -47,7 +47,7 @@ impl Page {
         self.frame.read()
     }
 
-    pub fn frame_mut(&self) -> RwLockWriteGuard<'_, Frame> {
+    pub fn frame_mut(&self) -> RwLockWriteGuard<'_, Frame, Spin> {
         self.frame.write()
     }
 }

@@ -12,12 +12,11 @@ use defines::{
     signal::Signal,
 };
 use event_listener::listener;
-use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
     executor,
     hart::local_hart,
-    memory::{MapPermission, VirtAddr},
+    memory::{MapPermission, UserCheck, VirtAddr},
     process::exit_process,
     thread::BlockingFuture,
 };
@@ -144,19 +143,24 @@ pub fn sys_clone(
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
-pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usize) -> KResult {
+pub fn sys_execve(
+    pathname: UserCheck<u8>,
+    mut argv: UserCheck<usize>,
+    envp: UserCheck<usize>,
+) -> KResult {
     assert!(envp.is_null(), "envp 暂时尚未支持");
-    let pathname = UserCheck::new(pathname).check_cstr()?;
-    trace!("pathname: {}", &*pathname);
+    let pathname = pathname.check_cstr()?;
+    debug!("pathname: {}", &*pathname);
     // 收集参数列表
     let mut arg_vec: Vec<CompactString> = Vec::new();
-    unsafe {
-        while *argv != 0 {
-            let arg_str_ptr = UserCheck::new(argv).check_ptr()?;
-            let arg_str = UserCheck::new(*arg_str_ptr as _).check_cstr()?;
-            arg_vec.push(CompactString::from(&*arg_str));
-            argv = argv.add(1);
+    loop {
+        let arg_str_ptr = argv.check_ptr()?.read();
+        if arg_str_ptr == 0 {
+            break;
         }
+        let arg_str = UserCheck::new(arg_str_ptr as *mut u8).check_cstr()?;
+        arg_vec.push(CompactString::from(&*arg_str));
+        argv = argv.add(1);
     }
     // 执行新进程
 
@@ -186,7 +190,7 @@ pub fn sys_execve(pathname: *const u8, mut argv: *const usize, envp: *const usiz
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
 pub async fn sys_wait4(
     pid: isize,
-    wstatus: UserCheckMut<i32>,
+    wstatus: UserCheck<i32>,
     options: usize,
     rusage: usize,
 ) -> KResult {
@@ -231,9 +235,9 @@ pub async fn sys_wait4(
                 let found_pid = child.pid();
                 let exit_code = child.exit_code().expect("Thread should be zombie");
                 if !wstatus.is_null() {
-                    let mut wstatus = wstatus.check_ptr_mut()?;
+                    let wstatus = unsafe { wstatus.check_ptr_mut()? };
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
-                    *wstatus = (exit_code as u8 as i32) << 8;
+                    wstatus.write((exit_code as u8 as i32) << 8);
                 }
                 return Ok(found_pid as isize);
             }
@@ -366,9 +370,9 @@ pub fn sys_brk(brk: usize) -> KResult {
 }
 
 /// 返回系统信息，返回值为 0
-pub fn sys_uname(utsname: *mut UtsName) -> KResult {
-    let mut utsname = UserCheckMut::new(utsname).check_ptr_mut()?;
-    *utsname = UtsName::default();
+pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
+    let utsname = unsafe { utsname.check_ptr_mut()? };
+    utsname.write(UtsName::default());
     Ok(0)
 }
 

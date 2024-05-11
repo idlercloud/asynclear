@@ -8,12 +8,13 @@ use defines::{
 };
 use klocks::SpinMutex;
 use triomphe::Arc;
-use user_check::{UserCheck, UserCheckMut};
+use uninit::out_ref::Out;
 
 use super::{
     inode::{DynDirInode, DynPagedInode, InodeMeta},
     stdio, DEntry, DEntryDir, DEntryPaged,
 };
+use crate::memory::UserCheck;
 
 #[derive(Clone)]
 pub enum File {
@@ -40,13 +41,13 @@ impl DirFile {
         &self.dentry
     }
 
-    pub fn getdirents(&self, buf: &mut [u8]) -> KResult<usize> {
+    pub fn getdirents(&self, mut buf: Out<'_, [u8]>) -> KResult<usize> {
         self.dentry.read_dir()?;
 
         let children = self.dentry.lock_children();
         let mut dirent_index = self.dirent_index.lock();
 
-        let mut ptr = buf.as_mut_ptr();
+        let mut ptr = buf.as_mut_ptr().cast::<u8>();
         let range = (ptr as usize)..(ptr as usize + buf.len());
 
         let children_iter = children
@@ -179,7 +180,7 @@ impl FileDescriptor {
         self.flags.read_write().1
     }
 
-    pub async fn read(&self, buf: UserCheckMut<[u8]>) -> KResult<usize> {
+    pub async fn read(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
         match &self.file {
             File::Stdin => stdio::read_stdin(buf).await,
             File::Stdout | File::Dir(_) => Err(errno::EBADF),
@@ -187,9 +188,10 @@ impl FileDescriptor {
                 let inode = paged.dentry.inode();
                 let meta = inode.meta();
                 let mut offset = paged.offset.lock();
-                let nread = inode
-                    .inner
-                    .read_at(meta, &mut buf.check_slice_mut()?, *offset)?;
+                let nread =
+                    inode
+                        .inner
+                        .read_at(meta, unsafe { buf.check_slice_mut()?.out() }, *offset)?;
                 *offset += nread;
                 Ok(nread)
             }

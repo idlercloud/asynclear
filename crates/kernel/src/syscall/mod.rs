@@ -12,9 +12,8 @@ use process::*;
 use signal::*;
 use thread::*;
 use time::*;
-use user_check::{UserCheck, UserCheckMut};
 
-use crate::{hart::local_hart, process::exit_process};
+use crate::{hart::local_hart, memory::UserCheck, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     // 读入标准输入、写入标准输出、写入标准错误都不关心
@@ -56,33 +55,33 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // PIPE2 => sys_pipe2(args[0] as _),
         GETDENTS64 => sys_getdents64(
             args[0],
-            UserCheckMut::new(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
+            UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
         ),
         READ => {
             sys_read(
                 args[0],
-                UserCheckMut::new(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
+                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
             )
             .await
         }
         WRITE => {
             sys_write(
                 args[0],
-                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
+                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
             )
             .await
         }
         READV => {
             sys_readv(
                 args[0],
-                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
+                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
             )
             .await
         }
         WRITEV => {
             sys_writev(
                 args[0],
-                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
+                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
             )
             .await
         }
@@ -90,7 +89,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         NEWFSTATAT => sys_newfstatat(
             args[0],
             UserCheck::new(args[1] as _),
-            UserCheckMut::new(args[2] as _),
+            UserCheck::new(args[2] as _),
             args[3],
         ),
         // NEWFSTAT => sys_fstat(args[0], args[1] as _),
@@ -98,16 +97,25 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         EXIT_GROUP => sys_exit_group(args[0] as _),
         SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
         // SLEEP => sys_sleep(args[0] as _),
-        CLOCK_GETTIME => sys_clock_gettime(args[0] as _, args[1] as _),
+        CLOCK_GETTIME => sys_clock_gettime(args[0] as _, UserCheck::new(args[1] as _)),
         SCHED_YIELD => sys_sched_yield().await,
-        RT_SIGACTION => sys_rt_sigaction(args[0], args[1] as _, args[2] as _),
-        RT_SIGPROCMASK => sys_rt_sigprocmask(args[0], args[1] as _, args[2] as _, args[3]),
+        RT_SIGACTION => sys_rt_sigaction(
+            args[0],
+            UserCheck::new(args[1] as _),
+            UserCheck::new(args[2] as _),
+        ),
+        RT_SIGPROCMASK => sys_rt_sigprocmask(
+            args[0],
+            UserCheck::new(args[1] as _),
+            UserCheck::new(args[2] as _),
+            args[3],
+        ),
         RT_SIGRETURN => sys_rt_sigreturn(),
         SETPRIORITY => sys_setpriority(args[0] as _),
-        TIMES => sys_times(args[0] as _),
+        TIMES => sys_times(UserCheck::new(args[0] as _)),
         SETPGID => sys_setpgid(args[0], args[1]),
         GETPGID => sys_getpgid(args[0]),
-        UNAME => sys_uname(args[0] as _),
+        UNAME => sys_uname(UserCheck::new(args[0] as _)),
         GETPID => sys_getpid(),
         GETPPID => sys_getppid(),
         GETUID | GETEUID | GETGID | GETEGID => Ok(0), // TODO: 目前不实现用户和用户组相关的部分
@@ -115,17 +123,13 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         BRK => sys_brk(args[0]),
         MUNMAP => sys_munmap(args[0], args[1]),
         CLONE => sys_clone(args[0], args[1], args[2], args[3], args[4]),
-        EXECVE => sys_execve(args[0] as _, args[1] as _, args[2] as _),
-        WAIT4 => {
-            sys_wait4(
-                args[0] as _,
-                UserCheckMut::new(args[1] as _),
-                args[2],
-                args[3],
-            )
-            .await
-        }
-        GET_TIME => sys_get_time_of_day(args[0] as _, args[1]),
+        EXECVE => sys_execve(
+            UserCheck::new(args[0] as _),
+            UserCheck::new(args[1] as _),
+            UserCheck::new(args[2] as _),
+        ),
+        WAIT4 => sys_wait4(args[0] as _, UserCheck::new(args[1] as _), args[2], args[3]).await,
+        GET_TIME => sys_get_time_of_day(UserCheck::new(args[0] as _), args[1]),
         MMAP => sys_mmap(
             args[0],
             args[1],

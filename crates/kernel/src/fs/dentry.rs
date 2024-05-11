@@ -73,6 +73,10 @@ impl DEntryDir {
         self.inode.read_dir(self)
     }
 
+    pub fn parent(&self) -> Option<&Arc<DEntryDir>> {
+        self.parent.as_ref()
+    }
+
     pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<CompactString, Option<DEntry>>> {
         self.children.lock()
     }

@@ -9,6 +9,7 @@ mod page_cache;
 mod stdio;
 
 use alloc::{collections::BTreeMap, vec, vec::Vec};
+use core::mem::MaybeUninit;
 
 use compact_str::{CompactString, ToCompactString};
 use defines::{
@@ -19,6 +20,7 @@ pub use dentry::{DEntry, DEntryDir, DEntryPaged};
 pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
+use uninit::extension_traits::{AsOut, VecCapacity};
 
 use self::inode::InodeMeta;
 use crate::{
@@ -140,14 +142,16 @@ pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
 pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
     let inner = &file.inode().inner;
-    // TODO: 这里其实可以说不定可以打点 unsafe 体操避免初始化的开销
-    let mut ret = vec![0; inner.data_len()];
-    let len = inner.read_at(file.inode().meta(), &mut ret, 0)?;
-    ret.truncate(len);
+    let mut ret = Vec::new();
+    let out = ret.reserve_uninit(inner.data_len()).as_out();
+    let len = inner.read_at(file.inode().meta(), out, 0)?;
+    // SAFETY: `0..len` 已经被初始化，且 `len <= inner.data_len()`
+    unsafe { ret.set_len(len) }
     Ok(ret)
 }
 
-pub fn stat_from_meta(stat: &mut Stat, meta: &InodeMeta) {
+pub fn stat_from_meta(meta: &InodeMeta) -> Stat {
+    let mut stat = Stat::default();
     // TODO: fstat 的 device id 暂时是一个随意的数字
     stat.st_dev = 114514;
     stat.st_ino = meta.ino() as u64;
@@ -166,4 +170,5 @@ pub fn stat_from_meta(stat: &mut Stat, meta: &InodeMeta) {
         stat.st_ctime = meta_inner.change_time;
     });
     stat.st_blocks = stat.st_size.div_ceil(stat.st_blksize as u64);
+    stat
 }

@@ -14,12 +14,13 @@ use defines::{
     },
 };
 use klocks::{Lazy, SpinMutex};
-use user_check::{UserCheck, UserCheckMut};
 
 use super::inode::{Inode, InodeMeta};
-use crate::{drivers::qemu_uart::TTY, thread::BlockingFuture, uart_console::print};
+use crate::{
+    drivers::qemu_uart::TTY, memory::UserCheck, thread::BlockingFuture, uart_console::print,
+};
 
-pub async fn read_stdin(buf: UserCheckMut<[u8]>) -> KResult<usize> {
+pub async fn read_stdin(buf: UserCheck<[u8]>) -> KResult<usize> {
     BlockingFuture::new(TtyFuture::new(buf)).await
 }
 
@@ -50,13 +51,14 @@ pub fn tty_ioctl(command: usize, value: usize) -> KResult {
             todo!("TIOCSPGRP")
         }
         TIOCGWINSZ => {
-            let mut win_size_ptr = UserCheckMut::new(value as _).check_ptr_mut()?;
-            *win_size_ptr = TTY_INODE.inner.inner.lock().win_size;
+            let mut win_size_ptr =
+                unsafe { UserCheck::new(value as *mut WinSize).check_ptr_mut()? };
+            win_size_ptr.write(TTY_INODE.inner.inner.lock().win_size);
             Ok(0)
         }
         TIOCSWINSZ => {
-            let win_size_ptr = UserCheck::new(value as _).check_ptr()?;
-            TTY_INODE.inner.inner.lock().win_size = *win_size_ptr;
+            let win_size_ptr = UserCheck::new(value as *mut WinSize).check_ptr()?;
+            TTY_INODE.inner.inner.lock().win_size = win_size_ptr.read();
             Ok(0)
         }
         TCSBRK => Ok(0),
@@ -90,11 +92,11 @@ static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
 
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TtyFuture {
-    user_buf: UserCheckMut<[u8]>,
+    user_buf: UserCheck<[u8]>,
 }
 
 impl TtyFuture {
-    pub fn new(user_buf: UserCheckMut<[u8]>) -> Self {
+    pub fn new(user_buf: UserCheck<[u8]>) -> Self {
         Self { user_buf }
     }
 }
@@ -105,13 +107,15 @@ impl Future for TtyFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;
-        let mut user_buf = self.user_buf.check_slice_mut()?;
+        let mut user_buf = unsafe { self.user_buf.check_slice_mut()? };
         loop {
-            if cnt >= user_buf.len() {
+            let mut out = user_buf.out();
+            if cnt >= out.len() {
                 break;
             }
             if let Some(byte) = tty.get_byte() {
-                user_buf[cnt] = byte;
+                // # SAFETY: 上面比较过长度因此不会越界
+                unsafe { out.get_unchecked_out(cnt).write(byte) };
                 cnt += 1;
             } else {
                 break;
