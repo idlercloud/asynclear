@@ -1,8 +1,8 @@
-use core::ops::Deref;
+use core::{ops::Deref, ptr};
 
 use defines::{
     error::{errno, KResult},
-    fs::{FstatFlags, Stat, StatMode},
+    fs::{FstatFlags, IoVec, Stat, StatMode},
 };
 use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
@@ -100,61 +100,76 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     Ok(nwrite as isize)
 }
 
-// #[repr(C)]
-// pub struct IoVec {
-//     iov_base: *mut u8,
-//     iov_len: usize,
-// }
+/// 从 fd 中读入数据，写入多个用户缓冲区中。
+///
+/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行读操作，
+/// 这一个系统调用也会读入一块连续的区域
+///
+/// 参数：
+/// - `fd` 指定文件描述符
+/// - `iovec` 指定 `IoVec` 数组
+pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
+    if fd == 1 || fd == 2 {
+        trace!("writev stdout/stderr");
+    } else {
+        debug!("writev fd = {fd}");
+    }
+    let iovec = iovec.check_slice()?;
+    let file = prepare_io::<true>(fd)?;
+    let mut tot_read = 0;
+    // TODO: [mid] 改变 `sys_readv` 的实现方式使其满足原子性
+    // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
+    let mut iov_index = 0;
+    while iov_index < iovec.len() {
+        let buf = UserCheckMut::new(ptr::slice_from_raw_parts_mut(
+            iovec[iov_index].iov_base,
+            iovec[iov_index].iov_len,
+        ));
+        iov_index += 1;
+        let nread = file.read(buf).await?;
+        if nread == 0 {
+            break;
+        }
+        tot_read += nread;
+    }
+    Ok(tot_read as isize)
+}
 
-// /// 从 fd 中读入数据，写入多个用户缓冲区中。
-// ///
-// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd
-// 进行读操作， /// 这一个系统调用也会读入一块连续的区域。目前未实现。
-// ///
-// /// 参数：
-// /// - `fd` 指定文件描述符
-// /// - `iovec` 指定 `IoVec` 数组
-// /// - `vlen` 指定数组的长度
-// pub fn sys_readv(fd: usize, iovec: *const IoVec, vlen: usize) -> Result {
-//     // let iovec = unsafe { check_slice(iovec, vlen)? };
-//     // let file = prepare_io(fd, true)?;
-//     // let mut tot_read = 0;
-//     // for iov in iovec {
-//     //     let buf = unsafe { check_slice_mut(iov.iov_base, iov.iov_len)? };
-//     //     let nread = file.read(buf);
-//     //     if nread == 0 {
-//     //         break;
-//     //     }
-//     //     tot_read += nread;
-//     // }
-//     // Ok(tot_read as isize)
-//     todo!("[blocked] sys_readv")
-// }
-
-// /// 向 fd 中写入数据，数据来自多个用户缓冲区。
-// ///
-// /// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd
-// 进行写操作， /// 这一个系统调用也会写入一块连续的区域。目前未实现。
-// ///
-// /// 参数：
-// /// - `fd` 指定文件描述符
-// /// - `iovec` 指定 `IoVec` 数组
-// /// - `vlen` 指定数组的长度
-// pub fn sys_writev(fd: usize, iovec: *const IoVec, vlen: usize) -> Result {
-//     // let iovec = unsafe { check_slice(iovec, vlen)? };
-//     // let file = prepare_io(fd, true)?;
-//     // let mut total_write = 0;
-//     // for iov in iovec {
-//     //     let buf = unsafe { check_slice(iov.iov_base, iov.iov_len)? };
-//     //     let nwrite = file.write(buf);
-//     //     if nwrite == 0 {
-//     //         break;
-//     //     }
-//     //     total_write += nwrite;
-//     // }
-//     // Ok(total_write as isize)
-//     todo!("[blocked] sys_writev")
-// }
+/// 向 fd 中写入数据，数据来自多个用户缓冲区。
+///
+/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行写操作，
+/// 这一个系统调用也会写入一块连续的区域。目前未实现。
+///
+/// 参数：
+/// - `fd` 指定文件描述符
+/// - `iovec` 指定 `IoVec` 数组
+/// - `vlen` 指定数组的长度
+pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
+    if fd == 0 {
+        trace!("writev stdout");
+    } else {
+        debug!("writev fd = {fd}");
+    }
+    let iovec = iovec.check_slice()?;
+    let file = prepare_io::<false>(fd)?;
+    let mut total_write = 0;
+    let mut iov_index = 0;
+    // TODO: [mid] 改变 `sys_writev` 的实现方式使其满足原子性
+    // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
+    while iov_index < iovec.len() {
+        let buf = UserCheck::new(ptr::slice_from_raw_parts(
+            iovec[iov_index].iov_base,
+            iovec[iov_index].iov_len,
+        ));
+        iov_index += 1;
+        let nwrite = file.write(buf).await?;
+        if nwrite == 0 {
+            break;
+        }
+        total_write += nwrite;
+    }
+    Ok(total_write as isize)
+}
 
 /// 打开指定的文件。返回非负的文件描述符，
 /// 这个文件描述符一定是当前进程尚未打开的最小的那个
@@ -192,7 +207,7 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     // assert!(flags.contains(OpenFlags::LARGEFILE));
 
     // 暂时先不支持这些
-    if flags.intersects(OpenFlags::ASYNC | OpenFlags::APPEND | OpenFlags::DSYNC) {
+    if flags.intersects(OpenFlags::ASYNC | OpenFlags::DSYNC) {
         todo!("[low] unsupported openflags: {flags:#b}");
     }
 

@@ -113,3 +113,9 @@ pub struct Stat {
     /// 最后一次改变状态时间 (Change TIME)
     pub st_ctime: TimeSpec,
 }
+
+#[repr(C)]
+pub struct IoVec {
+    pub iov_base: *mut u8,
+    pub iov_len: usize,
+}

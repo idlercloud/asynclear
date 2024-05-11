@@ -121,8 +121,6 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     };
 
     loop {
-        debug!("component: {curr_component}");
-
         if let Some(new_component) = split.next() {
             // 当前是一个中间的 component
             let maybe_next = ret.dir.lookup(curr_component.to_compact_string());
@@ -135,7 +133,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
             }
         } else {
             // 当前是最后一个 component
-            ret.last_component = curr_component.to_compact_string();
+            ret.last_component = next_component.to_compact_string();
             return Ok(ret);
         }
     }
@@ -173,6 +171,6 @@ pub fn stat_from_meta(stat: &mut Stat, meta: &InodeMeta) {
         stat.st_atime = meta_inner.access_time;
         stat.st_mtime = meta_inner.modify_time;
         stat.st_ctime = meta_inner.change_time;
-        stat.st_blocks = stat.st_size.div_ceil(stat.st_blksize as u64);
     });
+    stat.st_blocks = stat.st_size.div_ceil(stat.st_blksize as u64);
 }

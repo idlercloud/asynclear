@@ -20,8 +20,13 @@ impl FatFile {
         mut dir_entry: DirEntry,
     ) -> Inode<PagedInode<Self>> {
         debug_assert!(!dir_entry.is_dir());
+        let fat_file = Self {
+            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
+            fat,
+        };
         let meta = InodeMeta::new(StatMode::DIR, dir_entry.take_name());
         meta.lock_inner_with(|inner| {
+            inner.data_len = dir_entry.file_size();
             inner.access_time = dir_entry.access_time();
             // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
             // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
@@ -29,10 +34,6 @@ impl FatFile {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        let fat_file = Self {
-            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
-            fat,
-        };
         // 文件的大小显然是不超过它占用的簇的总大小的
         assert!(
             dir_entry.file_size()

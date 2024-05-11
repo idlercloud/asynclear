@@ -7,7 +7,6 @@
 #![feature(arbitrary_self_types)]
 #![feature(decl_macro)]
 #![feature(step_trait)]
-#![feature(ptr_metadata)]
 #![feature(type_alias_impl_trait)]
 #![feature(int_roundings)]
 #![feature(array_chunks, iter_array_chunks)]

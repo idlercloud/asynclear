@@ -223,6 +223,9 @@ impl<T: ?Sized> DerefMut for UserMut<T> {
     }
 }
 
+unsafe impl<T: ?Sized> Send for UserConst<T> {}
+unsafe impl<T: ?Sized> Send for UserMut<T> {}
+
 #[naked]
 extern "C" fn try_read_user_byte(addr: usize) -> usize {
     unsafe {

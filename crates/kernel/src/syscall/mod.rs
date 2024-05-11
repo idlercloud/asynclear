@@ -58,24 +58,36 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         // PIPE2 => sys_pipe2(args[0] as _),
         GETDENTS64 => sys_getdents64(
             args[0],
-            UserCheckMut::new(ptr::from_raw_parts_mut(args[1] as _, args[2])),
+            UserCheckMut::new(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
         ),
         READ => {
             sys_read(
                 args[0],
-                UserCheckMut::new(ptr::from_raw_parts_mut(args[1] as _, args[2])),
+                UserCheckMut::new(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
             )
             .await
         }
         WRITE => {
             sys_write(
                 args[0],
-                UserCheck::new(ptr::from_raw_parts(args[1] as _, args[2])),
+                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
             )
             .await
         }
-        // READV => sys_readv(args[0], args[1] as _, args[2]),
-        // WRITEV => sys_writev(args[0], args[1] as _, args[2]),
+        READV => {
+            sys_readv(
+                args[0],
+                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
+            )
+            .await
+        }
+        WRITEV => {
+            sys_writev(
+                args[0],
+                UserCheck::new(ptr::slice_from_raw_parts(args[1] as _, args[2])),
+            )
+            .await
+        }
         // PPOLL => sys_ppoll(),
         NEWFSTATAT => sys_newfstatat(
             args[0],

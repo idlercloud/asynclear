@@ -34,9 +34,11 @@ impl FatDir {
         let clusters = fat
             .cluster_chain(first_root_cluster_id)
             .collect::<SmallVec<_>>();
-        debug!("root dir clusters num is {}", clusters.len());
-        let meta = InodeMeta::new(StatMode::DIR, CompactString::from_static_str("/"));
         let root_dir = Self { clusters, fat };
+        let meta = InodeMeta::new(StatMode::DIR, CompactString::from_static_str("/"));
+        meta.lock_inner_with(|inner| {
+            inner.data_len = root_dir.disk_space();
+        });
         Inode::new(meta, root_dir)
     }
 
@@ -48,7 +50,7 @@ impl FatDir {
             fat,
         };
         meta.lock_inner_with(|inner| {
-            inner.data_len = fat_dir.len();
+            inner.data_len = fat_dir.disk_space();
             inner.access_time = dir_entry.access_time();
             // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
             // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
@@ -167,7 +169,7 @@ impl DirInodeBackend for FatDir {
         Ok(())
     }
 
-    fn len(&self) -> usize {
+    fn disk_space(&self) -> usize {
         self.clusters.len() * self.fat.sector_per_cluster() as usize * SECTOR_SIZE
     }
 }

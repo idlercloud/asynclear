@@ -94,7 +94,7 @@ pub trait DirInodeBackend: Send + Sync {
     /// 调用者保证一定是目录类型，且传入的 `mode` 也是 [`StatMode::S_IFDIR`]
     fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
-    fn len(&self) -> usize;
+    fn disk_space(&self) -> usize;
 }
 
 impl<T: ?Sized + DirInodeBackend> Inode<T> {
@@ -115,7 +115,7 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
     pub fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>> {
         let ret = self.inner.mkdir(name, mode)?;
         self.meta.lock_inner_with(|inner| {
-            inner.data_len = self.inner.len();
+            inner.data_len = self.inner.disk_space();
             inner.modify_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
         });
