@@ -154,8 +154,8 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         }
         Err(err) => {
             // 等待进程的 EAGAIN 可以忽视
-            if !(id == WAIT4 && err == errno::EAGAIN) {
-                info!("return {err:?}, {}", errno::error_info(err.as_isize()),);
+            if !((id == WAIT4 && err == errno::EAGAIN) || err == errno::BREAK) {
+                warn!("return {err:?}, {}", errno::error_info(err.as_isize()),);
             }
             err.as_isize()
         }

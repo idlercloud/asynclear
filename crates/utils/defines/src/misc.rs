@@ -97,18 +97,20 @@ bitflags! {
         const WCONTINUED = 1 << 3;
     }
 
-    /// sys_mmap 中使用，描述内存映射保护方式
+    /// `sys_mmap` 中使用，描述内存映射保护方式，并且不得与文件的打开模式冲突
     #[derive(Clone, Copy, Debug)]
     pub struct MmapProt: u32 {
+        /// 不允许访问。可以用于如 guard page 等保护作用
         const PROT_NONE  = 0;
         const PROT_READ  = 1 << 0;
         const PROT_WRITE = 1 << 1;
         const PROT_EXEC  = 1 << 2;
     }
 
-    /// `MAP_SHARED` 和 `MAP_PRIVATE` 二者有且仅有其一。
     #[derive(Clone, Copy, Debug)]
     pub struct MmapFlags: u32 {
+        // 根据 man，似乎下面两个至少有其一，而且 `MAP_SHARED` 优先
+        //（因为现在 `MAP_SHARED_VALIDATE` 和 `MAP_SHARED` 行为一致）
         /// 该区域的映射对其他进程可见。若有底层文件，则更新被同步到底层文件上。
         const MAP_SHARED  = 1 << 0;
         /// 私有的 Cow 映射。其他进程不可见，也不会同步到底层文件。
@@ -121,8 +123,11 @@ bitflags! {
         const MAP_FIXED     = 1 << 4;
         /// 匿名映射，没有底层文件。内容全部初始化为 0。`fd` 必须为 -1，`offset` 必须为 0。
         const MAP_ANONYMOUS = 1 << 5;
-        /// 不为该映射保留 swap 空间。当实际物理内存不足时，可能造成内存溢出。
-        const MAP_NORESERVE = 1 << 14;
+
+        /// 该标志被忽略
+        const MAP_DENYWRITE     = 1 << 11;
+        /// 该标志被忽略
+        const MAP_EXECUTABLE    = 1 << 12;
     }
 
     /// 用于 sys_clone 的选项

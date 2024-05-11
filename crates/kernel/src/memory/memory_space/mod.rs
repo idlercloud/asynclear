@@ -1,15 +1,19 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
-use core::ops::Range;
+use core::ops::{Bound, Range};
 
 use bitflags::bitflags;
-use common::config::{MEMORY_END, MMIO, PA_TO_VA};
+use common::config::{LOW_ADDRESS_END, MEMORY_END, MMAP_START, MMIO, PA_TO_VA};
 use compact_str::CompactString;
-use defines::{error::KResult, misc::MmapProt};
+use defines::{
+    error::{errno, KResult},
+    misc::{MmapFlags, MmapProt},
+};
 use goblin::elf::{
     program_header::{PF_R, PF_W, PF_X, PT_LOAD},
     Elf,
 };
 use klocks::Lazy;
+use smallvec::SmallVec;
 use virtio_drivers::PAGE_SIZE;
 use vm_area::AreaType;
 
@@ -272,36 +276,79 @@ impl MemorySpace {
     /// 尝试根据 `va_range` 进行映射
     pub fn try_map(
         &mut self,
-        _va_range: Range<VirtAddr>,
-        _perm: MapPermission,
-        _fixed: bool,
+        va_range: Range<VirtAddr>,
+        perm: MapPermission,
+        flags: MmapFlags,
     ) -> KResult<isize> {
-        todo!("[mid] impl mmap with page cache")
-        // if fixed {
-        //     // TODO: 应当 unmap 与其相交的部分。不过，如果是一些不该 unmap
-        // 的区域，是否该返回错误？
-        //     self.insert_framed_area(va_range.start, va_range.end, perm);
-        //     Ok(va_range.start.0 as isize)
-        // } else {
-        //     // 尝试找到一个合适的段来映射
-        //     let mut start = VirtAddr(MMAP_START);
-        //     let len = va_range.end.0 - va_range.start.0;
-        //     for area in self.areas.values() {
-        //         // 要控制住不溢出低地址空间的上限
-        //         if area.vpn_range.start.page_start() > start
-        //             && start + len <= VirtAddr(LOW_ADDRESS_END)
-        //         {
-        //             // 找到可映射的段
-        //             if start + len <= area.vpn_range.start {
-        //                 // TODO: 匿名映射的话，按照约定应当全部初始化为 0
-        //                 self.insert_framed_area(start, start + len, perm);
-        //                 return Ok(start.page_start().0 as isize);
-        //             }
-        //             start = area.vpn_range.end;
-        //         }
-        //     }
-        //     Err(errno::ENOMEM)
-        // }
+        if flags.contains(MmapFlags::MAP_FIXED) {
+            // TODO: [mid] 实现 fixed 映射
+            error!("fixed map unsupported");
+            return Err(errno::UNSUPPORTED);
+        }
+        // 尝试找到一个合适的段来映射
+        let mut start = VirtAddr(MMAP_START).max(va_range.start);
+        let len = va_range.end.0 - va_range.start.0;
+        let mut cursor = self
+            .user_areas
+            .lower_bound(Bound::Excluded(&start.vpn_ceil()));
+        // `MMAP_START` 左侧的一个 area 有可能恰好包含了它，所以需要特判一下
+        if let Some((_, area)) = cursor.peek_prev() {
+            start = VirtAddr::max(start, area.vpn_range().end.page_start());
+        }
+        while let Some((_, area)) = cursor.next() {
+            let end = start + len;
+            if end <= area.vpn_range().start.page_start() {
+                // SAFETY: 条件语句检查了不会和其他区域重叠
+                unsafe {
+                    self.user_map(start, end, perm, AreaType::Lazy);
+                }
+                return Ok(start.0 as isize);
+            }
+            start = area.vpn_range().end.page_start();
+        }
+        // 最后一个 area 末尾到低地址末端也可以试一下
+        let end = start + len;
+        if end.0 <= LOW_ADDRESS_END {
+            // SAFETY: 条件语句检查了不会和其他区域重叠
+            unsafe {
+                self.user_map(start, end, perm, AreaType::Lazy);
+            }
+            return Ok(start.0 as isize);
+        }
+        Err(errno::ENOMEM)
+    }
+
+    /// 将 `va_range` 范围内的所有页取消映射。有可能导致某个 area 被部分截断
+    pub fn unmap(&mut self, va_range: Range<VirtAddr>) {
+        let vpn_range = va_range.start.vpn_floor()..va_range.end.vpn_ceil();
+        let mut cursor = self
+            .user_areas
+            .lower_bound(Bound::Included(&vpn_range.start));
+        cursor.prev();
+
+        let mut to_unmap = SmallVec::<[VirtPageNum; 4]>::new();
+
+        while let Some((_, area)) = cursor.next() {
+            let area_vpn_range = area.vpn_range();
+            if vpn_range.start <= area_vpn_range.start && area_vpn_range.end <= vpn_range.end {
+                to_unmap.push(area_vpn_range.start);
+                // area 被完全包含在内
+            } else if area_vpn_range.end <= vpn_range.start {
+                // area 完全在该区域左侧
+                continue;
+            } else if area_vpn_range.start >= vpn_range.end {
+                // area 完全在该区域右侧
+                break;
+            } else {
+                // area 部分包含在内
+                todo!("[mid] impl partially contianed unmap");
+            }
+        }
+
+        for vpn in to_unmap {
+            let mut area = self.user_areas.remove(&vpn).unwrap();
+            area.unmap(&mut self.page_table);
+        }
     }
 
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
@@ -369,7 +416,7 @@ impl MemorySpace {
         if maybe_cow {
             todo!("[mid] impl cow");
         } else {
-            debug!("handle page fault for {addr:x}");
+            trace!("handle page fault for {addr:#x}");
             let vpn = VirtAddr(addr).vpn_floor();
             if let Some((_, area)) = self.user_areas.range_mut(..=vpn).next_back() {
                 if vpn >= area.vpn_range().end {

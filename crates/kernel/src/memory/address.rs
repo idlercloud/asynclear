@@ -109,6 +109,14 @@ impl VirtAddr {
     }
 }
 
+impl Add<usize> for VirtAddr {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
 impl<T> From<*const T> for VirtAddr {
     fn from(ptr: *const T) -> Self {
         Self(ptr as usize)

@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
 use atomic::Ordering;
+use common::config::PAGE_OFFSET_MASK;
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
@@ -14,7 +15,11 @@ use event_listener::listener;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
-    executor, hart::local_hart, memory::VirtAddr, process::exit_process, thread::BlockingFuture,
+    executor,
+    hart::local_hart,
+    memory::{MapPermission, VirtAddr},
+    process::exit_process,
+    thread::BlockingFuture,
 };
 
 /// 退出当前线程，结束用户线程循环。
@@ -271,52 +276,68 @@ pub fn sys_setpriority(_prio: isize) -> KResult {
 /// - `fd` 被映射的文件描述符
 /// - `offset` 映射的起始偏移，必须是 `PAGE_SIZE` 的整数倍
 pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: i32, offset: usize) -> KResult {
-    info!("addr: {addr}");
-    info!("len: {len}");
-
-    if VirtAddr(addr).page_offset() != 0 || len == 0 {
-        return Err(errno::EINVAL);
-    }
-    let Some(prot) = MmapProt::from_bits(prot) else {
-        // prot 出现了意料之外的标志位
-        error!("prot: {prot:#b}");
-        return Err(errno::UNSUPPORTED);
-    };
+    let prot = MmapProt::from_bits(prot).ok_or(errno::EINVAL)?;
     let Some(flags) = MmapFlags::from_bits(flags) else {
         // flags 出现了意料之外的标志位
-        error!("flags: {flags:#b}");
+        error!("unsupported flags: {flags:#b}");
         return Err(errno::UNSUPPORTED);
     };
-    info!("prot: {prot:?}");
-    info!("flags: {flags:?}");
-    info!("fd: {fd}");
-    info!("offset: {offset}");
-    if flags.contains(MmapFlags::MAP_ANONYMOUS | MmapFlags::MAP_SHARED) {
-        error!("anonymous shared mapping is not supported!");
-        return Err(errno::EPERM);
-    }
-    if flags.contains(MmapFlags::MAP_ANONYMOUS) {
-        if fd != -1 || offset != 0 {
-            error!("fd must be -1 and offset must be 0 for anonyous mapping");
-            return Err(errno::EPERM);
+    debug!("prot: {prot:?}, flags: {flags:?}");
+    if flags.contains(MmapFlags::MAP_SHARED) {
+        // 共享映射
+        todo!("[mid] impl shared mapping");
+    } else {
+        // 私有映射
+        // `MAP_SHARED`、`MAP_PRIVATE` 至少有其一
+        if !flags.contains(MmapFlags::MAP_PRIVATE) {
+            return Err(errno::EINVAL);
         }
-        let process = local_hart().curr_process();
-        info!("pid: {}", process.pid());
-        // TODO: [blocked] 还没有处理 MmapFlags::MAP_FIXED 的情况？
-        return process.lock_inner_with(|inner| {
-            inner
-                .memory_space
-                .try_map(VirtAddr(addr)..VirtAddr(addr + len), prot.into(), false)
-        });
-    }
 
-    // TODO: [blocked] 其他映射尚未实现
-    Err(errno::UNSUPPORTED)
+        if flags.contains(MmapFlags::MAP_ANONYMOUS) {
+            // 私有匿名映射
+            if fd != -1 || offset != 0 {
+                warn!("fd must be -1 and offset must be 0 for anonyous mapping");
+                return Err(errno::EINVAL);
+            }
+            private_anonymous_map(prot, flags, addr, len)
+        } else {
+            todo!("[mid] impl private file mapping");
+        }
+    }
 }
 
-pub fn sys_munmap(_addr: usize, _len: usize) -> KResult {
-    // Err(errno::UNSUPPORTED)
-    todo!("[blocked] sys_munmap")
+/// 私有匿名映射，没有底层文件。内容全部初始化为 0
+///
+/// 如果 addr 没有对齐到页边界或者 len 为 0
+fn private_anonymous_map(prot: MmapProt, flags: MmapFlags, addr: usize, len: usize) -> KResult {
+    debug!("private anonymous map, addr: {addr:#}, len: {len}");
+    if addr & PAGE_OFFSET_MASK != 0 || len == 0 {
+        return Err(errno::EINVAL);
+    }
+    let process = local_hart().curr_process();
+    let va_start = VirtAddr(addr);
+    process.lock_inner_with(|inner| {
+        inner
+            .memory_space
+            .try_map(va_start..va_start + len, MapPermission::from(prot), flags)
+    })
+}
+
+/// 将一块区域取消映射。
+///
+/// （未实现）有可能产生多个新的区域，比如 unmap 一个大区域的中间，左右两遍会变成两个单独的小区域
+///
+/// 在目前的实现中应该只会在参数不正确（`addr` 未对齐、`len` 为 0）时返回 `EINVAL` 一种错误
+pub fn sys_munmap(addr: usize, len: usize) -> KResult {
+    debug!("unmap {addr}..{}", addr + len);
+    if addr & PAGE_OFFSET_MASK != 0 || len == 0 {
+        return Err(errno::EINVAL);
+    }
+    let va_start = VirtAddr(addr);
+    local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.memory_space.unmap(va_start..va_start + len));
+    Ok(0)
 }
 
 /// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的 tid。

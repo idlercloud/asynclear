@@ -29,7 +29,7 @@ unsafe impl Hal for HalImpl {
 
     unsafe fn dma_dealloc(
         paddr: virtio_drivers::PhysAddr,
-        _vaddr: core::ptr::NonNull<u8>,
+        _vaddr: NonNull<u8>,
         pages: usize,
     ) -> i32 {
         let ppn = PhysAddr(paddr).ppn();
@@ -46,10 +46,10 @@ unsafe impl Hal for HalImpl {
 
     // 不知道 share 和 unshare 干嘛的，先这么实现着
     unsafe fn share(
-        buffer: core::ptr::NonNull<[u8]>,
+        buffer: NonNull<[u8]>,
         _direction: virtio_drivers::BufferDirection,
     ) -> virtio_drivers::PhysAddr {
-        let vaddr = buffer.addr().get();
+        let vaddr = buffer.as_ptr() as *const u8 as usize;
         assert!(vaddr >= PA_TO_VA);
         vaddr - PA_TO_VA
     }
@@ -57,7 +57,7 @@ unsafe impl Hal for HalImpl {
     // 在我们的场景中似乎不需要？
     unsafe fn unshare(
         _paddr: virtio_drivers::PhysAddr,
-        _buffer: core::ptr::NonNull<[u8]>,
+        _buffer: NonNull<[u8]>,
         _direction: virtio_drivers::BufferDirection,
     ) {
     }
