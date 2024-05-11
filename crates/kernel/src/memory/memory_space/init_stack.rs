@@ -34,8 +34,8 @@ impl<'a, 'b> FramedVmArea {
         let ctx = &mut ctx;
         self.push_usize(0, ctx);
         // 这里应放入 16 字节的随机数。目前实现依赖运行时间
-        // 据 Hacker News 所说，它是 "used to construct stack canaries and function
-        // pointer encryption keys" 参考 https://news.ycombinator.com/item?id=24113026
+        // 据 Hacker News 所说，它是 "used to construct stack canaries and function pointer encryption keys"
+        // 参考 https://news.ycombinator.com/item?id=24113026
         self.push_usize(riscv_time::get_time(), ctx);
         self.push_usize(riscv_time::get_time(), ctx);
         let random_pos = ctx.user_sp;
@@ -78,8 +78,6 @@ impl<'a, 'b> FramedVmArea {
         (ctx.user_sp, argv_base)
     }
 
-    /// `user_sp` 和 `user_sp_kernel_va` 向下移动，如果跨越页边界，则重新翻译
-    /// `user_sp_kernel_va`
     fn sp_down(&'b mut self, len: usize, ctx: &mut StackInitCtx<'a>) {
         ctx.user_sp -= len;
 
@@ -133,7 +131,6 @@ pub(super) struct StackInitCtx<'a> {
 }
 
 impl<'a> StackInitCtx<'a> {
-    /// 如果 `user_pt` 不为 `None`，则使用该 `PageTable` 转换的地址
     pub fn new(
         user_sp_page: VirtPageNum,
         page_table: &'a mut PageTable,
@@ -141,7 +138,6 @@ impl<'a> StackInitCtx<'a> {
         envs: Vec<CompactString>,
         auxv: Vec<(u8, usize)>,
     ) -> Self {
-        // 用户 sp 最初应该是对齐到页边界的
         Self {
             user_sp: user_sp_page.page_start().0,
             page_table,

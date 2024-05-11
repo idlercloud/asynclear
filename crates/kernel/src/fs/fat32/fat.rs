@@ -182,11 +182,9 @@ impl FatAllocMeta {
             return Err(errno::EINVAL);
         }
 
-        // 剩余簇的数量，如果是 0xffffffff
-        // 则表示未知，需要重新计算。并不保证一定精准，但是其值一定不超过磁盘的总簇数
+        // 剩余簇的数量，如果是 0xffffffff 则表示未知，需要重新计算。并不保证一定精准，但是其值一定不超过磁盘的总簇数
         let free_count = u32::from_le_bytes(info_sector[488..492].try_into().unwrap());
-        // 从哪里开始寻找剩余簇的 hint，通常是最后一个被分配出去的簇号 + 1。如果值为
-        // 0xffffffff 则表示未知，应当从 2 号簇开始查找
+        // 从哪里开始寻找剩余簇的 hint，通常是最后一个被分配出去的簇号 + 1。如果值为 0xffffffff 则表示未知，应当从 2 号簇开始查找
         let next_free = u32::from_le_bytes(info_sector[492..496].try_into().unwrap());
 
         let trail_sig = u32::from_le_bytes(info_sector[508..512].try_into().unwrap());

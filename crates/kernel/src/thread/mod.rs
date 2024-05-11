@@ -63,7 +63,7 @@ impl Thread {
 
     /// 分配用户栈，一般用于创建新线程。返回用户栈高地址
     ///
-    /// 注意 `memory_space` 是进程的 `MemorySpace`
+    /// 注意 `memory_space` 是本进程的 `MemorySpace`
     pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> VirtPageNum {
         // 分配用户栈
         let ustack_low_vpn = Self::user_stack_low_addr(tid);
@@ -101,7 +101,7 @@ impl Thread {
 
     /// 释放用户栈。一般是单个线程退出时使用。
     ///
-    /// 注意 `memory_space` 是进程的 `MemorySpace`
+    /// 注意 `memory_space` 是本进程的 `MemorySpace`
     fn dealloc_user_stack(&self, memory_space: &mut MemorySpace) {
         // 手动取消用户栈的映射
         let user_stack_low_addr = Self::user_stack_low_addr(self.tid);

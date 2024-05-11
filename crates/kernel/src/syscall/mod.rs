@@ -1,7 +1,6 @@
 mod fs;
 mod process;
 mod signal;
-mod sync;
 mod thread;
 mod time;
 
@@ -12,7 +11,6 @@ use fs::*;
 use process::*;
 use signal::*;
 use thread::*;
-// use sync::*;
 use time::*;
 use user_check::{UserCheck, UserCheckMut};
 

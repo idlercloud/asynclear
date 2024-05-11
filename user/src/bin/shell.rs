@@ -40,58 +40,11 @@ pub fn main() -> i32 {
                         s.push('\0');
                     }
 
-                    // redirect input
-                    // let mut input = String::new();
-                    // if let Some((idx, _)) = args
-                    //     .iter()
-                    //     .enumerate()
-                    //     .find(|(_, arg)| arg.as_str() == "<\0")
-                    // {
-                    //     input = args[idx + 1].clone();
-                    //     args.drain(idx..=idx + 1);
-                    // }
-
-                    // redirect output
-                    // let mut output = String::new();
-                    // if let Some((idx, _)) = args
-                    //     .iter()
-                    //     .enumerate()
-                    //     .find(|(_, arg)| arg.as_str() == ">\0")
-                    // {
-                    //     output = args[idx + 1].clone();
-                    //     args.drain(idx..=idx + 1);
-                    // }
-
                     let mut args_addr: Vec<*const u8> =
                         args.iter().map(|arg| arg.as_ptr()).collect();
                     args_addr.push(core::ptr::null());
                     let pid = fork();
                     if pid == 0 {
-                        // input redirection
-                        // if !input.is_empty() {
-                        //     let input_fd = open(input.as_str(), OpenFlags::RDONLY);
-                        //     if input_fd == -1 {
-                        //         println!("Error when opening file {}", input);
-                        //         return -4;
-                        //     }
-                        //     let input_fd = input_fd as usize;
-                        //     close(0);
-                        //     assert_eq!(dup(input_fd), 0);
-                        //     close(input_fd);
-                        // }
-                        // output redirection
-                        // if !output.is_empty() {
-                        //     let output_fd =
-                        //         open(output.as_str(), OpenFlags::CREATE | OpenFlags::WRONLY);
-                        //     if output_fd == -1 {
-                        //         println!("Error when opening file {}", output);
-                        //         return -4;
-                        //     }
-                        //     let output_fd = output_fd as usize;
-                        //     close(1);
-                        //     assert_eq!(dup(output_fd), 1);
-                        //     close(output_fd);
-                        // }
                         // child process
                         if exec(args[0].as_str(), args_addr.as_slice()) < 0 {
                             println!("Error when executing!");

@@ -43,8 +43,6 @@ impl Span {
         if let Some(tracer) = KERNLE_TRACER.get() {
             let kvs = kvs.map(|kvs| {
                 let mut kvs_str = CompactString::new("");
-                // this will not panic because
-                // the macro implementation guarantee the array size > 0
                 write!(kvs_str, "{}=", kvs[0].0).unwrap();
                 kvs[0].1.log(&mut kvs_str);
                 let mut i = 1;

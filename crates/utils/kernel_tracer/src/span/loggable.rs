@@ -8,8 +8,7 @@ pub trait Loggable {
 }
 
 // 要经过这个转一道。
-// 不允许 impl<T: Display> Loggable for T 后再去给其他上游类型 impl Loggable
-// 因为上游随时可能为该类型实现 Display，导致冲突
+// 无法 impl<T: Display> Loggable for T 后再去给其他上游类型 impl Loggable 因为上游随时可能为该类型实现 Display，导致冲突
 trait SpecDisplay: core::fmt::Display {}
 
 macro_rules! mydisplay_impl {

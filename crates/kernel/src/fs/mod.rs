@@ -90,13 +90,6 @@ pub struct PathToInode {
     pub last_component: CompactString,
 }
 
-/// 分类讨论：
-///
-/// 1. "/"，如 open("/")，返回 `root_dir()`, `.`。
-/// 2. "/xxx"，返回 `dir`, `Some(last_component)`
-/// 3. 某个中间的 component 不存在，则返回 ENOENT
-/// 4. 某个中间的 component 存在但不是目录（即使后面跟的是 `..` 或 `.`），则返回
-///    ENOTDIR
 pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {
     debug!(
         "walk path: {path}, from {}",

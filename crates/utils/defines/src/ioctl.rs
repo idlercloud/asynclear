@@ -9,25 +9,6 @@ pub struct WinSize {
     pub ypixel: u16,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Termios {
-    /// Input modes
-    pub iflag: u32,
-    /// Ouput modes
-    pub oflag: u32,
-    /// Control modes
-    pub cflag: u32,
-    /// Local modes
-    pub lflag: u32,
-    pub line: u8,
-    /// Terminal special characters.
-    pub cc: [u8; 19],
-    // pub cc: [u8; 32],
-    // pub ispeed: u32,
-    // pub ospeed: u32,
-}
-
 // 以下四个和 `struct termios` 相关
 
 /// 获取当前串口设置

@@ -13,8 +13,7 @@ use crate::{
 /// 设置当前**进程**在收到特定信号时的行为
 ///
 /// 参数：
-/// - `signum` 指定信号，可以是除了 `SIGKILL` 和 `SIGSTOP`
-///   之外的任意有效信号。见 [`Signal`]
+/// - `signum` 指定信号，可以是除了 `SIGKILL` 和 `SIGSTOP` 之外的任意有效信号。见 [`Signal`]
 /// - `act` 如果非 NULL，则安装 `act` 指向的新操作
 /// - `old_act` 如果非 NULL，则将旧操作写入 `old_act` 中
 ///
@@ -47,9 +46,9 @@ pub fn sys_rt_sigaction(
         trace!("write sigaction from {act:p}");
         let act_ptr = UserCheck::new(act).check_ptr()?;
         if !act_ptr.flags.contains(SignalActionFlags::SA_RESTORER) {
-            // `SA_RESTORER` 表示传入的 restore 字段是有用的
-            // 一般而言这个字段由 libc 填写，用于 signal handler 执行结束之后调用
-            // `sys_sigreturn` 如果没有填写，则 os 需要自己手动做一个 trampoline
+            // `SA_RESTORER` 表示传入的 `restore` 字段是有用的
+            // 一般而言这个字段由 libc 填写，用于 signal handler 执行结束之后调用 `sys_sigreturn`
+            // 如果没有填写，则 os 需要自己手动做一个 trampoline
             todo!("[low] sig trampoline does not impl")
         }
         local_hart().curr_process().lock_inner_with(|inner| {
@@ -63,8 +62,7 @@ pub fn sys_rt_sigaction(
     Ok(0)
 }
 
-// TODO: 其实 `sys_rt_sigprocmask` 应该只对传统的单线程进程生效，多线程应该使用
-// `pthread_sigmask`
+// TODO: 其实 `sys_rt_sigprocmask` 应该只对传统的单线程进程生效，多线程应该使用 `pthread_sigmask`
 /// 用于获取或更改**线程**的信号掩码
 ///
 /// 参数：

@@ -52,8 +52,7 @@ impl Default for KSignalAction {
 // TODO: 出于简单性，暂时只考虑标准信号，后续有需要实时信号再添加
 
 bitflags! {
-    /// 其实 posix 规定 64 位平台上应该有 1024bits
-    /// [Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
+    /// 其实 posix 规定 64 位平台上应该有 1024bits。[Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
     ///
     /// 然而实践中比较混乱。比如理论应该区分 sigset_t(1024bits) 和 kernel_sigset_t(64bits?)，但 linux 内核中后者的名字是前者。
     ///

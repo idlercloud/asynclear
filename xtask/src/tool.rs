@@ -21,7 +21,7 @@ use crate::{
 pub struct AsmArgs {
     #[clap(flatten)]
     build: BuildArgs,
-    /// ELF path, if not specified, kernel's path will be selected
+    /// ELF 路径，如果未指定则使用 kernel 的路径
     #[clap(short, long)]
     path: Option<PathBuf>,
     #[clap(long)]
@@ -40,7 +40,6 @@ impl AsmArgs {
                 "--demangle",
                 "--line-numbers",
                 "--file-headers",
-                // "--section-headers",
                 "--symbolize-operands",
                 "--print-imm-hex",
                 "--no-show-raw-insn",

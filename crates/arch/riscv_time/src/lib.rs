@@ -29,7 +29,7 @@ pub fn get_time_ms() -> usize {
     time::read() * MILLI_PER_SEC / CLOCK_FREQ
 }
 
-/// set the next timer interrupt
+/// 设置下一次定时器中断
 pub fn set_next_trigger() {
     sbi_rt::set_timer((get_time() + CLOCK_FREQ / TICKS_PER_SEC) as u64);
 }

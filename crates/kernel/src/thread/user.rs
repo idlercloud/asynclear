@@ -68,8 +68,7 @@ fn exit_thread(thread: &Thread) {
     // 但主要的资源是会释放的，比如地址空间、线程控制块等
     if process_inner.threads.is_empty() {
         info!("all threads exit");
-        // 不太想让 `cwd` 加个
-        // `Option`，但是也最好不要保持原来的引用了，所以引到根目录去得了
+        // 不太想让 `cwd` 加个 `Option`，但是也最好不要保持原来的引用了，所以引到根目录去得了
         process_inner.cwd = Arc::clone(VFS.root_dir());
         process_inner.memory_space.recycle_user_pages();
         process_inner.threads = BTreeMap::new();
@@ -78,8 +77,7 @@ fn exit_thread(thread: &Thread) {
         let parent = process_inner.parent.take();
         drop(process_inner);
 
-        // 如果进程已标记为退出（即已调用
-        // `exit_process()`），则标记为僵尸并使用已有的退出码
+        // 如果进程已标记为退出（即已调用 `exit_process()`），则标记为僵尸并使用已有的退出码
         // 否则使用线程的退出码
         let exit_code = thread.exit_code.load(Ordering::SeqCst);
         let new_status;
@@ -116,8 +114,7 @@ fn exit_thread(thread: &Thread) {
     }
 }
 
-/// `UserThreadFuture`
-/// 用来处理用户线程获取控制权以及让出控制权时的上下文切换。如页表切换等
+/// `UserThreadWrapperFuture` 用来处理用户线程获取控制权以及让出控制权时的上下文切换。如页表切换等
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project::pin_project]
 struct UserThreadWrapperFuture {

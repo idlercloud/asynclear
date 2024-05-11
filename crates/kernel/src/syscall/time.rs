@@ -11,7 +11,7 @@ use user_check::UserCheckMut;
 /// - `ts` 要设置的时间值
 /// - `tz` 时区结构，但目前已经过时，不考虑
 pub fn sys_get_time_of_day(tv: *mut TimeVal, _tz: usize) -> KResult {
-    // 根据 man 所言，时区参数 tz 已经过时了，通常应当是 NULL。
+    // 根据 man 所言，时区参数 `tz` 已经过时了，通常应当是 `NULL`。
     assert_eq!(_tz, 0);
     let mut tv = UserCheckMut::new(tv).check_ptr_mut()?;
     let us = riscv_time::get_time_us();

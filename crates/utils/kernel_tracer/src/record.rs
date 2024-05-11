@@ -6,56 +6,23 @@ use crate::Level;
 pub struct Record<'a> {
     level: Level,
     args: Arguments<'a>,
-    // module_path: &'static str,
-    // file: &'static str,
-    // line: u32,
 }
 
 impl<'a> Record<'a> {
     #[inline]
-    pub fn new(
-        level: Level,
-        args: Arguments<'a>,
-        // module_path: &'static str,
-        // file: &'static str,
-        // line: u32,
-    ) -> Self {
-        Self {
-            level,
-            args,
-            // module_path,
-            // file,
-            // line,
-        }
+    pub fn new(level: Level, args: Arguments<'a>) -> Self {
+        Self { level, args }
     }
 
-    /// The message body.
+    /// 消息内容
     #[inline]
     pub fn args(&self) -> &Arguments<'a> {
         &self.args
     }
 
-    /// The verbosity level of the message.
+    /// 消息的日志等级
     #[inline]
     pub fn level(&self) -> Level {
         self.level
     }
-
-    // /// The module path of the message.
-    // #[inline]
-    // pub fn module_path(&self) -> &'static str {
-    //     self.module_path
-    // }
-
-    // /// The source file containing the message.
-    // #[inline]
-    // pub fn file(&self) -> &'static str {
-    //     self.file
-    // }
-
-    // /// The line containing the message.
-    // #[inline]
-    // pub fn line(&self) -> u32 {
-    //     self.line
-    // }
 }

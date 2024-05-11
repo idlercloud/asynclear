@@ -9,7 +9,7 @@ use defines::{
     error::KResult,
     fs::StatMode,
     ioctl::{
-        Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
+        WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
     },
 };
@@ -70,7 +70,6 @@ pub struct TtyInode {
 
 struct TtyInodeInner {
     win_size: WinSize,
-    termios: Termios,
 }
 
 static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
@@ -83,39 +82,6 @@ static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
                     ws_col: 120,
                     xpixel: 0,
                     ypixel: 0,
-                },
-                termios: Termios {
-                    // IMAXBEL | IUTF8 | IXON | IXANY | ICRNL | BRKINT
-                    iflag: 0o66402,
-                    // OPOST | ONLCR
-                    oflag: 0o5,
-                    // HUPCL | CREAD | CSIZE | EXTB
-                    cflag: 0o2277,
-                    // IEXTEN | ECHOTCL | ECHOKE ECHO | ECHOE | ECHOK | ISIG | ICANON
-                    lflag: 0o105073,
-                    line: 0,
-                    cc: [
-                        3,   // VINTR Ctrl-C
-                        28,  // VQUIT
-                        127, // VERASE
-                        21,  // VKILL
-                        4,   // VEOF Ctrl-D
-                        0,   // VTIME
-                        1,   // VMIN
-                        0,   // VSWTC
-                        17,  // VSTART
-                        19,  // VSTOP
-                        26,  // VSUSP Ctrl-Z
-                        255, // VEOL
-                        18,  // VREPAINT
-                        15,  // VDISCARD
-                        23,  // VWERASE
-                        22,  // VLNEXT
-                        255, // VEOL2
-                        0, 0,
-                    ],
-                    // ispeed: 0,
-                    // ospeed: 0,
                 },
             }),
         },

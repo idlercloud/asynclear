@@ -250,22 +250,18 @@ pub fn sys_setpriority(_prio: isize) -> KResult {
 
 /// 映射虚拟内存。返回实际映射的地址。
 ///
-/// `addr` 若是 NULL，那么内核会自动选择一个按页对齐的地址进行映射，
-/// 这也是比较可移植的方式。
+/// `addr` 若是 NULL，那么内核会自动选择一个按页对齐的地址进行映射，这也是比较可移植的方式。
 ///
-/// `addr` 若有指定地址，那么内核会尝试在最近的页边界上映射，
-/// 但如果已经被映射过了，就挑选一个新的地址。该新地址可能参考也可能不参考
-/// `addr`。
+/// `addr` 若有指定地址，那么内核会尝试在最近的页边界上映射，但如果已经被映射过了，就挑选一个新的地址。
+/// 该新地址可能参考也可能不参考 `addr`。
 ///
-/// 如果映射文件，那么会以该文件 (`fd`) `offset` 开始处的 `len`
-/// 个字节初始化映射内容。
+/// 如果映射文件，那么会以该文件 (`fd`) `offset` 开始处的 `len` 个字节初始化映射内容。
 ///
-/// `mmap()` 返回之后，就算 `fd` 指向的文件被立刻关闭，也不会影响映射的结果
+/// `mmap()` 返回之后，就算 `fd` 指向的文件被立刻关闭，也不会影响映射的结果。
 ///
 /// `prot` 要么是 `PROT_NONE`，要么是多个标志位的或。
 ///
-/// `flags` 决定该映射是否对其他映射到同一区域的进程可见，
-/// 以及更新是否会同步到底层文件上。
+/// `flags` 决定该映射是否对其他映射到同一区域的进程可见，以及更新是否会同步到底层文件上。
 ///
 /// 参数：
 /// - `addr` 映射的目标地址。
@@ -347,89 +343,6 @@ pub fn sys_brk(brk: usize) -> KResult {
     let mut inner = process.lock_inner();
     Ok(inner.set_user_brk(VirtAddr(brk)).0 as isize)
 }
-
-// /// 为当前进程设置信号动作，返回 0
-// ///
-// /// 参数：
-// /// - `signum` 指示信号编号，但不可以是 `SIGKILL` 或 `SIGSTOP`
-// /// - `act` 如果非空，则将信号 `signal` 的动作设置为它
-// /// - `old_act` 如果非空，则将信号 `signal` 原来的动作备份在其中
-// pub fn sys_sigaction(
-//     signum: usize,
-//     act: *const SignalAction,
-//     old_act: *mut SignalAction,
-// ) -> Result {
-//     let signal = Signal::try_from_primitive(signum as
-// u8).or(Err(errno::EINVAL))?;     // `SIGKILL` 和 `SIGSTOP` 的行为不可修改
-//     if matches!(signal, Signal::SIGKILL | Signal::SIGSTOP) {
-//         return Err(errno::EINVAL);
-//     }
-//     let process = curr_process();
-//     let mut inner = process.inner();
-
-//     if !old_act.is_null() {
-//         let old_act = unsafe { check_ptr_mut(old_act)? };
-//         *old_act = inner.sig_handlers.action(signal);
-//     }
-
-//     if !act.is_null() {
-//         let act = unsafe { check_ptr(act)? };
-//         inner.sig_handlers.set_action(signal, *act);
-//     }
-
-//     Ok(0)
-// }
-
-// /// 修改当前线程的信号掩码，返回 0
-// ///
-// /// 参数：
-// /// - `how` 只应取
-// 0(`SIG_BLOCK`)、1(`SIG_UNBLOCK`)、2(`SIG_SETMASK`)，表示函数的处理方式。 ///
-// - `SIG_BLOCK` 向掩码 bitset 中添入新掩码 ///     - `SIG_UNBLOCK` 从掩码
-// bitset 中取消掩码 ///     - `SIG_SETMASK` 直接设置掩码 bitset
-// /// - `set` 为空时，信号掩码不会被修改（无论 `how`
-// 取何值）。其余时候则是新掩码参数，根据 `how` 进行设置 /// - `old_set`
-// 非空时，将旧掩码的值放入其中 pub fn sys_sigprocmask(
-//     how: usize,
-//     set: *const SignalSet,
-//     old_set: *mut SignalSet,
-//     sigsetsize: usize,
-// ) -> Result {
-//     // NOTE: 这里 `set` == `old_set` 的情况是否需要考虑一下
-//     if sigsetsize != SIGSET_SIZE_BYTES {
-//         return Err(errno::EINVAL);
-//     }
-//     let thread = curr_task().unwrap();
-//     let mut inner = thread.inner();
-
-//     let sig_set = &mut inner.sig_receiver.mask;
-//     if !old_set.is_null() {
-//         let old_set = unsafe { check_ptr_mut(old_set)? };
-//         *old_set = *sig_set;
-//     }
-//     if set.is_null() {
-//         return Ok(0);
-//     }
-//     const SIG_BLOCK: usize = 0;
-//     const SIG_UNBLOCK: usize = 1;
-//     const SIG_SETMASK: usize = 2;
-
-//     let set = unsafe { check_ptr(set)? };
-//     match how {
-//         SIG_BLOCK => {
-//             sig_set.insert(*set);
-//         }
-//         SIG_UNBLOCK => {
-//             sig_set.remove(*set);
-//         }
-//         SIG_SETMASK => {
-//             *sig_set = *set;
-//         }
-//         _ => return Err(errno::EINVAL),
-//     }
-
-//     Ok(0)
-// }
 
 /// 返回系统信息，返回值为 0
 pub fn sys_uname(utsname: *mut UtsName) -> KResult {

@@ -102,8 +102,7 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 
 /// 从 fd 中读入数据，写入多个用户缓冲区中。
 ///
-/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行读操作，
-/// 这一个系统调用也会读入一块连续的区域
+/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行读操作，这一个系统调用也会读入一块连续的区域
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
@@ -137,8 +136,7 @@ pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
 
 /// 向 fd 中写入数据，数据来自多个用户缓冲区。
 ///
-/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行写操作，
-/// 这一个系统调用也会写入一块连续的区域。目前未实现。
+/// 理论上需要保证原子性，也就是说，即使同时有其他进程（线程）对同一个 fd 进行写操作，这一个系统调用也会写入一块连续的区域。
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
@@ -171,13 +169,12 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     Ok(total_write as isize)
 }
 
-/// 打开指定的文件。返回非负的文件描述符，
-/// 这个文件描述符一定是当前进程尚未打开的最小的那个
+/// 打开指定的文件。返回非负的文件描述符，这个文件描述符一定是当前进程尚未打开的最小的那个
 ///
 /// 参数：
 /// - `dir_fd` 与 `path` 组合形成最终的路径。
 ///     - 若 `path` 本身是绝对路径，则忽略。
-///     - 若 `dir_fd` 等于 `AT_FDCWD`(-100)
+///     - 若 `dir_fd` 等于 `AT_FDCWD`(-100)，则以 cwd 为起点计算相对路径
 /// - `path` 路径，可以是绝对路径或相对路径，以 `/` 为分隔符
 /// - `flags` 包括文件打开模式、创建标志、状态标志。
 ///     - 创建标志如 `CLOEXEC`, `CREAT` 等，仅在打开文件时发生作用
@@ -284,8 +281,7 @@ pub fn sys_close(fd: usize) -> KResult {
     }
 
     // TODO: [low] 还要释放相关的记录锁
-    // TODO: [mid] 如果文件被 `unlink()` 了且当前 fd
-    // 是最后一个引用该文件的，则要删除该文件
+    // TODO: [mid] 如果文件被 `unlink()` 了且当前 fd 是最后一个引用该文件的，则要删除该文件
 
     Ok(0)
 }
@@ -293,19 +289,19 @@ pub fn sys_close(fd: usize) -> KResult {
 // /// 创建管道，返回 0
 // ///
 // /// 参数
-// /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]`
-// 为管道的读出端，`filedes[1]` 为管道的写入端。pub fn sys_pipe2(filedes: *mut
-// i32) -> Result {     // let filedes = unsafe { check_slice_mut(filedes, 2)?
-// };     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // let (pipe_read, pipe_write) = make_pipe();
-//     // let read_fd = inner.alloc_fd();
-//     // inner.fd_table[read_fd] =
-// Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));     // let
-// write_fd = inner.alloc_fd();     // inner.fd_table[write_fd] =
-// Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));     // info!("
-// read_fd {read_fd}, write_fd {write_fd}");     // filedes[0] = read_fd as i32;
-//     // filedes[1] = write_fd as i32;
+// /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
+// pub fn sys_pipe2(filedes: *mut i32) -> Result {
+//     let filedes = unsafe { check_slice_mut(filedes, 2)? };
+//     let process = curr_process();
+//     let mut inner = process.inner();
+//     let (pipe_read, pipe_write) = make_pipe();
+//     let read_fd = inner.alloc_fd();
+//     inner.fd_table[read_fd] = Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));
+//     let write_fd = inner.alloc_fd();
+//     inner.fd_table[write_fd] = Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));
+//     info!("read_fd {read_fd}, write_fd {write_fd}");
+//     filedes[0] = read_fd as i32;
+//     filedes[1] = write_fd as i32;
 //     // Ok(0)
 //     todo!("[blocked] sys_pipe2")
 // }
@@ -333,9 +329,9 @@ pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
 pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
     // 未说明返回值的命令成功时都返回 0
     /// 复制该 fd 到大于等于 `arg` 的第一个可用 fd。成功后返回新的 fd
+    const F_DUPFD: usize = 0;
     /// 同 `F_DUPFD`，不过为新 fd 设置 `CLOEXEC` 标志
     const F_DUPFD_CLOEXEC: usize = 1030;
-    const F_DUPFD: usize = 0;
     // 下面两个是文件描述符标志操作。目前只有一个 `FD_CLOEXEC` 标志
     /// 返回文件描述符标志，`arg` 将被忽略
     const F_GETFD: usize = 1;
@@ -478,7 +474,6 @@ pub fn sys_newfstatat(
     Ok(0)
 }
 
-// /// FIXME: 由于 mount 未实现，fstat test.txt 也是不成功的
 // pub fn sys_fstat(fd: usize, kst: *mut Stat) -> Result {
 //     let kst = unsafe { check_ptr_mut(kst)? };
 //     let process = curr_process();

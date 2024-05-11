@@ -10,8 +10,7 @@ pub use yield_now::yield_now;
 
 static TASK_QUEUE: Lazy<TaskQueue> = Lazy::new(TaskQueue::new);
 
-/// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接
-/// panic
+/// NOTE: 目前的实现中，并发的任务量是有硬上限 (`TASK_LIMIT`) 的，超过会直接 panic
 struct TaskQueue {
     queue: ArrayQueue<Runnable>,
 }

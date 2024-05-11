@@ -4,8 +4,7 @@ use core::time::Duration;
 
 use bitflags::bitflags;
 
-/// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65
-/// 字节长
+/// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65 字节长
 #[repr(C)]
 pub struct UtsName {
     /// 系统名称
@@ -88,13 +87,13 @@ pub struct Tms {
 
 bitflags! {
     #[derive(Clone,Copy,Debug)]
-    /// sys_wait4 的选项，描述等待方式
+    /// `sys_wait4` 的选项，描述等待方式
     pub struct WaitFlags: u32 {
         /// 如果没有符合条件的子进程，则立刻返回
         const WNOHANG = 1 << 0;
         /// 如果子线程被信号暂停，则也返回
         const WIMTRACED = 1 << 1;
-        /// 如果子线程被信号恢复 (SIGCONT)，则也返回
+        /// 如果子线程被信号恢复 (`SIGCONT`)，则也返回
         const WCONTINUED = 1 << 3;
     }
 

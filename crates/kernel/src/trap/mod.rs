@@ -27,9 +27,7 @@ use crate::{
 
 core::arch::global_asm!(include_str!("trap.S"));
 
-/// 在某些情况下，如调用了 `sys_exit`，会返回 `ControlFlow::Break`
-///
-/// 以通知结束用户线程循环
+/// 在某些情况下，如调用了 `sys_exit`，会返回 `ControlFlow::Break` 以通知结束用户线程循环
 pub async fn user_trap_handler() -> ControlFlow<(), ()> {
     kernel_trap::set_kernel_trap_entry();
 
@@ -110,8 +108,6 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             let thread = local_hart().curr_thread();
             {
                 let inner = thread.lock_inner();
-                // .lock_inner_with(|inner| (inner.trap_context.user_regs,
-                // inner.trap_context.sepc));
                 info!("regs: {:x?}", inner.trap_context.user_regs);
                 error!(
                     "IllegalInstruction(pc={:#x}) in application, core dumped.",
@@ -147,8 +143,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
 ///
 /// 注意：会切换控制流和栈
 pub fn trap_return(trap_context: *mut TrapContext) {
-    // 因为 trap entry 要切换为用户的
-    // 在回到用户态之前不能触发中断
+    // 因为 trap entry 要切换为用户的，在回到用户态之前不能触发中断
     unsafe {
         sstatus::clear_sie();
     }
@@ -267,7 +262,6 @@ fn set_user_trap_entry() {
     }
 
     unsafe {
-        // stvec::write(TRAMPOLINE as usize, TrapMode::Direct);
         stvec::write(__trap_from_user as usize, TrapMode::Direct);
     }
 }

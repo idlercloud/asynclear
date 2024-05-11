@@ -5,8 +5,7 @@ use core::{
 
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
 
-/// 物理地址。在 Sv39 页表机制中，虚拟地址转化得到的物理地址总共为 56
-/// 位，其中页号 44 位，页内偏移 12 位。
+/// 物理地址。在 Sv39 页表机制中，虚拟地址转化得到的物理地址总共为 56 位，其中页号 44 位，页内偏移 12 位。
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct PhysAddr(pub usize);
@@ -67,11 +66,9 @@ impl Step for PhysPageNum {
     }
 }
 
-/// 虚拟地址。在 Sv39 页表机制中，虚拟地址 38~0 有效，39 及高位和 38
-/// 位一致。页号 27 位，页内偏移 12 位。
+/// 虚拟地址。在 Sv39 页表机制中，虚拟地址 38~0 有效，39 及高位和 38 位一致，页号 27 位，页内偏移 12 位。
 ///
-/// 由于 63~39 和 38 位保持一致，虚拟地址空间中只有 64 位的最低 256 GB
-/// 地址和最高 256 GB 地址有效。
+/// 由于 63~39 和 38 位保持一致，虚拟地址空间中只有 64 位的最低 256 GB 地址和最高 256 GB 地址有效。
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct VirtAddr(pub usize);

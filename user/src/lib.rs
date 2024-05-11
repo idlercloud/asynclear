@@ -76,8 +76,6 @@ unsafe impl GlobalAlloc for BrkBasedHeap {
             .alloc(layout)
             .ok()
             .map_or(core::ptr::null_mut(), |allocation| allocation.as_ptr())
-
-        // sys_brk(inner.brk + )
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -267,8 +265,9 @@ pub fn sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignal
     }
 }
 
-/// 用于 `KSignalAction` 的 restorer
-/// 字段。它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
+/// 用于 `KSignalAction` 的 restorer 字段。
+///
+/// 它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
 #[naked]
 unsafe extern "C" fn signal_restorer() {
     unsafe {

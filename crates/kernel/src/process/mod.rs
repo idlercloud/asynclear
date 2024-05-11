@@ -127,8 +127,6 @@ impl Process {
     ) -> Arc<Self> {
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
-            // // 复制文件描述符表
-            // let new_fd_table = parent_inner.fd_table.clone();
             let parent_main_thread = inner.main_thread();
             let (mut trap_context, signal_mask) = parent_main_thread
                 .lock_inner_with(|inner| (inner.trap_context.clone(), inner.signal_mask));
@@ -175,8 +173,9 @@ impl Process {
         child
     }
 
-    /// 根据 `path` 加载一个新的 ELF
-    /// 文件并执行。目前要求原进程仅有一个线程并且没有子进程
+    /// 根据 `path` 加载一个新的 ELF 文件并执行。
+    ///
+    /// 目前要求原进程仅有一个线程并且没有子进程
     pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> KResult<()> {
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
@@ -272,8 +271,7 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 
 /// 退出进程，终止其所有线程。
 ///
-/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，
-/// 仅仅只是标记该进程为退出，而不回收资源
+/// 但注意，其他线程此时可能正在运行，因此终止不是立刻发生的，仅仅只是标记该进程为退出，而不回收资源
 ///
 /// 其他线程在进入内核时会检查对应的进程是否已标记为退出从而决定是否退出
 pub fn exit_process(process: &Process, exit_code: i8) {

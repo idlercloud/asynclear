@@ -5,13 +5,11 @@ use std::{
 };
 
 use clap::Parser;
-use const_format::formatcp;
 
 use crate::{
     build::{BuildArgs, USER_BINS},
     qemu::QemuArgs,
     tool,
-    variables::FS_IMG_PATH,
 };
 
 /// 运行内核集成测试
@@ -38,14 +36,6 @@ impl KtestArgs {
 
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
-            .args([
-                "-drive",
-                formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
-            ])
-            .args([
-                "-device",
-                "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
-            ])
             .spawn();
         let stdin = child.stdin.as_mut().unwrap();
         let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
