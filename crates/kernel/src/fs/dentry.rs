@@ -20,13 +20,6 @@ impl DEntry {
             DEntry::Paged(paged) => paged.inode.meta(),
         }
     }
-
-    pub fn len(&self) -> usize {
-        match self {
-            DEntry::Dir(dir) => dir.inode.inner.len(),
-            DEntry::Paged(paged) => paged.inode.inner.data_len(),
-        }
-    }
 }
 
 pub struct DEntryDir {

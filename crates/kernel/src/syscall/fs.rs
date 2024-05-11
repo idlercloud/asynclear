@@ -2,14 +2,13 @@ use core::ops::Deref;
 
 use defines::{
     error::{errno, KResult},
-    fs::{Dirent64, Stat, StatMode, NAME_MAX},
+    fs::{FstatFlags, Stat, StatMode},
 };
 use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
 
 use crate::{
-    drivers::qemu_block::BLOCK_SIZE,
-    fs::{self, DEntry, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
+    fs::{self, DEntry, DirFile, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
     hart::local_hart,
 };
 
@@ -211,7 +210,7 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
                 if flags.intersects(OpenFlags::WRONLY | OpenFlags::RDWR) {
                     return Err(errno::EISDIR);
                 };
-                File::Dir(dir)
+                File::Dir(Arc::new(DirFile::new(dir)))
             }
             DEntry::Paged(paged) => {
                 if flags.contains(OpenFlags::DIRECTORY) {
@@ -251,7 +250,7 @@ fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
             let File::Dir(dir) = &**base else {
                 return Err(errno::ENOTDIR);
             };
-            start_dir = Arc::clone(dir);
+            start_dir = Arc::clone(dir.dentry());
         } else {
             return Err(errno::EBADF);
         }
@@ -299,53 +298,15 @@ pub fn sys_close(fd: usize) -> KResult {
 /// 获取目录项信息
 pub fn sys_getdents64(fd: usize, buf: UserCheckMut<[u8]>) -> KResult {
     let process = local_hart().curr_process();
-    let inner = process.lock_inner();
-    let Some(File::Dir(dir)) = inner.fd_table.get(fd).map(Deref::deref) else {
+    let Some(File::Dir(dir)) =
+        process.lock_inner_with(|inner| inner.fd_table.get(fd).map(Deref::deref).cloned())
+    else {
         return Err(errno::EBADF);
     };
     let mut buf = buf.check_slice_mut()?;
-    let mut ptr = buf.as_mut_ptr();
-    let range = (ptr as usize)..(ptr as usize + buf.len());
 
-    dir.read_dir()?;
-
-    let children = dir.lock_children();
-
-    for (name, child) in children.iter() {
-        let Some(child) = child else {
-            continue;
-        };
-        use core::mem::{align_of, offset_of};
-        let name_len = name.len().min(NAME_MAX);
-        let d_reclen = offset_of!(Dirent64, d_name) + name_len + 1;
-
-        let align_offset = ptr.align_offset(align_of::<Dirent64>());
-        if ptr as usize + align_offset + d_reclen > range.end {
-            break;
-        }
-        let meta = child.meta();
-        // SAFETY:
-        // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域，上面也对齐过指针
-        #[allow(clippy::cast_ptr_alignment)]
-        unsafe {
-            // NOTE: 不知道这里要不要把对齐的部分用 0 填充
-            ptr = ptr.add(align_offset);
-            ptr.cast::<u64>().write(meta.ino() as u64);
-            // 忽略 `d_off` 字段
-            ptr.add(offset_of!(Dirent64, d_reclen))
-                .cast::<u16>()
-                .write(d_reclen as u16);
-            ptr.add(offset_of!(Dirent64, d_type))
-                .write((meta.mode().bits() >> 12) as u8);
-            ptr.add(offset_of!(Dirent64, d_name))
-                .copy_from_nonoverlapping(name.as_bytes()[0..name_len].as_ptr(), name_len);
-            // 名字是 null-terminated 的
-            ptr.add(d_reclen).write(0);
-            ptr = ptr.add(d_reclen);
-        }
-    }
-
-    Ok((ptr as usize - range.start) as isize)
+    let ret = dir.getdirents(&mut buf)?;
+    Ok(ret as isize)
 }
 
 /// 操控文件描述符
@@ -479,33 +440,26 @@ pub fn sys_newfstatat(
     dir_fd: usize,
     path: UserCheck<u8>,
     statbuf: UserCheckMut<Stat>,
-    flag: usize,
+    flags: usize,
 ) -> KResult {
-    // TODO: 暂时先不考虑 fstatat 的 flags
-    assert_eq!(flag, 0);
+    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
+        .ok_or(errno::EINVAL)?;
     let file_name = path.check_cstr()?;
-    let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
+    if file_name.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
+        return Err(errno::ENOENT);
+    }
     let mut statbuf = statbuf.check_ptr_mut()?;
-    let file = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
-    let meta = file.meta();
-    // TODO: fstat 的 device id 暂时是一个随意的数字
-    statbuf.st_dev = 114514;
-    statbuf.st_ino = meta.ino() as u64;
-    statbuf.st_mode = meta.mode();
-    statbuf.st_nlink = 1;
-    statbuf.st_uid = 0;
-    statbuf.st_gid = 0;
-    statbuf.st_rdev = 0;
-    statbuf.st_size = file.len() as u64;
-    // TODO: 特殊文件也先填成 BLOCK_SIZE 吧
-    statbuf.st_blksize = BLOCK_SIZE as u32;
-    // TODO: 文件有空洞时，可能小于 st_size/512。而且可能实际占用的块数量会更多
-    statbuf.st_blocks = statbuf.st_size.div_ceil(statbuf.st_blksize as u64);
-    meta.lock_inner_with(|meta_inner| {
-        statbuf.st_atime = meta_inner.access_time;
-        statbuf.st_mtime = meta_inner.modify_time;
-        statbuf.st_ctime = meta_inner.change_time;
-    });
+    if file_name.is_empty() {
+        let process = local_hart().curr_process();
+        let inner = process.lock_inner();
+        let file = inner.fd_table.get(dir_fd).ok_or(errno::EBADF)?;
+        fs::stat_from_meta(&mut statbuf, file.meta());
+    } else {
+        let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
+        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+        fs::stat_from_meta(&mut statbuf, dentry.meta());
+    };
+
     Ok(0)
 }
 

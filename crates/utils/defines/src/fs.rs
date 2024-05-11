@@ -44,6 +44,18 @@ bitflags! {
         const S_IWOTH = 1 << 1;
         const S_IXOTH = 1 << 0;
     }
+
+    /// fcntl flags
+    pub struct FstatFlags: u32 {
+        /// 如果传入的 `path` 是空，则对 `dirfd` 指向的文件进行操作。
+        ///
+        /// 此时 `dirfd` 可以指向任意类型的文件而不止是目录
+        const AT_EMPTY_PATH         = 1 << 0;
+        /// 如果传入的 `path` 是符号链接，则不要将其解引用，而是返回符号链接本身的信息
+        const AT_SYMLINK_NOFOLLOW   = 1 << 8;
+        /// 不要自动挂载路径名的 terminal(basename) component
+        const AT_NO_AUTOMOUNT       = 1 << 11;
+    }
 }
 
 pub const NAME_MAX: usize = 255;

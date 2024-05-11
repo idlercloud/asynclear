@@ -43,7 +43,12 @@ impl FatDir {
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Inode<Self> {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(StatMode::DIR, dir_entry.take_name());
+        let fat_dir = Self {
+            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
+            fat,
+        };
         meta.lock_inner_with(|inner| {
+            inner.data_len = fat_dir.len();
             inner.access_time = dir_entry.access_time();
             // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
             // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
@@ -51,10 +56,6 @@ impl FatDir {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        let fat_dir = Self {
-            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
-            fat,
-        };
         Inode::new(meta, fat_dir)
     }
 

@@ -14,7 +14,7 @@ use super::{
     dentry::DEntryDir,
     page_cache::{BackedPage, PageCache},
 };
-use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time::curr_time};
+use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
@@ -53,6 +53,7 @@ impl InodeMeta {
             mode,
             name,
             inner: SpinMutex::new(InodeMetaInner {
+                data_len: 0,
                 access_time: TimeSpec::default(),
                 modify_time: TimeSpec::default(),
                 change_time: TimeSpec::default(),
@@ -78,6 +79,8 @@ impl InodeMeta {
 }
 
 pub struct InodeMetaInner {
+    /// 对常规文件来说，是其文件内容大小；对目录来说，是它目录项列表占据的总共块空间；其他情况是 0
+    pub data_len: usize,
     /// 上一次访问时间
     pub access_time: TimeSpec,
     /// 上一次修改时间
@@ -95,12 +98,28 @@ pub trait DirInodeBackend: Send + Sync {
 }
 
 impl<T: ?Sized + DirInodeBackend> Inode<T> {
-    delegate! {
-        to self.inner {
-            pub fn lookup(&self, name: &str) -> Option<DynInode>;
-            pub fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>>;
-            pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()>;
-        }
+    pub fn lookup(&self, name: &str) -> Option<DynInode> {
+        let ret = self.inner.lookup(name);
+        self.meta
+            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+        ret
+    }
+
+    pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
+        self.inner.read_dir(dentry)?;
+        self.meta
+            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+        Ok(())
+    }
+
+    pub fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>> {
+        let ret = self.inner.mkdir(name, mode)?;
+        self.meta.lock_inner_with(|inner| {
+            inner.data_len = self.inner.len();
+            inner.modify_time = TimeSpec::from(time::curr_time());
+            inner.change_time = inner.access_time;
+        });
+        Ok(ret)
     }
 }
 
@@ -164,7 +183,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
                 .copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
             nread += copy_len;
         }
-        meta.lock_inner_with(|inner| inner.access_time = TimeSpec::from(curr_time()));
+        meta.lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
 
         Ok(nread)
     }
@@ -206,7 +225,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             nwrite += copy_len;
         }
         meta.lock_inner_with(|inner| {
-            inner.access_time = TimeSpec::from(curr_time());
+            inner.access_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
             inner.modify_time = inner.change_time;
         });

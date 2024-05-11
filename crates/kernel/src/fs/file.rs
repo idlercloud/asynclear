@@ -2,19 +2,89 @@ use alloc::collections::BTreeMap;
 use core::ops::Deref;
 
 use bitflags::bitflags;
-use defines::error::{errno, KResult};
+use defines::{
+    error::{errno, KResult},
+    fs::{Dirent64, NAME_MAX},
+};
 use klocks::SpinMutex;
 use triomphe::Arc;
 use user_check::{UserCheck, UserCheckMut};
 
-use super::{inode::InodeMeta, stdio, DEntryDir, DEntryPaged};
+use super::{
+    inode::{DynDirInode, DynPagedInode, InodeMeta},
+    stdio, DEntry, DEntryDir, DEntryPaged,
+};
 
 #[derive(Clone)]
 pub enum File {
     Stdin,
     Stdout,
-    Dir(Arc<DEntryDir>),
+    Dir(Arc<DirFile>),
     Paged(Arc<PagedFile>),
+}
+
+pub struct DirFile {
+    dentry: Arc<DEntryDir>,
+    dirent_index: SpinMutex<usize>,
+}
+
+impl DirFile {
+    pub fn new(dentry: Arc<DEntryDir>) -> Self {
+        Self {
+            dentry,
+            dirent_index: SpinMutex::new(0),
+        }
+    }
+
+    pub fn dentry(&self) -> &Arc<DEntryDir> {
+        &self.dentry
+    }
+
+    pub fn getdirents(&self, buf: &mut [u8]) -> KResult<usize> {
+        self.dentry.read_dir()?;
+
+        let children = self.dentry.lock_children();
+        let mut dirent_index = self.dirent_index.lock();
+
+        let mut ptr = buf.as_mut_ptr();
+        let range = (ptr as usize)..(ptr as usize + buf.len());
+
+        let children_iter = children
+            .iter()
+            .filter_map(|(name, child)| child.as_ref().map(|child| (name, child)))
+            .skip(*dirent_index);
+        for (name, child) in children_iter {
+            use core::mem::{align_of, offset_of};
+            let name_len = name.len().min(NAME_MAX);
+            let mut d_reclen = (offset_of!(Dirent64, d_name) + name_len + 1);
+            if ptr as usize + d_reclen > range.end {
+                break;
+            }
+            d_reclen = d_reclen.next_multiple_of(align_of::<Dirent64>());
+            let meta = child.meta();
+            // SAFETY:
+            // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域
+            #[allow(clippy::cast_ptr_alignment)]
+            unsafe {
+                // NOTE: 不知道这里要不要把对齐的部分用 0 填充
+                ptr.cast::<u64>().write_unaligned(meta.ino() as u64);
+                // 忽略 `d_off` 字段
+                ptr.add(offset_of!(Dirent64, d_reclen))
+                    .cast::<u16>()
+                    .write_unaligned(d_reclen as u16);
+                ptr.add(offset_of!(Dirent64, d_type))
+                    .write((meta.mode().bits() >> 12) as u8);
+                ptr.add(offset_of!(Dirent64, d_name))
+                    .copy_from_nonoverlapping(name.as_bytes()[0..name_len].as_ptr(), name_len);
+                // 名字是 null-terminated 的
+                ptr.add(d_reclen - 1).write(0);
+                ptr = ptr.add(d_reclen);
+            }
+            *dirent_index += 1;
+        }
+
+        Ok(ptr as usize - range.start)
+    }
 }
 
 pub struct PagedFile {
@@ -28,6 +98,10 @@ impl PagedFile {
             dentry,
             offset: SpinMutex::new(0),
         }
+    }
+
+    pub fn inode(&self) -> &DynPagedInode {
+        self.dentry.inode()
     }
 }
 
@@ -143,7 +217,7 @@ impl FileDescriptor {
     pub fn meta(&self) -> &InodeMeta {
         match &self.file {
             File::Stdin | File::Stdout => stdio::get_tty_inode().meta(),
-            File::Dir(dir) => dir.inode().meta(),
+            File::Dir(dir) => dir.dentry.inode().meta(),
             File::Paged(paged) => paged.dentry.inode().meta(),
         }
     }

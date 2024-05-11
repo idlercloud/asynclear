@@ -11,13 +11,20 @@ mod stdio;
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
 use compact_str::{CompactString, ToCompactString};
-use defines::error::{errno, KResult};
+use defines::{
+    error::{errno, KResult},
+    fs::Stat,
+};
 pub use dentry::{DEntry, DEntryDir, DEntryPaged};
-pub use file::{FdTable, File, FileDescriptor, OpenFlags, PagedFile};
+pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 
-use crate::{drivers::qemu_block::BLOCK_DEVICE, uart_console::println};
+use self::inode::InodeMeta;
+use crate::{
+    drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
+    uart_console::println,
+};
 
 pub fn init() {
     Lazy::force(&VFS);
@@ -147,4 +154,25 @@ pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {
     let len = inner.read_at(file.inode().meta(), &mut ret, 0)?;
     ret.truncate(len);
     Ok(ret)
+}
+
+pub fn stat_from_meta(stat: &mut Stat, meta: &InodeMeta) {
+    // TODO: fstat 的 device id 暂时是一个随意的数字
+    stat.st_dev = 114514;
+    stat.st_ino = meta.ino() as u64;
+    stat.st_mode = meta.mode();
+    stat.st_nlink = 1;
+    stat.st_uid = 0;
+    stat.st_gid = 0;
+    stat.st_rdev = 0;
+    // TODO: 特殊文件也先填成 BLOCK_SIZE 吧
+    stat.st_blksize = BLOCK_SIZE as u32;
+    // TODO: 文件有空洞时，可能小于 st_size/512。而且可能实际占用的块数量会更多
+    meta.lock_inner_with(|meta_inner| {
+        stat.st_size = meta_inner.data_len as u64;
+        stat.st_atime = meta_inner.access_time;
+        stat.st_mtime = meta_inner.modify_time;
+        stat.st_ctime = meta_inner.change_time;
+        stat.st_blocks = stat.st_size.div_ceil(stat.st_blksize as u64);
+    });
 }
