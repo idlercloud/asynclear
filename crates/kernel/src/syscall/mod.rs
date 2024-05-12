@@ -84,7 +84,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         RT_SIGRETURN => sys_rt_sigreturn(),
         SETPRIORITY => sys_setpriority(args[0] as _),
         TIMES => sys_times(UserCheck::new(args[0] as _)),
-        // SETPGID => sys_setpgid(args[0], args[1]),
+        SETPGID => sys_setpgid(args[0], args[1]),
         GETPGID => sys_getpgid(args[0]),
         UNAME => sys_uname(UserCheck::new(args[0] as _)),
         GETPID => sys_getpid(),

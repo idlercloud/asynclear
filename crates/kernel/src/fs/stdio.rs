@@ -47,13 +47,15 @@ pub fn tty_ioctl(command: usize, value: usize) -> KResult {
         }
         TIOCGPGRP => {
             debug!("Get foreground pgid");
-            let fg_pgid_ptr = unsafe { UserCheck::<usize>::new(value as _).check_ptr_mut()? };
+            let fg_pgid_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
             fg_pgid_ptr.write(TTY_INODE.inner.inner.lock().fg_pgid);
             Ok(0)
         }
         TIOCSPGRP => {
             debug!("Set foreground pgid");
-            todo!("TIOCSPGRP")
+            let fg_pgid = UserCheck::<usize>::new(value as _).check_ptr()?.read();
+            TTY_INODE.inner.inner.lock().fg_pgid = fg_pgid;
+            Ok(0)
         }
         TIOCGWINSZ => {
             debug!("Get window size");

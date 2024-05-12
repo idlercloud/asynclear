@@ -46,7 +46,7 @@ declare_syscall_id!(
     RT_SIGRETURN,       139,
     SETPRIORITY,        140,
     TIMES,              153,
-    // SETPGID,            154,
+    SETPGID,            154,
     GETPGID,            155,
     UNAME,              160,
     GET_TIME,           169,

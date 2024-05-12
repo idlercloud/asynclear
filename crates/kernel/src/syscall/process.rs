@@ -388,7 +388,16 @@ pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
 
 /// 返回进程组号
 ///
+/// TODO: 暂时未实现
+pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
+    debug!("set pgid of {_pid} to {_pgid}");
+    Ok(INITPROC.pid() as isize)
+}
+
+/// 返回进程组号
+///
 /// TODO: 暂时未实现，仅返回 INITPROC 的 pid
 pub fn sys_getpgid(_pid: usize) -> KResult {
+    debug!("get pgid of {_pid}");
     Ok(INITPROC.pid() as isize)
 }
