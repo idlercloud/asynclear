@@ -7,7 +7,6 @@ use core::{
 use compact_str::CompactString;
 use defines::{
     error::KResult,
-    fs::StatMode,
     ioctl::{
         WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
@@ -15,7 +14,7 @@ use defines::{
 };
 use klocks::{Lazy, SpinMutex};
 
-use super::inode::{Inode, InodeMeta};
+use super::inode::{Inode, InodeMeta, InodeMode};
 use crate::{
     drivers::qemu_uart::TTY, memory::UserCheck, process::INITPROC, thread::BlockingFuture,
     uart_console::print,
@@ -85,7 +84,7 @@ struct TtyInodeInner {
 
 static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
     Inode::new(
-        InodeMeta::new(StatMode::CHAR_DEVICE, CompactString::from_static_str("/")),
+        InodeMeta::new(InodeMode::CharDevice, CompactString::from_static_str("/")),
         TtyInode {
             inner: SpinMutex::new(TtyInodeInner {
                 fg_pgid: INITPROC.pid(),

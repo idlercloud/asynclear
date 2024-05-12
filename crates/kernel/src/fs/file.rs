@@ -4,14 +4,14 @@ use core::ops::Deref;
 use bitflags::bitflags;
 use defines::{
     error::{errno, KResult},
-    fs::{Dirent64, NAME_MAX},
+    fs::{Dirent64, StatMode, NAME_MAX},
 };
 use klocks::SpinMutex;
 use triomphe::Arc;
 use uninit::out_ref::Out;
 
 use super::{
-    inode::{DynDirInode, DynPagedInode, InodeMeta},
+    inode::{DynDirInode, DynPagedInode, InodeMeta, InodeMode},
     stdio, DEntry, DEntryDir, DEntryPaged,
 };
 use crate::memory::UserCheck;
@@ -74,7 +74,7 @@ impl DirFile {
                     .cast::<u16>()
                     .write_unaligned(d_reclen as u16);
                 ptr.add(offset_of!(Dirent64, d_type))
-                    .write((meta.mode().bits() >> 12) as u8);
+                    .write((StatMode::from(meta.mode()).bits() >> 12) as u8);
                 ptr.add(offset_of!(Dirent64, d_name))
                     .copy_from_nonoverlapping(name.as_bytes()[0..name_len].as_ptr(), name_len);
                 // 名字是 null-terminated 的
@@ -225,6 +225,10 @@ impl FileDescriptor {
     }
 
     pub fn ioctl(&self, request: usize, argp: usize) -> KResult {
+        // TODO: [low] 目前只支持字符设备，块设备不知道会不会用到
+        if !matches!(self.meta().mode(), InodeMode::CharDevice) {
+            return Err(errno::ENOTTY);
+        }
         match &self.file {
             File::Stdin | File::Stdout => stdio::tty_ioctl(request, argp),
             _ => Err(errno::ENOTTY),

@@ -14,7 +14,7 @@ use core::mem::MaybeUninit;
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
-    fs::Stat,
+    fs::{Stat, StatMode},
 };
 pub use dentry::{DEntry, DEntryDir, DEntryPaged};
 pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
@@ -155,7 +155,7 @@ pub fn stat_from_meta(meta: &InodeMeta) -> Stat {
     // TODO: fstat 的 device id 暂时是一个随意的数字
     stat.st_dev = 114514;
     stat.st_ino = meta.ino() as u64;
-    stat.st_mode = meta.mode();
+    stat.st_mode = StatMode::from(meta.mode());
     stat.st_nlink = 1;
     stat.st_uid = 0;
     stat.st_gid = 0;

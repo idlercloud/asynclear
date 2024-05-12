@@ -1,7 +1,6 @@
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
-    fs::StatMode,
     misc::TimeSpec,
 };
 use klocks::{Once, RwLock, RwLockReadGuard};
@@ -20,8 +19,8 @@ use crate::{
         dentry::{DEntry, DEntryDir, DEntryPaged},
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
-            DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInodeCoercion,
-            Inode, InodeMeta,
+            DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInode,
+            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode,
         },
     },
     hart::local_hart,
@@ -47,7 +46,7 @@ impl FatDir {
             fat,
             create_time: None,
         };
-        let meta = InodeMeta::new(StatMode::DIR, CompactString::from_static_str("/"));
+        let meta = InodeMeta::new(InodeMode::Dir, CompactString::from_static_str("/"));
         meta.lock_inner_with(|inner| {
             inner.data_len = root_dir.disk_space();
         });
@@ -56,7 +55,7 @@ impl FatDir {
 
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Inode<Self> {
         debug_assert!(dir_entry.is_dir());
-        let meta = InodeMeta::new(StatMode::DIR, dir_entry.take_name());
+        let meta = InodeMeta::new(InodeMode::Dir, dir_entry.take_name());
         let fat_dir = Self {
             clusters: RwLock::new(fat.cluster_chain(dir_entry.first_cluster_id()).collect()),
             fat,
@@ -76,7 +75,7 @@ impl FatDir {
 
     fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Inode<Self>> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
-        let meta = InodeMeta::new(StatMode::DIR, name.to_compact_string());
+        let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
         let curr_time = TimeSpec::from(time::curr_time());
         let fat_dir = Self {
             clusters: RwLock::new(smallvec![allocated_cluster]),
@@ -171,6 +170,11 @@ impl DirInodeBackend for FatDir {
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
         let fat_dir = FatDir::create(Arc::clone(&self.fat), name)?;
         Ok(Arc::new(fat_dir).unsize(DynDirInodeCoercion!()))
+    }
+
+    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+        debug_assert!(!matches!(mode, InodeMode::Dir));
+        todo!()
     }
 
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {

@@ -1,11 +1,10 @@
 use common::config::PAGE_SIZE;
-use defines::fs::StatMode;
 use smallvec::SmallVec;
 use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
-    fs::inode::{Inode, InodeMeta, PagedInode, PagedInodeBackend},
+    fs::inode::{Inode, InodeMeta, InodeMode, PagedInode, PagedInodeBackend},
     memory::Frame,
 };
 
@@ -24,7 +23,7 @@ impl FatFile {
             clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
             fat,
         };
-        let meta = InodeMeta::new(StatMode::DIR, dir_entry.take_name());
+        let meta = InodeMeta::new(InodeMode::Regular, dir_entry.take_name());
         meta.lock_inner_with(|inner| {
             inner.data_len = dir_entry.file_size();
             inner.access_time = dir_entry.access_time();

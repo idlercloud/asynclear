@@ -22,6 +22,31 @@ static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 pub type DynDirInode = Inode<dyn DirInodeBackend>;
 pub type DynPagedInode = Inode<PagedInode<dyn PagedInodeBackend>>;
 
+#[derive(Clone, Copy)]
+pub enum InodeMode {
+    Regular,
+    Dir,
+    SymbolLink,
+    Socket,
+    Fifo,
+    BlockDevice,
+    CharDevice,
+}
+
+impl From<InodeMode> for StatMode {
+    fn from(value: InodeMode) -> Self {
+        match value {
+            InodeMode::Regular => StatMode::REGULAR,
+            InodeMode::Dir => StatMode::DIR,
+            InodeMode::SymbolLink => StatMode::SYM_LINK,
+            InodeMode::Socket => StatMode::SOCKET,
+            InodeMode::Fifo => StatMode::FIFO,
+            InodeMode::BlockDevice => StatMode::BLOCK_DEVICE,
+            InodeMode::CharDevice => StatMode::CHAR_DEVICE,
+        }
+    }
+}
+
 pub struct Inode<T: ?Sized> {
     meta: InodeMeta,
     pub inner: T,
@@ -42,13 +67,13 @@ impl<T: ?Sized> Inode<T> {
 pub struct InodeMeta {
     /// inode number，在一个文件系统中唯一标识一个 Inode
     ino: usize,
-    mode: StatMode,
+    mode: InodeMode,
     name: CompactString,
     inner: SpinMutex<InodeMetaInner>,
 }
 
 impl InodeMeta {
-    pub fn new(mode: StatMode, name: CompactString) -> Self {
+    pub fn new(mode: InodeMode, name: CompactString) -> Self {
         Self {
             ino: INODE_NUMBER.fetch_add(1, Ordering::SeqCst),
             mode,
@@ -70,7 +95,7 @@ impl InodeMeta {
         &self.name
     }
 
-    pub fn mode(&self) -> StatMode {
+    pub fn mode(&self) -> InodeMode {
         self.mode
     }
 
@@ -92,8 +117,8 @@ pub struct InodeMetaInner {
 
 pub trait DirInodeBackend: Send + Sync {
     fn lookup(&self, name: &str) -> Option<DynInode>;
-    /// 调用者保证一定是目录类型，且传入的 `mode` 也是 [`StatMode::S_IFDIR`]
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>>;
+    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
     fn disk_space(&self) -> usize;
 }
@@ -107,6 +132,7 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
     }
 
     pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
+        // TODO: [low] `read_dir` 可以记录一个状态表示是否已经全部读入，有的话就不用调用底层文件系统
         self.inner.read_dir(dentry)?;
         self.meta
             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));

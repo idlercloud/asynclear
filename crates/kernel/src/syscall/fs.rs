@@ -3,7 +3,7 @@ use core::ops::Deref;
 
 use defines::{
     error::{errno, KResult},
-    fs::{FstatFlags, IoVec, Stat, StatMode, AT_FDCWD},
+    fs::{FstatFlags, IoVec, Stat, AT_FDCWD},
 };
 use triomphe::Arc;
 
@@ -29,11 +29,6 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
     else {
         return Err(errno::EBADF);
     };
-
-    // TODO: [low] 目前只支持字符设备，块设备不知道会不会用到
-    if !desc.meta().mode().contains(StatMode::CHAR_DEVICE) {
-        return Err(errno::ENOTTY);
-    }
 
     // TODO: [mid] 实现 `sys_ioctl` 的逻辑
     desc.ioctl(request, argp)
