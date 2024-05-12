@@ -115,28 +115,17 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     let Some(mut curr_component) = split.next() else {
         return Ok(ret);
     };
-    let Some(mut next_component) = split.next() else {
-        ret.last_component = curr_component.to_compact_string();
-        return Ok(ret);
-    };
 
-    loop {
-        if let Some(new_component) = split.next() {
-            // 当前是一个中间的 component
-            let maybe_next = ret.dir.lookup(curr_component.to_compact_string());
-            curr_component = next_component;
-            next_component = new_component;
-            match maybe_next {
-                Some(DEntry::Dir(next_dir)) => ret.dir = next_dir,
-                Some(_) => return Err(errno::ENOTDIR),
-                None => return Err(errno::ENOENT),
-            }
-        } else {
-            // 当前是最后一个 component
-            ret.last_component = next_component.to_compact_string();
-            return Ok(ret);
+    for next_component in split {
+        match ret.dir.lookup(curr_component.to_compact_string()) {
+            Some(DEntry::Dir(next_dir)) => ret.dir = next_dir,
+            Some(_) => return Err(errno::ENOTDIR),
+            None => return Err(errno::ENOENT),
         }
+        curr_component = next_component;
     }
+    ret.last_component = curr_component.to_compact_string();
+    return Ok(ret);
 }
 
 pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
