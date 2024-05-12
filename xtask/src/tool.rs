@@ -116,9 +116,12 @@ pub fn pack(elf_names: &[String]) {
             elf_name,
         );
     }
-    pack_into("res/test_bin/clone", "clone");
-    pack_into("res/test_bin/execve", "execve");
-    pack_into("res/test_bin/fork", "fork");
+    for bin_name in ["brk", "chdir", "clone", "close", "dup", "dup2", "execve"] {
+        pack_into(
+            &format!("res/test_bin/{bin_name}"),
+            &format!("ptest_{bin_name}"),
+        );
+    }
     pack_into("res/test_bin/test_echo", "test_echo");
 }
 
