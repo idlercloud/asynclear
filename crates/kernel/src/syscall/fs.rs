@@ -221,10 +221,12 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
             .curr_process()
             .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
     } else {
-        // 找不到该文件，而且又没有指定 `OpenFlags::CREATE`
         if !flags.contains(OpenFlags::CREATE) {
+            // 找不到该文件，而且又没有指定 `OpenFlags::CREATE`
             return Err(errno::ENOENT);
         }
+
+        // 创建文件
         todo!("[mid] openat create file");
     }
     Ok(ret_fd as isize)

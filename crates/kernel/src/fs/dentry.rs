@@ -79,16 +79,18 @@ impl DEntryDir {
         if component == "." || component == ".." {
             return Err(errno::EINVAL);
         }
-        let dir = self.inode.mkdir(&component)?;
+        let mut children = self.children.lock();
+        let Entry::Vacant(child_entry) = children.entry(component) else {
+            return Err(errno::EEXIST);
+        };
+        let dir = self.inode.mkdir(child_entry.key())?;
         self.inode.meta().lock_inner_with(|inner| {
             inner.access_time = TimeSpec::from(time::curr_time());
             inner.modify_time = inner.access_time;
             inner.data_len = self.inode.inner.disk_space();
         });
         let dentry = Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir));
-        self.children
-            .lock()
-            .insert(component, Some(DEntry::Dir(Arc::clone(&dentry))));
+        child_entry.insert(Some(DEntry::Dir(Arc::clone(&dentry))));
         Ok(dentry)
     }
 
