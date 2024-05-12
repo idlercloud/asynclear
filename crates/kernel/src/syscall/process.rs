@@ -12,12 +12,13 @@ use defines::{
     signal::Signal,
 };
 use event_listener::listener;
+use triomphe::Arc;
 
 use crate::{
     executor,
     hart::local_hart,
     memory::{MapPermission, UserCheck, VirtAddr},
-    process::exit_process,
+    process::{exit_process, INITPROC},
     thread::BlockingFuture,
 };
 
@@ -206,7 +207,7 @@ pub async fn sys_wait4(
     }
 
     // 尝试找到一个符合条件，且已经是僵尸的子进程
-    let process = local_hart().curr_process_arc();
+    let process = Arc::clone(&*local_hart().curr_process_arc());
     loop {
         listener!(process.wait4_event => listener);
         {
@@ -376,16 +377,9 @@ pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
     Ok(0)
 }
 
-/// 设置进程组号
-///
-/// TODO: 暂时未实现，仅返回 0
-pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
-    Ok(0)
-}
-
 /// 返回进程组号
 ///
-/// TODO: 暂时未实现，仅返回 0
+/// TODO: 暂时未实现，仅返回 INITPROC 的 pid
 pub fn sys_getpgid(_pid: usize) -> KResult {
-    Ok(0)
+    Ok(INITPROC.pid() as isize)
 }

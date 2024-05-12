@@ -17,7 +17,8 @@ use klocks::{Lazy, SpinMutex};
 
 use super::inode::{Inode, InodeMeta};
 use crate::{
-    drivers::qemu_uart::TTY, memory::UserCheck, thread::BlockingFuture, uart_console::print,
+    drivers::qemu_uart::TTY, memory::UserCheck, process::INITPROC, thread::BlockingFuture,
+    uart_console::print,
 };
 
 pub async fn read_stdin(buf: UserCheck<[u8]>) -> KResult<usize> {
@@ -45,20 +46,25 @@ pub fn tty_ioctl(command: usize, value: usize) -> KResult {
             todo!("TCSETS | TCSETSW | TCSETSF")
         }
         TIOCGPGRP => {
-            todo!("TIOCGPGRP")
+            debug!("Get foreground pgid");
+            let fg_pgid_ptr = unsafe { UserCheck::<usize>::new(value as _).check_ptr_mut()? };
+            fg_pgid_ptr.write(TTY_INODE.inner.inner.lock().fg_pgid);
+            Ok(0)
         }
         TIOCSPGRP => {
+            debug!("Set foreground pgid");
             todo!("TIOCSPGRP")
         }
         TIOCGWINSZ => {
-            let mut win_size_ptr =
-                unsafe { UserCheck::new(value as *mut WinSize).check_ptr_mut()? };
+            debug!("Get window size");
+            let win_size_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
             win_size_ptr.write(TTY_INODE.inner.inner.lock().win_size);
             Ok(0)
         }
         TIOCSWINSZ => {
-            let win_size_ptr = UserCheck::new(value as *mut WinSize).check_ptr()?;
-            TTY_INODE.inner.inner.lock().win_size = win_size_ptr.read();
+            debug!("Set window size");
+            let win_size = UserCheck::<WinSize>::new(value as _).check_ptr()?.read();
+            TTY_INODE.inner.inner.lock().win_size = win_size;
             Ok(0)
         }
         TCSBRK => Ok(0),
@@ -71,6 +77,7 @@ pub struct TtyInode {
 }
 
 struct TtyInodeInner {
+    fg_pgid: usize,
     win_size: WinSize,
 }
 
@@ -79,6 +86,7 @@ static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
         InodeMeta::new(StatMode::CHAR_DEVICE, CompactString::from_static_str("/")),
         TtyInode {
             inner: SpinMutex::new(TtyInodeInner {
+                fg_pgid: INITPROC.pid(),
                 win_size: WinSize {
                     ws_row: 67,
                     ws_col: 120,
@@ -108,8 +116,9 @@ impl Future for TtyFuture {
         let mut tty = TTY.lock();
         let mut cnt = 0;
         let mut user_buf = unsafe { self.user_buf.check_slice_mut()? };
+        let mut out = user_buf.out();
         loop {
-            let mut out = user_buf.out();
+            let out = out.reborrow();
             if cnt >= out.len() {
                 break;
             }

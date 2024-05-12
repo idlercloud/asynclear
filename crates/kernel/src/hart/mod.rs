@@ -68,8 +68,8 @@ impl Hart {
         Ref::map(self.curr_thread(), |t| t.process.as_ref())
     }
 
-    pub fn curr_process_arc(&self) -> Arc<Process> {
-        Arc::clone(&self.thread.borrow().as_ref().unwrap().process)
+    pub fn curr_process_arc(&self) -> Ref<'_, Arc<Process>> {
+        Ref::map(self.curr_thread(), |t| &t.process)
     }
 }
 

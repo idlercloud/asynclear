@@ -13,6 +13,8 @@
 #![feature(sync_unsafe_cell)]
 #![feature(naked_functions)]
 #![feature(slice_ptr_get)]
+#![feature(strict_provenance)]
+#![feature(iter_intersperse)]
 
 #[macro_use]
 extern crate kernel_tracer;

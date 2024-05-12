@@ -4,8 +4,6 @@ mod signal;
 mod thread;
 mod time;
 
-use core::ptr;
-
 use defines::{error::errno, syscall::*};
 use fs::*;
 use process::*;
@@ -25,7 +23,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         info!("args {args:x?}",);
     }
     let ret = match id {
-        // GETCWD => sys_getcwd(args[0] as _, args[1]),
+        GETCWD => sys_getcwd(UserCheck::new_slice(args[0] as _, args[1])),
         // DUP => sys_dup(args[0]),
         DUP3 => sys_dup3(args[0], args[1], args[2] as _),
         FCNTL64 => sys_fcntl64(args[0], args[1], args[2]),
@@ -53,38 +51,11 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         }
         CLOSE => sys_close(args[0]),
         // PIPE2 => sys_pipe2(args[0] as _),
-        GETDENTS64 => sys_getdents64(
-            args[0],
-            UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
-        ),
-        READ => {
-            sys_read(
-                args[0],
-                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
-            )
-            .await
-        }
-        WRITE => {
-            sys_write(
-                args[0],
-                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
-            )
-            .await
-        }
-        READV => {
-            sys_readv(
-                args[0],
-                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
-            )
-            .await
-        }
-        WRITEV => {
-            sys_writev(
-                args[0],
-                UserCheck::new_slice(ptr::slice_from_raw_parts_mut(args[1] as _, args[2])),
-            )
-            .await
-        }
+        GETDENTS64 => sys_getdents64(args[0], UserCheck::new_slice(args[1] as _, args[2])),
+        READ => sys_read(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
+        WRITE => sys_write(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
+        READV => sys_readv(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
+        WRITEV => sys_writev(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
         // PPOLL => sys_ppoll(),
         NEWFSTATAT => sys_newfstatat(
             args[0],
@@ -113,7 +84,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         RT_SIGRETURN => sys_rt_sigreturn(),
         SETPRIORITY => sys_setpriority(args[0] as _),
         TIMES => sys_times(UserCheck::new(args[0] as _)),
-        SETPGID => sys_setpgid(args[0], args[1]),
+        // SETPGID => sys_setpgid(args[0], args[1]),
         GETPGID => sys_getpgid(args[0]),
         UNAME => sys_uname(UserCheck::new(args[0] as _)),
         GETPID => sys_getpid(),

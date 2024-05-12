@@ -1,4 +1,5 @@
-use core::{ops::Deref, ptr};
+use alloc::vec::Vec;
+use core::ops::Deref;
 
 use defines::{
     error::{errno, KResult},
@@ -121,7 +122,7 @@ pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     let mut iov_index = 0;
     while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
-        let buf = UserCheck::new_slice(ptr::slice_from_raw_parts_mut(iov.iov_base, iov.iov_len));
+        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len);
         let nread = file.read(buf).await?;
         if nread == 0 {
             break;
@@ -153,7 +154,7 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
     while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
-        let buf = UserCheck::new_slice(ptr::slice_from_raw_parts_mut(iov.iov_base, iov.iov_len));
+        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len);
         let nwrite = file.write(buf).await?;
         if nwrite == 0 {
             break;
@@ -360,7 +361,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
         }
         F_GETFD => {
             let desc = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
-            debug!("get the flag of fd {fd}({})", desc.meta().name());
+            debug!("get the CLOEXEC flag of fd {fd}({})", desc.meta().name());
             if desc.flags().contains(OpenFlags::CLOEXEC) {
                 Ok(1)
             } else {
@@ -370,7 +371,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
         F_SETFD => {
             let desc = inner.fd_table.get_mut(fd).ok_or(errno::EBADF)?;
             debug!(
-                "set the flag of fd {fd}({}) to {}",
+                "set the CLOEXEC flag of fd {fd}({}) to {}",
                 desc.meta().name(),
                 arg & 1 != 0
             );
@@ -546,48 +547,52 @@ pub fn sys_newfstatat(
 //     Ok(0)
 // }
 
-// /// 获取当前进程当前工作目录的绝对路径
-// ///
-// /// 参数：
-// /// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
-// /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
-// pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
-//     let mut cwd = local_hart()
-//         .curr_process()
-//         .lock_inner_with(|inner| Arc::clone(&inner.cwd));
-//     let mut components = Vec::new();
-//     // 根目录 `/` 和 `\0`
-//     let mut path_len = 2;
-//     loop {
-//         let Some(parent) = cwd.parent().cloned() else {
-//             break;
-//         };
-//         path_len += cwd.inode().meta().name().len();
-//         components.push(cwd);
-//         cwd = parent;
-//     }
+/// 获取当前进程当前工作目录的绝对路径
+///
+/// 参数：
+/// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
+/// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
+pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
+    let ret = buf.addr() as isize;
+    let mut cwd = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| Arc::clone(&inner.cwd));
+    let mut dirs = Vec::new();
+    // 根目录 `/` 和 `\0`
+    let mut path_len = 2;
+    loop {
+        let Some(parent) = cwd.parent().cloned() else {
+            break;
+        };
+        path_len += cwd.inode().meta().name().len();
+        dirs.push(cwd);
+        cwd = parent;
+    }
 
-//     if path_len > buf.len() {
-//         return Err(errno::ERANGE);
-//     }
-//     let mut buf = buf.check_slice_mut()?;
-//     {
-//         buf[0] = b'/';
-//         let mut curr = 1;
-//         for component in &components[0..(components.len() - 1).max(0)] {
-//             let name = component.inode().meta().name().as_bytes();
-//             buf[curr..curr + name.len()].copy_from_slice(name);
-//         }
-//         let name = components[components.len() - 1]
-//             .inode()
-//             .meta()
-//             .name()
-//             .as_bytes();
-//         buf[curr..curr + name.len()].copy_from_slice(name);
-//         buf[path_len - 1] = 0;
-//     }
-//     Ok(buf as isize)
-// }
+    path_len += dirs.len().saturating_sub(1);
+
+    if path_len > buf.len() {
+        return Err(errno::ERANGE);
+    }
+    let buf = unsafe { buf.check_slice_mut()? };
+    let mut buf = buf.out();
+
+    buf.reborrow().get_out(0).unwrap().write(b'/');
+    let mut curr = 1;
+    for name in dirs
+        .iter()
+        .map(|dir| dir.inode().meta().name().as_bytes())
+        .intersperse(b"/")
+    {
+        buf.reborrow()
+            .get_out(curr..curr + name.len())
+            .unwrap()
+            .copy_from_slice(name);
+        curr += name.len();
+    }
+
+    Ok(ret)
+}
 
 // /// 等待文件描述符上的事件
 // ///

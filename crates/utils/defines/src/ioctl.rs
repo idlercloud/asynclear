@@ -39,11 +39,14 @@ pub const TCFLSH: usize = 0x540B;
 pub const TIOCEXCL: usize = 0x540C;
 pub const TIOCNXCL: usize = 0x540D;
 pub const TIOCSCTTY: usize = 0x540E;
+/// 获取该终端上前台进程组的 pgid
 pub const TIOCGPGRP: usize = 0x540F;
 pub const TIOCSPGRP: usize = 0x5410;
 pub const TIOCOUTQ: usize = 0x5411;
 pub const TIOCSTI: usize = 0x5412;
+/// 获取窗口大小
 pub const TIOCGWINSZ: usize = 0x5413;
+/// 设置窗口大小
 pub const TIOCSWINSZ: usize = 0x5414;
 pub const TIOCMGET: usize = 0x5415;
 pub const TIOCMBIS: usize = 0x5416;
