@@ -176,7 +176,12 @@ impl Process {
     /// 根据 `path` 加载一个新的 ELF 文件并执行。
     ///
     /// 目前要求原进程仅有一个线程并且没有子进程
-    pub fn exec(&self, path: CompactString, args: Vec<CompactString>) -> KResult<()> {
+    pub fn exec(
+        &self,
+        path: CompactString,
+        args: Vec<CompactString>,
+        envs: Vec<CompactString>,
+    ) -> KResult<()> {
         let mut process_name = path.clone();
         for arg in args.iter().skip(1) {
             process_name.push(' ');
@@ -211,10 +216,7 @@ impl Process {
             inner.signal_handlers = SignalHandlers::new();
 
             let argc = args.len();
-            let (user_sp, argv_base) = inner
-                .memory_space
-                .init_stack(user_sp, args, Vec::new())
-                .unwrap();
+            let (user_sp, argv_base) = inner.memory_space.init_stack(user_sp, args, envs).unwrap();
             memory::flush_tlb(None);
 
             inner.main_thread().lock_inner_with(|inner| {

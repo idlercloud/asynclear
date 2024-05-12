@@ -143,32 +143,41 @@ pub fn sys_clone(
 /// 参数：
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
-/// - `envp` 给出环境变量列表，其最后一个元素必须是 0，目前未实现
+/// - `envp` 给出环境变量列表，其最后一个元素必须是 0
 pub fn sys_execve(
     pathname: UserCheck<u8>,
-    mut argv: UserCheck<usize>,
+    argv: UserCheck<usize>,
     envp: UserCheck<usize>,
 ) -> KResult {
-    assert!(envp.is_null(), "envp 暂时尚未支持");
     let pathname = pathname.check_cstr()?;
     debug!("pathname: {}", &*pathname);
     // 收集参数列表
-    let mut arg_vec: Vec<CompactString> = Vec::new();
-    loop {
-        let arg_str_ptr = argv.check_ptr()?.read();
-        if arg_str_ptr == 0 {
-            break;
+    let collect_cstrs = |mut ptr_vec: UserCheck<usize>| -> KResult<Vec<CompactString>> {
+        let mut v = Vec::new();
+        loop {
+            let arg_str_ptr = ptr_vec.check_ptr()?.read();
+            if arg_str_ptr == 0 {
+                break;
+            }
+            let arg_str = UserCheck::new(arg_str_ptr as *mut u8).check_cstr()?;
+            v.push(CompactString::from(&*arg_str));
+            ptr_vec = ptr_vec.add(1);
         }
-        let arg_str = UserCheck::new(arg_str_ptr as *mut u8).check_cstr()?;
-        arg_vec.push(CompactString::from(&*arg_str));
-        argv = argv.add(1);
-    }
+        Ok(v)
+    };
+    let args = collect_cstrs(argv)?;
+    let envs = if envp.is_null() {
+        Vec::new()
+    } else {
+        collect_cstrs(envp)?
+    };
+
     // 执行新进程
 
-    let argc = arg_vec.len();
+    let argc = args.len();
     local_hart()
         .curr_process()
-        .exec(CompactString::from(&*pathname), arg_vec)?;
+        .exec(CompactString::from(&*pathname), args, envs)?;
     Ok(argc as isize)
 }
 
