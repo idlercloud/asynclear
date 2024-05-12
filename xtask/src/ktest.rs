@@ -20,11 +20,6 @@ pub struct KtestArgs {
     /// Hart 数量（SMP 代表 Symmetrical Multiple Processor）.
     #[clap(long, default_value_t = 2)]
     smp: u8,
-    /// 测试运行次数
-    #[clap(short, long, default_value_t = 1)]
-    times: usize,
-    /// 运行哪些测试，若为空则运行所有。暂时未实现
-    test_names: Option<Vec<String>>,
 }
 
 impl KtestArgs {

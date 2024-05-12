@@ -23,8 +23,6 @@ pub struct BuildArgs {
     /// `span` 过滤器级别
     #[clap(long, default_value_t = String::from("DEBUG"))]
     slog: String,
-    #[clap(skip = false)]
-    ktest: bool,
 }
 
 impl BuildArgs {
@@ -50,9 +48,6 @@ impl BuildArgs {
             .tap_mut(|cmd| {
                 if self.profiling {
                     cmd.args(["--features", "profiling"]);
-                }
-                if self.ktest {
-                    cmd.args(["--features", "ktest"]);
                 }
             })
             .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
@@ -82,4 +77,22 @@ pub static USER_BINS: LazyLock<Vec<String>> = LazyLock::new(|| {
                 .to_owned()
         })
         .collect::<Vec<_>>()
+});
+
+pub static PTEST_BINS: LazyLock<Vec<String>> = LazyLock::new(|| {
+    if let Ok(dir) = fs::read_dir("res/preliminary") {
+        dir.filter_map(|entry| {
+            let entry = entry.expect("Failed reading preliminary bin");
+            let meta = entry.metadata().unwrap();
+            if meta.is_dir() {
+                None
+            } else {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name == "text.txt" { None } else { Some(name) }
+            }
+        })
+        .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    }
 });

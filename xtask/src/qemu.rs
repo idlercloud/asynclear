@@ -26,7 +26,6 @@ impl QemuArgs {
     pub fn run(self) {
         // 构建内核和用户应用
         self.build.build();
-
         tool::prepare_os();
 
         println!("Running qemu...");

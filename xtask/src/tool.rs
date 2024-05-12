@@ -9,7 +9,7 @@ use fatfs::{FileSystem, FsOptions};
 use tap::Tap;
 
 use crate::{
-    build::{BuildArgs, USER_BINS},
+    build::{BuildArgs, PTEST_BINS, USER_BINS},
     cmd_util::Cmd,
     tool,
     variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH},
@@ -89,7 +89,7 @@ pub fn prepare_env() {
 }
 
 // 将一系列 elf 打包入 fat32 镜像中
-pub fn pack(elf_names: &[String]) {
+pub fn pack() {
     // 复制一个原始镜像
     let mut origin = File::open(FS_IMG_ORIGIN_PATH).unwrap();
     let mut fs = File::options()
@@ -104,25 +104,40 @@ pub fn pack(elf_names: &[String]) {
     let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
     let root_dir = fs.root_dir();
 
-    let pack_into = |place_in_host: &str, place: &str| {
-        let elf = std::fs::read(place_in_host).unwrap();
-        let mut file = root_dir.create_file(place).unwrap();
+    let pack_into = |place_in_host: &str, path: &str| {
+        let elf = fs::read(place_in_host).expect(place_in_host);
+        let mut dir = root_dir.clone();
+        let components = path.split("/").collect::<Vec<_>>();
+        for &component in &components[0..components.len() - 1] {
+            dir = dir.create_dir(component).unwrap();
+        }
+        let mut file = dir.create_file(components[components.len() - 1]).unwrap();
         file.truncate().unwrap();
         file.write_all(&elf).unwrap();
     };
-    for elf_name in elf_names {
+    for elf_name in USER_BINS.iter() {
+        if elf_name.starts_with("test_") {
+            pack_into(
+                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
+                &format!("ktest/{elf_name}"),
+            );
+        } else {
+            pack_into(
+                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
+                elf_name,
+            )
+        }
+    }
+    for ptest_name in PTEST_BINS.iter() {
         pack_into(
-            &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-            elf_name,
+            &format!("res/preliminary/{ptest_name}"),
+            &format!("ptest/{ptest_name}"),
         );
     }
-    for bin_name in ["brk", "chdir", "clone", "close", "dup", "dup2", "execve"] {
-        pack_into(
-            &format!("res/test_bin/{bin_name}"),
-            &format!("ptest_{bin_name}"),
-        );
+    if USER_BINS.len() > 0 {
+        pack_into("res/preliminary/text.txt", "ptest/text.txt");
+        pack_into("res/preliminary/mnt/test_mount", "ptest/mnt/test_mount");
     }
-    pack_into("res/test_bin/test_echo", "test_echo");
 }
 
 pub fn clean() {
@@ -150,5 +165,5 @@ pub fn prepare_os() {
 
     // Pack filesystem
     println!("Packing filesystem...");
-    tool::pack(&USER_BINS);
+    tool::pack();
 }
