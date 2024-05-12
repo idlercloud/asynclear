@@ -17,7 +17,7 @@ declare_syscall_id!(
     DUP3,               24,
     FCNTL64,            25,
     IOCTL,              29,
-    // MKDIRAT,            34,
+    MKDIRAT,            34,
     // UNLINKAT,           35,
     // LINKAT,             37,
     // UMOUNT,             39,

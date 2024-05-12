@@ -39,21 +39,14 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
     desc.ioctl(request, argp)
 }
 
-// pub fn sys_mkdirat(dirfd: usize, path: *const u8, mode: usize) -> Result {
-//     // let path = unsafe { check_cstr(path)? };
-
-//     // info!("mkdir {dirfd}, {path}, {mode:#o}");
-
-//     // let absolute_path = path_with_fd(dirfd, path)?;
-//     // // FIXME: 目前这个语义是错误的，创建目录要抽象出另一个函数来
-//     // let inode = open_file(absolute_path, OpenFlags::O_CREAT |
-// OpenFlags::O_DIRECTORY)?;     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // let fd = inner.alloc_fd();
-//     // inner.fd_table[fd] = Some(Arc::new(inode));
-//     // Ok(0)
-//     todo!("[blocked] sys_mkdirat")
-// }
+/// 创建目录。`mode` 含义同 `sys_openat()`
+pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult {
+    // TODO: [low] 暂时未支持 mode
+    let path = path.check_cstr()?;
+    let p2i = resolve_path_with_dir_fd(dir_fd, &*path)?;
+    p2i.dir.mkdir(p2i.last_component)?;
+    Ok(0)
+}
 
 fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
     let process = local_hart().curr_process();
@@ -185,14 +178,11 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     info!("oepnat flags {flags:?}");
 
     // TODO: [low] OpenFlags::DIRECT 目前是被忽略的
-
+    // TODO: [low] 暂时未支持 mode
     // 不是创建文件（以及临时文件）时，mode 被忽略
     if !flags.contains(OpenFlags::CREATE) {
         _mode = 0;
     }
-
-    // TODO: [low] 暂时在测试中忽略 `mode` 的检查
-    // assert_eq!(_mode, 0, "dir_fd: {dir_fd}, flags: {flags:?}");
 
     // 64 位版本应当是保证可以打开大文件的
     // TODO: [low] 暂时在测试中忽略 `OpenFlags::LARGEFILE` 的检查

@@ -93,7 +93,7 @@ pub struct InodeMetaInner {
 pub trait DirInodeBackend: Send + Sync {
     fn lookup(&self, name: &str) -> Option<DynInode>;
     /// 调用者保证一定是目录类型，且传入的 `mode` 也是 [`StatMode::S_IFDIR`]
-    fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>>;
+    fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
     fn disk_space(&self) -> usize;
 }
@@ -113,8 +113,8 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
         Ok(())
     }
 
-    pub fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>> {
-        let ret = self.inner.mkdir(name, mode)?;
+    pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
+        let ret = self.inner.mkdir(name)?;
         self.meta.lock_inner_with(|inner| {
             inner.data_len = self.inner.disk_space();
             inner.modify_time = TimeSpec::from(time::curr_time());

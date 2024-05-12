@@ -1,6 +1,11 @@
 use compact_str::{CompactString, ToCompactString};
-use defines::{error::KResult, fs::StatMode};
-use smallvec::SmallVec;
+use defines::{
+    error::{errno, KResult},
+    fs::StatMode,
+    misc::TimeSpec,
+};
+use klocks::{Once, RwLock, RwLockReadGuard};
+use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
@@ -20,11 +25,14 @@ use crate::{
         },
     },
     hart::local_hart,
+    time,
 };
 
 pub struct FatDir {
-    clusters: SmallVec<[u32; 4]>,
+    clusters: RwLock<SmallVec<[u32; 4]>>,
     fat: Arc<FileAllocTable>,
+    /// 记录目录的创建时间，会同步到磁盘中
+    create_time: Option<TimeSpec>,
 }
 
 impl FatDir {
@@ -34,7 +42,11 @@ impl FatDir {
         let clusters = fat
             .cluster_chain(first_root_cluster_id)
             .collect::<SmallVec<_>>();
-        let root_dir = Self { clusters, fat };
+        let root_dir = Self {
+            clusters: RwLock::new(clusters),
+            fat,
+            create_time: None,
+        };
         let meta = InodeMeta::new(StatMode::DIR, CompactString::from_static_str("/"));
         meta.lock_inner_with(|inner| {
             inner.data_len = root_dir.disk_space();
@@ -46,8 +58,9 @@ impl FatDir {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(StatMode::DIR, dir_entry.take_name());
         let fat_dir = Self {
-            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
+            clusters: RwLock::new(fat.cluster_chain(dir_entry.first_cluster_id()).collect()),
             fat,
+            create_time: None,
         };
         meta.lock_inner_with(|inner| {
             inner.data_len = fat_dir.disk_space();
@@ -61,13 +74,36 @@ impl FatDir {
         Inode::new(meta, fat_dir)
     }
 
-    pub fn dir_entry_iter(&self) -> impl Iterator<Item = KResult<DirEntry>> + '_ {
+    fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Inode<Self>> {
+        let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
+        let meta = InodeMeta::new(StatMode::DIR, name.to_compact_string());
+        let curr_time = TimeSpec::from(time::curr_time());
+        let fat_dir = Self {
+            clusters: RwLock::new(smallvec![allocated_cluster]),
+            fat,
+            create_time: Some(curr_time),
+        };
+        meta.lock_inner_with(|inner| {
+            inner.data_len = fat_dir.disk_space();
+            inner.access_time = curr_time;
+            // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
+            // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
+            // NOTE: 同步时不覆盖创建时间
+            inner.change_time = curr_time;
+            inner.modify_time = curr_time;
+        });
+        Ok(Inode::new(meta, fat_dir))
+    }
+
+    pub fn dir_entry_iter<'a>(
+        &'a self,
+        clusters: &'a RwLockReadGuard<'a, SmallVec<[u32; 4]>>,
+    ) -> impl Iterator<Item = KResult<DirEntry>> + 'a {
         let mut raw_entry_iter = core::iter::from_coroutine(
             #[coroutine]
             || {
                 let mut buf = local_hart().block_buffer.borrow_mut();
-                for sector_id in self
-                    .clusters
+                for sector_id in clusters
                     .iter()
                     .flat_map(|&cluster_id| self.fat.cluster_sectors(cluster_id))
                 {
@@ -109,7 +145,7 @@ impl FatDir {
 
 impl DirInodeBackend for FatDir {
     fn lookup(&self, name: &str) -> Option<DynInode> {
-        for dir_entry in self.dir_entry_iter() {
+        for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
             let Ok(dir_entry) = dir_entry else {
                 continue;
             };
@@ -132,14 +168,15 @@ impl DirInodeBackend for FatDir {
         None
     }
 
-    fn mkdir(&self, name: CompactString, mode: StatMode) -> KResult<Arc<DynDirInode>> {
-        todo!("[high] impl DirInodeBackend for FatDir")
+    fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
+        let fat_dir = FatDir::create(Arc::clone(&self.fat), name)?;
+        Ok(Arc::new(fat_dir).unsize(DynDirInodeCoercion!()))
     }
 
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {
         debug!("fat32 read dir");
         let mut children = parent.lock_children();
-        for dir_entry in self.dir_entry_iter() {
+        for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
             let Ok(dir_entry) = dir_entry else {
                 continue;
             };
@@ -170,6 +207,6 @@ impl DirInodeBackend for FatDir {
     }
 
     fn disk_space(&self) -> usize {
-        self.clusters.len() * self.fat.sector_per_cluster() as usize * SECTOR_SIZE
+        self.clusters.read().len() * self.fat.sector_per_cluster() as usize * SECTOR_SIZE
     }
 }

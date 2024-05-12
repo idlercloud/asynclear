@@ -48,6 +48,7 @@ pub mod errno {
         EINVAL,         -22,    "Invalid argument.",
         EMFILE,         -24,    "Too many open files.",
         ENOTTY,         -25,    "Not a tty.",
+        ENOSPC,         -28,    "No space left on device",
         ESPIPE,         -29,    "Illegal seek.",
         ERANGE,         -34,    "Exceed range.",
         ENAMETOOLONG,   -78,    "Filename too long",

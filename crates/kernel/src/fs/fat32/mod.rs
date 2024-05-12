@@ -5,6 +5,8 @@
 //! - <https://www.win.tue.nl/~aeb/linux/fs/fat/fat-1.html/>
 //! - <https://github.com/rafalh/rust-fatfs/>
 
+// TODO: [mid] 现在整个磁盘文件系统都没有将修改同步回磁盘
+
 mod bpb;
 mod dir;
 mod dir_entry;

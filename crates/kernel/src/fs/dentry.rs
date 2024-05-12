@@ -1,11 +1,15 @@
 use alloc::collections::{btree_map::Entry, BTreeMap};
 
 use compact_str::CompactString;
-use defines::error::KResult;
+use defines::{
+    error::{errno, KResult},
+    misc::TimeSpec,
+};
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
 use super::inode::{DynDirInode, DynInode, DynPagedInode, InodeMeta};
+use crate::time;
 
 #[derive(Clone)]
 pub enum DEntry {
@@ -38,6 +42,9 @@ impl DEntryDir {
     }
 
     pub fn lookup(self: &Arc<Self>, component: CompactString) -> Option<DEntry> {
+        self.inode
+            .meta()
+            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
         if component == "." {
             return Some(DEntry::Dir(Arc::clone(self)));
         } else if component == ".." {
@@ -66,6 +73,23 @@ impl DEntryDir {
             }
             Entry::Occupied(occupied) => occupied.get().clone(),
         }
+    }
+
+    pub fn mkdir(self: &Arc<Self>, component: CompactString) -> KResult<Arc<DEntryDir>> {
+        if component == "." || component == ".." {
+            return Err(errno::EINVAL);
+        }
+        let dir = self.inode.mkdir(&component)?;
+        self.inode.meta().lock_inner_with(|inner| {
+            inner.access_time = TimeSpec::from(time::curr_time());
+            inner.modify_time = inner.access_time;
+            inner.data_len = self.inode.inner.disk_space();
+        });
+        let dentry = Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir));
+        self.children
+            .lock()
+            .insert(component, Some(DEntry::Dir(Arc::clone(&dentry))));
+        Ok(dentry)
     }
 
     pub fn read_dir(self: &Arc<Self>) -> KResult<()> {
