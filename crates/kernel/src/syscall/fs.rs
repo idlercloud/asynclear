@@ -3,7 +3,7 @@ use core::ops::Deref;
 
 use defines::{
     error::{errno, KResult},
-    fs::{FstatFlags, IoVec, Stat, StatMode},
+    fs::{FstatFlags, IoVec, Stat, StatMode, AT_FDCWD},
 };
 use triomphe::Arc;
 
@@ -43,7 +43,7 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
 pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult {
     // TODO: [low] 暂时未支持 mode
     let path = path.check_cstr()?;
-    let p2i = resolve_path_with_dir_fd(dir_fd, &*path)?;
+    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
     p2i.dir.mkdir(p2i.last_component)?;
     Ok(0)
 }
@@ -232,8 +232,6 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
 
 fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
     let start_dir;
-    // 忽略 fd，从当前工作目录开始
-    const AT_FDCWD: usize = -100isize as usize;
     // 绝对路径则忽视 fd
     if path.starts_with('/') {
         start_dir = Arc::clone(VFS.root_dir());
@@ -520,22 +518,18 @@ pub fn sys_newfstatat(
 //     Ok(0)
 // }
 
-// /// TODO: sys_chdir 完善，写文档
-// pub fn sys_chdir(path: *const u8) -> Result {
-//     let path = unsafe { check_cstr(path)? };
-
-//     let mut new_cwd = if !path.starts_with('/') {
-//         format!("/{path}")
-//     } else {
-//         path.to_string()
-//     };
-//     // 保证目录的格式都是 xxxx/
-//     if !new_cwd.ends_with('/') {
-//         new_cwd.push('/');
-//     }
-//     curr_process().inner().cwd = new_cwd;
-//     Ok(0)
-// }
+/// 将调用进程的当前工作目录更改为 `path` 中指定的目录
+pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
+    let path = path.check_cstr()?;
+    let p2i = resolve_path_with_dir_fd(AT_FDCWD, &path)?;
+    let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
+        return Err(errno::ENOTDIR);
+    };
+    local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.cwd = dir);
+    Ok(0)
+}
 
 /// 获取当前进程当前工作目录的绝对路径
 ///

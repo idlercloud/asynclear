@@ -2,6 +2,9 @@ use bitflags::bitflags;
 
 use crate::misc::TimeSpec;
 
+// path walk 时，忽略 fd，从当前工作目录开始
+pub const AT_FDCWD: usize = -100isize as usize;
+
 bitflags! {
     /// 一个 inode 的 mode。如文件类型、用户权限等
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

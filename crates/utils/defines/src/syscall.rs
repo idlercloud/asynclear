@@ -22,7 +22,7 @@ declare_syscall_id!(
     // LINKAT,             37,
     // UMOUNT,             39,
     // MOUNT,              40,
-    // CHDIR,              49,
+    CHDIR,              49,
     OPENAT,             56,
     CLOSE,              57,
     // PIPE2,              59,

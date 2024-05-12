@@ -39,7 +39,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         //     args[3],
         //     args[4] as _,
         // ),
-        // CHDIR => sys_chdir(args[0] as _),
+        CHDIR => sys_chdir(UserCheck::new(args[0] as _)),
         OPENAT => {
             sys_openat(
                 args[0],
