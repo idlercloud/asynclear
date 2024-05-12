@@ -8,7 +8,10 @@ use defines::{
 use triomphe::Arc;
 
 use crate::{
-    fs::{self, DEntry, DirFile, File, FileDescriptor, OpenFlags, PagedFile, PathToInode, VFS},
+    fs::{
+        self, DEntry, DirFile, File, FileDescriptor, InodeMode, OpenFlags, PagedFile, PathToInode,
+        VFS,
+    },
     hart::local_hart,
     memory::UserCheck,
 };
@@ -189,14 +192,14 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     }
 
     let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
-    let ret_fd;
-    if let Some(final_dentry) = p2i.dir.lookup(p2i.last_component) {
+    // TODO: [low] 其实可以做一个 `CompactCowString` 避免不必要的拷贝
+    let new_file = if let Some(final_dentry) = p2i.dir.lookup(p2i.last_component.clone()) {
         // 指定了必须要创建文件，但该文件已存在
         if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
             return Err(errno::EEXIST);
         }
 
-        let new_file = match final_dentry {
+        match final_dentry {
             DEntry::Dir(dir) => {
                 // 路径名指向一个目录，但是需要写入
                 if flags.intersects(OpenFlags::WRONLY | OpenFlags::RDWR) {
@@ -210,20 +213,20 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
                 }
                 File::Paged(Arc::new(PagedFile::new(paged)))
             }
-        };
-
-        ret_fd = local_hart()
-            .curr_process()
-            .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
+        }
     } else {
         if !flags.contains(OpenFlags::CREATE) {
             // 找不到该文件，而且又没有指定 `OpenFlags::CREATE`
             return Err(errno::ENOENT);
         }
 
-        // 创建文件
-        todo!("[mid] openat create file");
-    }
+        let dentry = p2i.dir.mknod(p2i.last_component, InodeMode::Regular)?;
+        File::Paged(Arc::new(PagedFile::new(dentry)))
+    };
+
+    let ret_fd = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
     Ok(ret_fd as isize)
 }
 

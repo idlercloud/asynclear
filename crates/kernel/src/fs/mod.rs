@@ -8,7 +8,11 @@ mod inode;
 mod page_cache;
 mod stdio;
 
-use alloc::{collections::BTreeMap, vec, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    collections::BTreeMap,
+    vec::{self, Vec},
+};
 use core::mem::MaybeUninit;
 
 use compact_str::{CompactString, ToCompactString};
@@ -18,11 +22,12 @@ use defines::{
 };
 pub use dentry::{DEntry, DEntryDir, DEntryPaged};
 pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
+use inode::InodeMeta;
+pub use inode::InodeMode;
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 use uninit::extension_traits::{AsOut, VecCapacity};
 
-use self::inode::InodeMeta;
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
     uart_console::println,

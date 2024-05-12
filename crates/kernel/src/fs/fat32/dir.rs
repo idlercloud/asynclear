@@ -20,7 +20,7 @@ use crate::{
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInode,
-            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode,
+            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode, PagedInode,
         },
     },
     hart::local_hart,
@@ -84,12 +84,9 @@ impl FatDir {
         };
         meta.lock_inner_with(|inner| {
             inner.data_len = fat_dir.disk_space();
-            inner.access_time = curr_time;
-            // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
-            // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
-            // NOTE: 同步时不覆盖创建时间
-            inner.change_time = curr_time;
-            inner.modify_time = curr_time;
+            inner.access_time = TimeSpec::from(time::curr_time());
+            inner.change_time = inner.access_time;
+            inner.modify_time = inner.access_time;
         });
         Ok(Inode::new(meta, fat_dir))
     }
@@ -173,8 +170,13 @@ impl DirInodeBackend for FatDir {
     }
 
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
-        debug_assert!(!matches!(mode, InodeMode::Dir));
-        todo!()
+        match mode {
+            InodeMode::Regular => {}
+            InodeMode::Dir | InodeMode::SymbolLink => unreachable!(),
+            _ => todo!("[mid] impl mknod for non-regular mode"),
+        }
+        let fat_file = FatFile::create(Arc::clone(&self.fat), name)?;
+        Ok(Arc::new(fat_file).unsize(DynPagedInodeCoercion!()))
     }
 
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {

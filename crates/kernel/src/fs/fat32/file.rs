@@ -1,16 +1,25 @@
 use common::config::PAGE_SIZE;
-use smallvec::SmallVec;
+use compact_str::ToCompactString;
+use defines::{
+    error::{errno, KResult},
+    misc::TimeSpec,
+};
+use klocks::RwLock;
+use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
     fs::inode::{Inode, InodeMeta, InodeMode, PagedInode, PagedInodeBackend},
     memory::Frame,
+    time,
 };
 
 pub struct FatFile {
-    clusters: SmallVec<[u32; 8]>,
+    clusters: RwLock<SmallVec<[u32; 8]>>,
     fat: Arc<FileAllocTable>,
+    /// 记录文件的创建时间，会同步到磁盘中
+    create_time: Option<TimeSpec>,
 }
 
 impl FatFile {
@@ -19,9 +28,18 @@ impl FatFile {
         mut dir_entry: DirEntry,
     ) -> Inode<PagedInode<Self>> {
         debug_assert!(!dir_entry.is_dir());
+        let clusters = fat
+            .cluster_chain(dir_entry.first_cluster_id())
+            .collect::<SmallVec<_>>();
+        // 文件的大小显然是不超过它占用的簇的总大小的
+        assert!(
+            dir_entry.file_size()
+                <= clusters.len() * fat.sector_per_cluster() as usize * SECTOR_SIZE
+        );
         let fat_file = Self {
-            clusters: fat.cluster_chain(dir_entry.first_cluster_id()).collect(),
+            clusters: RwLock::new(clusters),
             fat,
+            create_time: None,
         };
         let meta = InodeMeta::new(InodeMode::Regular, dir_entry.take_name());
         meta.lock_inner_with(|inner| {
@@ -33,14 +51,24 @@ impl FatFile {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        // 文件的大小显然是不超过它占用的簇的总大小的
-        assert!(
-            dir_entry.file_size()
-                <= fat_file.clusters.len()
-                    * fat_file.fat.sector_per_cluster() as usize
-                    * SECTOR_SIZE
-        );
         Inode::new(meta, PagedInode::new(fat_file, dir_entry.file_size()))
+    }
+
+    pub fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Inode<PagedInode<Self>>> {
+        let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
+        let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+        let curr_time = TimeSpec::from(time::curr_time());
+        let fat_file = Self {
+            clusters: RwLock::new(smallvec![allocated_cluster]),
+            fat,
+            create_time: Some(curr_time),
+        };
+        meta.lock_inner_with(|inner| {
+            inner.access_time = curr_time;
+            inner.change_time = curr_time;
+            inner.modify_time = curr_time;
+        });
+        Ok(Inode::new(meta, PagedInode::new(fat_file, 0)))
     }
 
     /// 返回对应的簇索引和簇内的扇区索引
@@ -60,8 +88,9 @@ impl PagedInodeBackend for FatFile {
 
         let mut sector_count = 0;
         let bytes = frame.as_page_bytes_mut();
+        let clusters = self.clusters.read();
         'ok: loop {
-            let cluster_id = self.clusters[cluster_index as usize];
+            let cluster_id = clusters[cluster_index as usize];
             let mut sectors = self.fat.cluster_sectors(cluster_id);
             sectors.start += sector_offset as u32;
             for sector_id in sectors {
@@ -77,7 +106,7 @@ impl PagedInodeBackend for FatFile {
                 }
             }
             cluster_index += 1;
-            if cluster_index as usize >= self.clusters.len() {
+            if cluster_index as usize >= clusters.len() {
                 break 'ok;
             }
             sector_offset = 0;

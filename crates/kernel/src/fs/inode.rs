@@ -123,6 +123,9 @@ pub trait DirInodeBackend: Send + Sync {
     fn disk_space(&self) -> usize;
 }
 
+// NOTE: `meta` 的信息其实不知道应该在这里改还是在具体文件系统里改。
+// 目前的想法是，信息第一次获取到，比如第一次从磁盘加载、被创建时由具体文件系统来完成
+
 impl<T: ?Sized + DirInodeBackend> Inode<T> {
     pub fn lookup(&self, name: &str) -> Option<DynInode> {
         let ret = self.inner.lookup(name);
@@ -140,13 +143,11 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
     }
 
     pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
-        let ret = self.inner.mkdir(name)?;
-        self.meta.lock_inner_with(|inner| {
-            inner.data_len = self.inner.disk_space();
-            inner.modify_time = TimeSpec::from(time::curr_time());
-            inner.change_time = inner.access_time;
-        });
-        Ok(ret)
+        self.inner.mkdir(name)
+    }
+
+    pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+        self.inner.mknod(name, mode)
     }
 }
 

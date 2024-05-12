@@ -1,6 +1,9 @@
-use alloc::collections::{btree_map::Entry, BTreeMap};
+use alloc::{
+    borrow::Cow,
+    collections::{btree_map::Entry, BTreeMap},
+};
 
-use compact_str::CompactString;
+use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
@@ -8,7 +11,7 @@ use defines::{
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
-use super::inode::{DynDirInode, DynInode, DynPagedInode, InodeMeta};
+use super::inode::{DynDirInode, DynInode, DynPagedInode, InodeMeta, InodeMode};
 use crate::time;
 
 #[derive(Clone)]
@@ -80,17 +83,39 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
-        let Entry::Vacant(child_entry) = children.entry(component) else {
+        let mut child_entry = children.entry(component);
+        if let Entry::Occupied(occupied) = &child_entry
+            && occupied.get().is_some()
+        {
             return Err(errno::EEXIST);
-        };
+        }
         let dir = self.inode.mkdir(child_entry.key())?;
-        self.inode.meta().lock_inner_with(|inner| {
-            inner.access_time = TimeSpec::from(time::curr_time());
-            inner.modify_time = inner.access_time;
-            inner.data_len = self.inode.inner.disk_space();
-        });
         let dentry = Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir));
-        child_entry.insert(Some(DEntry::Dir(Arc::clone(&dentry))));
+        *child_entry.or_insert(None) = Some(DEntry::Dir(Arc::clone(&dentry)));
+        Ok(dentry)
+    }
+
+    pub fn mknod(
+        self: &Arc<Self>,
+        component: CompactString,
+        mode: InodeMode,
+    ) -> KResult<DEntryPaged> {
+        if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir)
+            || component == "."
+            || component == ".."
+        {
+            return Err(errno::EINVAL);
+        }
+        let mut children = self.children.lock();
+        let mut child_entry = children.entry(component);
+        if let Entry::Occupied(occupied) = &child_entry
+            && occupied.get().is_some()
+        {
+            return Err(errno::EEXIST);
+        }
+        let file = self.inode.mknod(child_entry.key(), mode)?;
+        let dentry = DEntryPaged::new(Arc::clone(self), file);
+        *child_entry.or_insert(None) = Some(DEntry::Paged(dentry.clone()));
         Ok(dentry)
     }
 

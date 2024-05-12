@@ -15,6 +15,7 @@
 #![feature(slice_ptr_get)]
 #![feature(strict_provenance)]
 #![feature(iter_intersperse)]
+#![feature(let_chains)]
 
 #[macro_use]
 extern crate kernel_tracer;
