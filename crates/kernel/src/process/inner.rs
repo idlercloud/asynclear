@@ -66,6 +66,7 @@ impl ProcessInner {
         let heap_start = self.heap_range.start.vpn_floor();
         let new_end = new_brk.vpn_ceil();
         self.memory_space.set_user_brk(heap_start, new_end);
+        self.heap_range.end = new_brk;
         new_brk
     }
 
