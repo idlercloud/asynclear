@@ -1,4 +1,5 @@
 mod fs;
+mod memory;
 mod process;
 mod signal;
 mod thread;
@@ -6,6 +7,7 @@ mod time;
 
 use defines::{error::errno, syscall::*};
 use fs::*;
+use memory::*;
 use process::*;
 use signal::*;
 use thread::*;
