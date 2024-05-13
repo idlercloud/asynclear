@@ -565,6 +565,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     let mut curr = 1;
     for name in dirs
         .iter()
+        .rev()
         .map(|dir| dir.inode().meta().name().as_bytes())
         .intersperse(b"/")
     {
