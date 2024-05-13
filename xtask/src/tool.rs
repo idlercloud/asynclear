@@ -107,7 +107,7 @@ pub fn pack() {
     let pack_into = |place_in_host: &str, path: &str| {
         let elf = fs::read(place_in_host).expect(place_in_host);
         let mut dir = root_dir.clone();
-        let components = path.split("/").collect::<Vec<_>>();
+        let components = path.split('/').collect::<Vec<_>>();
         for &component in &components[0..components.len() - 1] {
             dir = dir.create_dir(component).unwrap();
         }
@@ -125,7 +125,7 @@ pub fn pack() {
             pack_into(
                 &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
                 elf_name,
-            )
+            );
         }
     }
     for ptest_name in PTEST_BINS.iter() {

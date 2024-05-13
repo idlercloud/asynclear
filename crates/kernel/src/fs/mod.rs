@@ -125,7 +125,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
         curr_component = next_component;
     }
     ret.last_component = curr_component.to_compact_string();
-    return Ok(ret);
+    Ok(ret)
 }
 
 pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
