@@ -457,17 +457,17 @@ pub fn sys_newfstatat(
     Ok(0)
 }
 
-// pub fn sys_fstat(fd: usize, kst: *mut Stat) -> Result {
-//     let kst = unsafe { check_ptr_mut(kst)? };
-//     let process = curr_process();
-//     let inner = process.inner();
-//     let Some(Some(file)) = inner.fd_table.get(fd) else {
-//         return Err(errno::EBADF);
-//     };
-//     *kst = file.fstat();
+pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
+    let process = local_hart().curr_process();
+    let stat = process.lock_inner_with(|inner| {
+        let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
+        Ok(fs::stat_from_meta(file.meta()))
+    })?;
+    let statbuf = unsafe { statbuf.check_ptr_mut()? };
+    statbuf.write(stat);
 
-//     Ok(0)
-// }
+    Ok(0)
+}
 
 // /// 移除指定文件的链接（可用于删除文件）
 // ///

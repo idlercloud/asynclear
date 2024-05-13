@@ -63,7 +63,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
             UserCheck::new(args[2] as _),
             args[3],
         ),
-        // NEWFSTAT => sys_fstat(args[0], args[1] as _),
+        NEWFSTAT => sys_newfstat(args[0], UserCheck::new(args[1] as _)),
         EXIT => sys_exit(args[0] as _),
         EXIT_GROUP => sys_exit_group(args[0] as _),
         SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
