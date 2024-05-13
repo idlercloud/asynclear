@@ -116,7 +116,7 @@ impl Future for TtyFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;
-        let mut user_buf = unsafe { self.user_buf.check_slice_mut()? };
+        let user_buf = unsafe { self.user_buf.check_slice_mut()? };
         let mut out = user_buf.out();
         loop {
             let out = out.reborrow();

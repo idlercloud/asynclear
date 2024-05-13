@@ -8,12 +8,7 @@ mod inode;
 mod page_cache;
 mod stdio;
 
-use alloc::{
-    borrow::Cow,
-    collections::BTreeMap,
-    vec::{self, Vec},
-};
-use core::mem::MaybeUninit;
+use alloc::{collections::BTreeMap, vec::Vec};
 
 use compact_str::{CompactString, ToCompactString};
 use defines::{

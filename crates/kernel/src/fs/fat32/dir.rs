@@ -3,7 +3,7 @@ use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
 };
-use klocks::{Once, RwLock, RwLockReadGuard};
+use klocks::{RwLock, RwLockReadGuard};
 use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
@@ -20,7 +20,7 @@ use crate::{
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInode,
-            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode, PagedInode,
+            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode,
         },
     },
     hart::local_hart,
@@ -202,7 +202,6 @@ impl DirInodeBackend for FatDir {
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Paged(DEntryPaged::new(
-                    Arc::clone(parent),
                     Arc::new(fat_file).unsize(DynPagedInodeCoercion!()),
                 ))
             };

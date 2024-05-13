@@ -1,15 +1,12 @@
-use core::{mem::MaybeUninit, sync::atomic::AtomicUsize};
+use core::sync::atomic::AtomicUsize;
 
 use atomic::Ordering;
-use bitflags::bitflags;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
 use compact_str::CompactString;
 use defines::{error::KResult, fs::StatMode, misc::TimeSpec};
-use delegate::delegate;
-use futures::future::BoxFuture;
 use klocks::{RwLock, SpinMutex};
 use triomphe::Arc;
-use uninit::{extension_traits::AsOut, out_ref::Out};
+use uninit::out_ref::Out;
 
 use super::{
     dentry::DEntryDir,
@@ -212,8 +209,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             let frame = page.inner.frame();
 
             let copy_len = usize::min(read_end - nread, PAGE_SIZE - page_offset);
-            let a = buf
-                .reborrow()
+            buf.reborrow()
                 .get_out(nread..nread + copy_len)
                 .unwrap()
                 .copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
@@ -281,15 +277,6 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
 pub enum DynInode {
     Dir(Arc<DynDirInode>),
     Paged(Arc<DynPagedInode>),
-}
-
-impl DynInode {
-    pub fn meta(&self) -> &InodeMeta {
-        match self {
-            DynInode::Dir(dir) => dir.meta(),
-            DynInode::Paged(paged) => paged.meta(),
-        }
-    }
 }
 
 pub macro DynDirInodeCoercion() {

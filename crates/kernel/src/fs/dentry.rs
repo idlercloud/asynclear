@@ -1,9 +1,6 @@
-use alloc::{
-    borrow::Cow,
-    collections::{btree_map::Entry, BTreeMap},
-};
+use alloc::collections::{btree_map::Entry, BTreeMap};
 
-use compact_str::{CompactString, ToCompactString};
+use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
@@ -67,9 +64,7 @@ impl DEntryDir {
                     DynInode::Dir(dir) => {
                         DEntry::Dir(Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir)))
                     }
-                    DynInode::Paged(paged) => {
-                        DEntry::Paged(DEntryPaged::new(Arc::clone(self), paged))
-                    }
+                    DynInode::Paged(paged) => DEntry::Paged(DEntryPaged::new(paged)),
                 };
                 vacant.insert(Some(new_dentry.clone()));
                 Some(new_dentry)
@@ -83,7 +78,7 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
-        let mut child_entry = children.entry(component);
+        let child_entry = children.entry(component);
         if let Entry::Occupied(occupied) = &child_entry
             && occupied.get().is_some()
         {
@@ -107,14 +102,14 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
-        let mut child_entry = children.entry(component);
+        let child_entry = children.entry(component);
         if let Entry::Occupied(occupied) = &child_entry
             && occupied.get().is_some()
         {
             return Err(errno::EEXIST);
         }
         let file = self.inode.mknod(child_entry.key(), mode)?;
-        let dentry = DEntryPaged::new(Arc::clone(self), file);
+        let dentry = DEntryPaged::new(file);
         *child_entry.or_insert(None) = Some(DEntry::Paged(dentry.clone()));
         Ok(dentry)
     }
@@ -139,20 +134,15 @@ impl DEntryDir {
 
 #[derive(Clone)]
 pub struct DEntryPaged {
-    parent: Arc<DEntryDir>,
     inode: Arc<DynPagedInode>,
 }
 
 impl DEntryPaged {
-    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynPagedInode>) -> Self {
-        Self { parent, inode }
+    pub fn new(inode: Arc<DynPagedInode>) -> Self {
+        Self { inode }
     }
 
     pub fn inode(&self) -> &Arc<DynPagedInode> {
         &self.inode
-    }
-
-    pub fn parent(&self) -> &Arc<DEntryDir> {
-        &self.parent
     }
 }

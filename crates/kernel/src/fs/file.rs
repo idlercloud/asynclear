@@ -11,8 +11,8 @@ use triomphe::Arc;
 use uninit::out_ref::Out;
 
 use super::{
-    inode::{DynDirInode, DynPagedInode, InodeMeta, InodeMode},
-    stdio, DEntry, DEntryDir, DEntryPaged,
+    inode::{InodeMeta, InodeMode},
+    stdio, DEntryDir, DEntryPaged,
 };
 use crate::memory::UserCheck;
 
@@ -100,10 +100,6 @@ impl PagedFile {
             offset: SpinMutex::new(0),
         }
     }
-
-    pub fn inode(&self) -> &DynPagedInode {
-        self.dentry.inode()
-    }
 }
 
 #[derive(Clone)]
@@ -157,7 +153,7 @@ impl FdTable {
 
     pub fn close_on_exec(&mut self) {
         self.files
-            .retain(|fd, file| !file.flags.contains(OpenFlags::CLOEXEC));
+            .retain(|_, file| !file.flags.contains(OpenFlags::CLOEXEC));
     }
 }
 
