@@ -155,6 +155,7 @@ pub fn sys_execve(
     let collect_cstrs = |mut ptr_vec: UserCheck<usize>| -> KResult<Vec<CompactString>> {
         let mut v = Vec::new();
         loop {
+            // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
             let arg_str_ptr = ptr_vec.check_ptr()?.read();
             if arg_str_ptr == 0 {
                 break;
