@@ -147,6 +147,10 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     syscall3(MUNMAP, [start, len, 0])
 }
 
+pub fn sys_chdir(path: &str) -> isize {
+    syscall3(CHDIR, [path.as_ptr() as usize, 0, 0])
+}
+
 // pub fn sys_dup(fd: usize) -> isize {
 //     syscall3(SYSCALL_DUP, [fd, 0, 0])
 // }

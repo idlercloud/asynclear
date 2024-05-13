@@ -215,6 +215,7 @@ sudo make install
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 - [ ] 支持 GPU 驱动
 - [ ] 支持用户的多线程之后要实现 TLB shootdown
+- [ ] 重写 xtask，改用 python 之类的
 
 ### 具体任务
 

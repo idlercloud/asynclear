@@ -245,6 +245,10 @@ pub fn munmap(start: usize, len: usize) -> isize {
     sys_munmap(start, len)
 }
 
+pub fn chdir(path: &str) -> isize {
+    sys_chdir(path)
+}
+
 // pub fn dup(fd: usize) -> isize {
 //     sys_dup(fd)
 // }
