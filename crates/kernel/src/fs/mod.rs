@@ -10,6 +10,7 @@ mod stdio;
 
 use alloc::{collections::BTreeMap, vec::Vec};
 
+use cervine::Cow;
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
@@ -112,7 +113,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     };
 
     for next_component in split {
-        match ret.dir.lookup(curr_component.to_compact_string()) {
+        match ret.dir.lookup(Cow::Borrowed(curr_component)) {
             Some(DEntry::Dir(next_dir)) => ret.dir = next_dir,
             Some(_) => return Err(errno::ENOTDIR),
             None => return Err(errno::ENOENT),
@@ -125,7 +126,9 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
 
 pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
     let p2i = path_walk(start_dir, path)?;
-    p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)
+    p2i.dir
+        .lookup(Cow::Owned(p2i.last_component))
+        .ok_or(errno::ENOENT)
 }
 
 pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {

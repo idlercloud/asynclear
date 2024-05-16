@@ -1,5 +1,6 @@
 use alloc::collections::{btree_map::Entry, BTreeMap};
 
+use cervine::Cow;
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
@@ -41,17 +42,18 @@ impl DEntryDir {
         }
     }
 
-    pub fn lookup(self: &Arc<Self>, component: CompactString) -> Option<DEntry> {
+    pub fn lookup(self: &Arc<Self>, component: Cow<'_, CompactString, str>) -> Option<DEntry> {
         self.inode
             .meta()
             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
-        if component == "." {
+        if &component == "." {
             return Some(DEntry::Dir(Arc::clone(self)));
-        } else if component == ".." {
+        } else if &component == ".." {
             return Some(DEntry::Dir(Arc::clone(
                 self.parent.as_ref().unwrap_or(self),
             )));
         }
+        let component = component.into_owned();
         let mut children = self.children.lock();
         let entry = children.entry(component);
         match entry {

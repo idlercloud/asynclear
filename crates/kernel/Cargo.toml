@@ -46,6 +46,7 @@ futures = { version = "0.3", default-features = false, features = [
   "async-await",
 ] }
 uninit = { version = "0.6", default-features = false, features = ["alloc"] }
+cervine = "0.0.6"
 
 [features]
 default = []

@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Deref;
 
+use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{FstatFlags, IoVec, Stat, AT_FDCWD},
@@ -193,7 +194,7 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
 
     let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
     // TODO: [low] 其实可以做一个 `CompactCowString` 避免不必要的拷贝
-    let new_file = if let Some(final_dentry) = p2i.dir.lookup(p2i.last_component.clone()) {
+    let new_file = if let Some(final_dentry) = p2i.dir.lookup(Cow::Borrowed(&p2i.last_component)) {
         // 指定了必须要创建文件，但该文件已存在
         if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
             return Err(errno::EEXIST);
@@ -449,7 +450,10 @@ pub fn sys_newfstatat(
         fs::stat_from_meta(file.meta())
     } else {
         let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
-        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+        let dentry = p2i
+            .dir
+            .lookup(Cow::Owned(p2i.last_component))
+            .ok_or(errno::ENOENT)?;
         fs::stat_from_meta(dentry.meta())
     };
     statbuf.write(stat);
@@ -522,7 +526,11 @@ pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
 pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
     let path = path.check_cstr()?;
     let p2i = resolve_path_with_dir_fd(AT_FDCWD, &path)?;
-    let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
+    let DEntry::Dir(dir) = p2i
+        .dir
+        .lookup(Cow::Owned(p2i.last_component))
+        .ok_or(errno::ENOENT)?
+    else {
         return Err(errno::ENOTDIR);
     };
     local_hart()
