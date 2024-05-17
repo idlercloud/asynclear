@@ -51,12 +51,12 @@ impl FatFile {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        Inode::new(meta, PagedInode::new(fat_file, dir_entry.file_size()))
+        Inode::new(meta, PagedInode::new(fat_file))
     }
 
     pub fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Inode<PagedInode<Self>>> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
-        let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+        let meta = InodeMeta::new(InodeMode::Regular, name.to_compact_string());
         let curr_time = TimeSpec::from(time::curr_time());
         let fat_file = Self {
             clusters: RwLock::new(smallvec![allocated_cluster]),
@@ -68,7 +68,7 @@ impl FatFile {
             inner.change_time = curr_time;
             inner.modify_time = curr_time;
         });
-        Ok(Inode::new(meta, PagedInode::new(fat_file, 0)))
+        Ok(Inode::new(meta, PagedInode::new(fat_file)))
     }
 
     /// 返回对应的簇索引和簇内的扇区索引

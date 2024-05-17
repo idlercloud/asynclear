@@ -4,7 +4,7 @@ use atomic::Ordering;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
 use compact_str::CompactString;
 use defines::{error::KResult, fs::StatMode, misc::TimeSpec};
-use klocks::{RwLock, SpinMutex};
+use klocks::{RwLock, RwLockReadGuard, SpinMutex};
 use triomphe::Arc;
 use uninit::out_ref::Out;
 
@@ -19,7 +19,7 @@ static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 pub type DynDirInode = Inode<dyn DirInodeBackend>;
 pub type DynPagedInode = Inode<PagedInode<dyn PagedInodeBackend>>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InodeMode {
     Regular,
     Dir,
@@ -150,15 +150,13 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
 
 /// 可以按页级别进行读写的 inode，一般应该是块设备做后备
 pub struct PagedInode<T: ?Sized> {
-    data_len: RwLock<usize>,
     page_cache: RwLock<PageCache>,
     backend: T,
 }
 
 impl<T> PagedInode<T> {
-    pub fn new(backend: T, data_len: usize) -> Self {
+    pub fn new(backend: T) -> Self {
         Self {
-            data_len: RwLock::new(data_len),
             page_cache: RwLock::new(PageCache::new()),
             backend,
         }
@@ -166,8 +164,8 @@ impl<T> PagedInode<T> {
 }
 
 impl<T: ?Sized> PagedInode<T> {
-    pub fn data_len(&self) -> usize {
-        *self.data_len.read()
+    pub fn lock_page_cache(&self) -> RwLockReadGuard<'_, PageCache> {
+        self.page_cache.read()
     }
 }
 
@@ -183,7 +181,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
         mut buf: Out<'_, [u8]>,
         offset: usize,
     ) -> KResult<usize> {
-        let data_len = *self.data_len.read();
+        let data_len = meta.lock_inner_with(|inner| inner.data_len);
 
         if offset >= data_len {
             return Ok(0);
@@ -221,7 +219,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
     }
 
     pub fn write_at(&self, meta: &InodeMeta, buf: &[u8], offset: usize) -> KResult<usize> {
-        let curr_data_len = *self.data_len.read();
+        let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
         let curr_last_page_id = curr_data_len >> PAGE_SIZE_BITS;
 
         // 写范围是 offset..offset + buf.len()。
@@ -257,13 +255,11 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             nwrite += copy_len;
         }
         meta.lock_inner_with(|inner| {
+            inner.data_len = usize::max(inner.data_len, offset + buf.len());
             inner.access_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
             inner.modify_time = inner.change_time;
         });
-        if curr_data_len < offset + buf.len() {
-            *self.data_len.write() = offset + buf.len();
-        }
 
         Ok(nwrite)
     }

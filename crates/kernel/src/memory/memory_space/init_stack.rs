@@ -114,6 +114,7 @@ impl<'a, 'b> FramedVmArea {
     fn push_usize(&'b mut self, num: usize, ctx: &mut StackInitCtx<'a>) {
         self.sp_down(PTR_SIZE, ctx);
         unsafe {
+            // SAFETY: sp_down 之后 frame 一定被初始化了
             let mut frame = ctx.page.as_mut().unwrap_unchecked().frame_mut();
             *frame.as_mut_at(VirtAddr(ctx.user_sp).page_offset()) = num;
         }

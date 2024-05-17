@@ -10,7 +10,7 @@ use triomphe::Arc;
 use self::inner::ThreadInner;
 pub use self::user::{spawn_user_thread, BlockingFuture};
 use crate::{
-    memory::{AreaType, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
+    memory::{self, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
     process::Process,
     trap::TrapContext,
 };
@@ -68,21 +68,17 @@ impl Thread {
         // 分配用户栈
         let ustack_low_vpn = Self::user_stack_low_addr(tid);
         let ustack_high_vpn = Self::user_stack_high_addr(tid);
-        let ustack_low_addr = ustack_low_vpn.page_start();
-        let ustack_high_addr = ustack_high_vpn.page_start();
         trace!(
             "user stack is {:#x}..{:#x}",
-            ustack_low_addr.0,
-            ustack_high_addr.0
+            ustack_low_vpn.page_start().0,
+            ustack_high_vpn.page_start().0
         );
 
         // 栈地址都是根据 tid 确定的，不会冲突
         unsafe {
             memory_space.user_map(
-                ustack_low_addr,
-                ustack_high_addr,
+                ustack_low_vpn..ustack_high_vpn,
                 MapPermission::R | MapPermission::W | MapPermission::U,
-                AreaType::Lazy,
             );
         }
         ustack_high_vpn
@@ -106,6 +102,7 @@ impl Thread {
         // 手动取消用户栈的映射
         let user_stack_low_addr = Self::user_stack_low_addr(self.tid);
         memory_space.remove_area_with_start_vpn(user_stack_low_addr);
+        memory::flush_tlb(None);
     }
 
     pub fn set_status(&self, status: ThreadStatus) {

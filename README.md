@@ -221,7 +221,12 @@ sudo make install
 
 按优先级排列：
 
-- [ ] 添加文件系统的测试，包括且不限于：多次打开同一文件、append、lseek 超出文件末尾后再写
+- [ ] 添加文件系统的测试，包括且不限于：
+    - 多次打开同一文件
+    - append
+    - lseek 超出文件末尾后再写
+    - mmap 后读写与 read、write
+    - munmap 后测试是否已经无效
 - [ ] CoW、Lazy Page
 - [ ] 内核线程
 - [ ] kernel 内容能否放入 huge page？

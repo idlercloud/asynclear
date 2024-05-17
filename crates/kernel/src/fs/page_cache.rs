@@ -1,4 +1,5 @@
 use alloc::collections::BTreeMap;
+use core::ops::Deref;
 
 use async_lock::Mutex as SleepMutex;
 use atomic::Atomic;
@@ -32,12 +33,22 @@ impl PageCache {
         assert!(maybe_old.is_none());
         new_page
     }
+
+    pub fn pages(&self) -> &BTreeMap<usize, Arc<BackedPage>> {
+        &self.pages
+    }
 }
 
 pub struct BackedPage {
     pub(super) inner: Page,
     pub(super) state_guard: SleepMutex<()>,
     pub(super) state: Atomic<PageState>,
+}
+
+impl BackedPage {
+    pub fn inner_page(&self) -> &Page {
+        &self.inner
+    }
 }
 
 #[derive(bytemuck::NoUninit, Copy, Clone, Debug, PartialEq, Eq)]

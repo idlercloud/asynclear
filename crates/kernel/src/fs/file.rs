@@ -12,7 +12,7 @@ use uninit::out_ref::Out;
 
 use super::{
     inode::{InodeMeta, InodeMode},
-    stdio, DEntryDir, DEntryPaged,
+    stdio, DEntryDir, DEntryPaged, DynPagedInode,
 };
 use crate::memory::UserCheck;
 
@@ -99,6 +99,10 @@ impl PagedFile {
             dentry,
             offset: SpinMutex::new(0),
         }
+    }
+
+    pub fn inode(&self) -> &Arc<DynPagedInode> {
+        self.dentry.inode()
     }
 }
 
@@ -203,7 +207,7 @@ impl FileDescriptor {
                 let meta = inode.meta();
                 let mut offset = paged.offset.lock();
                 if self.flags.contains(OpenFlags::APPEND) {
-                    *offset = inode.inner.data_len();
+                    *offset = meta.lock_inner_with(|inner| inner.data_len);
                 }
                 let nwrite = inode.inner.write_at(meta, &buf.check_slice()?, *offset)?;
                 *offset += nwrite;

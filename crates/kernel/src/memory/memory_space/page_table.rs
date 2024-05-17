@@ -6,7 +6,7 @@ use bitflags::*;
 use common::config::{PAGE_SIZE, PTE_PER_PAGE};
 use riscv::register::satp;
 
-use super::{flush_tlb, KERNEL_SPACE};
+use super::KERNEL_SPACE;
 use crate::memory::{frame_allocator::Frame, MapPermission, PhysPageNum, VirtPageNum};
 
 bitflags! {
@@ -158,7 +158,7 @@ impl PageTable {
         let new_root = self.token();
         if new_root != old_root {
             satp::write(new_root);
-            flush_tlb(None);
+            super::flush_tlb(None);
         }
     }
 }

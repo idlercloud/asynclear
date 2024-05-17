@@ -1,39 +1,50 @@
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 use core::ops::Range;
 
 use common::config::PAGE_SIZE;
-use klocks::RwLockReadGuard;
 use triomphe::Arc;
 
-use crate::memory::{
-    frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
-    VirtAddr, VirtPageNum,
+use crate::{
+    fs::DynPagedInode,
+    memory::{
+        frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
+        VirtPageNum,
+    },
 };
 
 /// 采取帧式映射的一块（用户）虚拟内存区域
-#[derive(Clone)]
 pub struct FramedVmArea {
     vpn_range: Range<VirtPageNum>,
-    map: BTreeMap<VirtPageNum, Arc<Page>>,
     perm: MapPermission,
     area_type: AreaType,
+    // 暂时而言，整个 area 要么都是有文件后备，要么都是无文件后备
+    // 但是实现 private mmap 的话可能就不是了
+    unbacked_map: BTreeMap<VirtPageNum, Arc<Page>>,
+    backed_file: Option<Arc<DynPagedInode>>,
+    backed_pages: BTreeSet<VirtPageNum>,
+    backed_file_page_id: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum AreaType {
     Lazy,
-    Elf,
+    Mmap,
 }
 
 impl FramedVmArea {
-    pub(super) fn new(va_range: Range<VirtAddr>, perm: MapPermission, area_type: AreaType) -> Self {
-        let start_vpn = va_range.start.vpn_floor();
-        let end_vpn = va_range.end.vpn_ceil();
+    pub(super) fn new(
+        vpn_range: Range<VirtPageNum>,
+        perm: MapPermission,
+        area_type: AreaType,
+    ) -> Self {
         Self {
-            vpn_range: start_vpn..end_vpn,
-            map: BTreeMap::new(),
+            vpn_range,
+            unbacked_map: BTreeMap::new(),
             perm,
             area_type,
+            backed_file: None,
+            backed_pages: BTreeSet::new(),
+            backed_file_page_id: 0,
         }
     }
 
@@ -49,16 +60,50 @@ impl FramedVmArea {
         self.area_type
     }
 
-    pub fn mapped_frame(&self, vpn: VirtPageNum) -> Option<RwLockReadGuard<'_, Frame>> {
-        self.map.get(&vpn).map(|page| page.frame())
+    pub fn unbacked_map(&self) -> &BTreeMap<VirtPageNum, Arc<Page>> {
+        &self.unbacked_map
+    }
+
+    pub fn backed_file(&self) -> Option<&Arc<DynPagedInode>> {
+        self.backed_file.as_ref()
+    }
+
+    pub fn backed_file_page_id(&self) -> usize {
+        self.backed_file_page_id
     }
 
     pub fn len(&self) -> usize {
         self.vpn_range.end.0.saturating_sub(self.vpn_range.start.0) * PAGE_SIZE
     }
 
+    pub fn init_backed_file(
+        &mut self,
+        file: Arc<DynPagedInode>,
+        file_page_id: usize,
+        page_table: &mut PageTable,
+    ) {
+        let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
+        // 先把已经在页缓存中的映射好
+        {
+            let page_cache = file.inner.lock_page_cache();
+            for (&page_id, page) in page_cache
+                .pages()
+                .range(file_page_id..file_page_id + n_pages)
+            {
+                let frame = page.inner_page().frame();
+                let vpn = self.vpn_range.start + page_id - file_page_id;
+                page_table.map(vpn, frame.ppn(), PTEFlags::from(self.perm));
+                self.backed_pages.insert(vpn);
+            }
+        }
+        self.backed_file = Some(file);
+        self.backed_file_page_id = file_page_id;
+    }
+
+    // 只能给
     pub fn ensure_allocated(&mut self, vpn: VirtPageNum, page_table: &mut PageTable) -> &Arc<Page> {
-        let entry = self.map.entry(vpn);
+        assert!(self.area_type == AreaType::Lazy);
+        let entry = self.unbacked_map.entry(vpn);
         entry.or_insert_with(|| {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
@@ -78,7 +123,8 @@ impl FramedVmArea {
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
-            self.map.insert(vpn, Arc::new(Page::with_frame(frame)));
+            self.unbacked_map
+                .insert(vpn, Arc::new(Page::with_frame(frame)));
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
             let len = usize::min(data.len() - start, PAGE_SIZE - page_offset);
             unsafe {
@@ -91,16 +137,21 @@ impl FramedVmArea {
     }
 
     pub(super) fn unmap(&mut self, page_table: &mut PageTable) {
-        for &mapped in self.map.keys() {
+        for &mapped in self.unbacked_map.keys().chain(&self.backed_pages) {
             page_table.unmap(mapped);
         }
-        self.map.clear();
+        self.unbacked_map.clear();
+        self.backed_file = None;
+        self.backed_pages.clear();
+        self.backed_file_page_id = 0;
     }
 
     /// 尝试收缩末尾区域
     pub fn shrink(&mut self, new_end: VirtPageNum, page_table: &mut PageTable) {
+        // TODO: vm area 收缩暂时不考虑文件后备
+        assert!(self.area_type == AreaType::Lazy);
         {
-            let split = self.map.split_off(&new_end);
+            let split = self.unbacked_map.split_off(&new_end);
             for &mapped in split.keys() {
                 page_table.unmap(mapped);
             }

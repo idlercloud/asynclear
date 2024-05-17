@@ -1,8 +1,11 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
-use core::ops::{Bound, Range};
+use core::{
+    num::NonZeroUsize,
+    ops::{Bound, Range},
+};
 
 use bitflags::bitflags;
-use common::config::{LOW_ADDRESS_END, MEMORY_END, MMAP_START, MMIO, PA_TO_VA};
+use common::config::{LOW_ADDRESS_END, MEMORY_END, MMAP_START, MMIO, PAGE_OFFSET_MASK, PA_TO_VA};
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
@@ -14,6 +17,7 @@ use goblin::elf::{
 };
 use klocks::Lazy;
 use smallvec::SmallVec;
+use triomphe::Arc;
 use virtio_drivers::PAGE_SIZE;
 use vm_area::AreaType;
 
@@ -24,83 +28,13 @@ use self::{
 use super::{
     kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
+use crate::fs::DynPagedInode;
 
 pub mod init_stack;
 pub mod page_table;
 pub mod vm_area;
 
-extern "C" {
-    fn stext();
-    fn etext();
-    fn srodata();
-    fn erodata();
-    fn sdata();
-    fn edata();
-    fn sstack();
-    fn estack();
-    fn sbss();
-    fn ebss();
-    fn ekernel();
-
-}
-
-/// 刷新 tlb，可选刷新一部分，或者全部刷新
-pub fn flush_tlb(vaddr: Option<VirtAddr>) {
-    if let Some(vaddr) = vaddr {
-        unsafe {
-            riscv::asm::sfence_vma(0, vaddr.0);
-        }
-    } else {
-        unsafe {
-            riscv::asm::sfence_vma_all();
-        }
-    }
-}
-
-pub fn log_kernel_sections() {
-    info!(
-        "kernel     text {:#x}..{:#x}",
-        stext as usize, etext as usize
-    );
-    info!(
-        "kernel   rodata {:#x}..{:#x}",
-        srodata as usize, erodata as usize
-    );
-    info!(
-        "kernel     data {:#x}..{:#x}",
-        sdata as usize, edata as usize
-    );
-    info!(
-        "kernel    stack {:#x}..{:#x}",
-        sstack as usize, estack as usize
-    );
-    info!("kernel      bss {:#x}..{:#x}", sbss as usize, ebss as usize);
-    info!(
-        "physical memory {:#x}..{:#x}",
-        ekernel as usize,
-        PA_TO_VA + MEMORY_END
-    );
-}
-
 pub static KERNEL_SPACE: Lazy<MemorySpace> = Lazy::new(MemorySpace::new_kernel);
-
-bitflags! {
-    /// 对应于 PTE 中权限位的映射权限：`R W X U`
-    #[derive(Clone, Copy, Debug)]
-    pub struct MapPermission: u8 {
-        const R = 1 << 1;
-        const W = 1 << 2;
-        const X = 1 << 3;
-        const U = 1 << 4;
-        const G = 1 << 5;
-    }
-}
-
-impl From<MmapProt> for MapPermission {
-    fn from(mmap_prot: MmapProt) -> Self {
-        Self::from_bits_truncate((mmap_prot.bits() << 1) as u8) | MapPermission::U
-    }
-}
 
 /// 进程的内存地址空间
 pub struct MemorySpace {
@@ -120,53 +54,56 @@ impl MemorySpace {
     fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();
 
-        memory_set.kernel_map(
-            VirtAddr(stext as usize),
-            VirtAddr(etext as usize),
-            MapPermission::R | MapPermission::X | MapPermission::G,
-        );
-
-        // 注：旧版的 Linux 中，text 段和 rodata 段是合并在一起的，这样可以减少一次映射
-        // 新版本则独立开来了，参考 https://stackoverflow.com/questions/44938745/rodata-section-loaded-in-executable-page
-        memory_set.kernel_map(
-            VirtAddr(srodata as usize),
-            VirtAddr(erodata as usize),
-            MapPermission::R | MapPermission::G,
-        );
-
-        memory_set.kernel_map(
-            VirtAddr(sdata as usize),
-            VirtAddr(edata as usize),
-            MapPermission::R | MapPermission::W | MapPermission::G,
-        );
-
-        memory_set.kernel_map(
-            VirtAddr(sstack as usize),
-            VirtAddr(estack as usize),
-            MapPermission::R | MapPermission::W | MapPermission::G,
-        );
-
-        memory_set.kernel_map(
-            VirtAddr(sbss as usize),
-            VirtAddr(ebss as usize),
-            MapPermission::R | MapPermission::W | MapPermission::G,
-        );
-
-        // TODO: 这里也许可以 Huge Page 映射？
-        memory_set.kernel_map(
-            VirtAddr(ekernel as usize),
-            kernel_pa_to_va(PhysAddr(MEMORY_END)),
-            MapPermission::R | MapPermission::W | MapPermission::G,
-        );
-
-        // MMIO 映射
-        for &(start, len) in MMIO {
+        unsafe {
             memory_set.kernel_map(
-                kernel_pa_to_va(PhysAddr(start)),
-                kernel_pa_to_va(PhysAddr(start + len)),
+                VirtAddr(stext as usize),
+                VirtAddr(etext as usize),
+                MapPermission::R | MapPermission::X | MapPermission::G,
+            );
+
+            // 注：旧版的 Linux 中，text 段和 rodata 段是合并在一起的，这样可以减少一次映射
+            // 新版本则独立开来了，参考 https://stackoverflow.com/questions/44938745/rodata-section-loaded-in-executable-page
+            memory_set.kernel_map(
+                VirtAddr(srodata as usize),
+                VirtAddr(erodata as usize),
+                MapPermission::R | MapPermission::G,
+            );
+
+            memory_set.kernel_map(
+                VirtAddr(sdata as usize),
+                VirtAddr(edata as usize),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             );
+
+            memory_set.kernel_map(
+                VirtAddr(sstack as usize),
+                VirtAddr(estack as usize),
+                MapPermission::R | MapPermission::W | MapPermission::G,
+            );
+
+            memory_set.kernel_map(
+                VirtAddr(sbss as usize),
+                VirtAddr(ebss as usize),
+                MapPermission::R | MapPermission::W | MapPermission::G,
+            );
+
+            // TODO: 这里也许可以 Huge Page 映射？
+            memory_set.kernel_map(
+                VirtAddr(ekernel as usize),
+                kernel_pa_to_va(PhysAddr(MEMORY_END)),
+                MapPermission::R | MapPermission::W | MapPermission::G,
+            );
+
+            // MMIO 映射
+            for &(start, len) in MMIO {
+                memory_set.kernel_map(
+                    kernel_pa_to_va(PhysAddr(start)),
+                    kernel_pa_to_va(PhysAddr(start + len)),
+                    MapPermission::R | MapPermission::W | MapPermission::G,
+                );
+            }
         }
+
         memory_set
     }
 
@@ -184,24 +121,26 @@ impl MemorySpace {
         for src_area in user_space.user_areas.values() {
             let vpn_range = src_area.vpn_range();
             unsafe {
-                memory_set.user_map(
-                    vpn_range.start.page_start(),
-                    vpn_range.end.page_start(),
-                    src_area.perm(),
-                    src_area.area_type(),
-                );
-            };
+                if let Some(backed_file) = src_area.backed_file() {
+                    memory_set.user_map_with_file(
+                        vpn_range.clone(),
+                        src_area.perm(),
+                        Arc::clone(backed_file),
+                        src_area.backed_file_page_id(),
+                    );
+                } else {
+                    memory_set.user_map(vpn_range.clone(), src_area.perm());
+                }
+            }
             let dst_area = memory_set
                 .user_areas
                 .get_mut(&vpn_range.start)
                 .expect("just insert above");
-            for vpn in vpn_range {
-                if let Some(src_frame) = src_area.mapped_frame(vpn) {
-                    let mut dst_frame = dst_area
-                        .ensure_allocated(vpn, &mut memory_set.page_table)
-                        .frame_mut();
-                    dst_frame.copy_from(&src_frame);
-                }
+            for (&vpn, src_frame) in src_area.unbacked_map() {
+                let mut dst_frame = dst_area
+                    .ensure_allocated(vpn, &mut memory_set.page_table)
+                    .frame_mut();
+                dst_frame.copy_from(&src_frame.frame());
             }
         }
         memory_set.map_kernel_areas();
@@ -233,9 +172,8 @@ impl MemorySpace {
                 trace!("load vm area {:#x}..{:#x}", start_va.0, end_va.0);
                 unsafe {
                     self.user_map_with_data(
-                        start_va..end_va,
+                        start_va.vpn_floor()..end_va.vpn_ceil(),
                         map_perm,
-                        AreaType::Elf,
                         &elf_data[ph.file_range()],
                         start_offset,
                     );
@@ -258,17 +196,14 @@ impl MemorySpace {
         if let Some(map_area) = self.user_areas.get_mut(&heap_start) {
             if new_end <= map_area.vpn_range().end {
                 map_area.shrink(new_end, &mut self.page_table);
+                flush_tlb(None);
             } else {
                 map_area.expand(new_end);
             }
         } else {
+            let perm = MapPermission::R | MapPermission::W | MapPermission::U;
             unsafe {
-                self.user_map(
-                    heap_start.page_start(),
-                    new_end.page_start(),
-                    MapPermission::R | MapPermission::W | MapPermission::U,
-                    AreaType::Lazy,
-                );
+                self.user_map(heap_start..new_end, perm);
             }
         }
     }
@@ -276,44 +211,70 @@ impl MemorySpace {
     /// 尝试根据 `va_range` 进行映射
     pub fn try_map(
         &mut self,
-        va_range: Range<VirtAddr>,
+        addr: usize,
+        len: NonZeroUsize,
         perm: MapPermission,
         flags: MmapFlags,
-    ) -> KResult<isize> {
+    ) -> KResult<VirtPageNum> {
+        let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
+        // SAFETY: 上面寻找映射区域的函数保证不会返回重叠的区域
+        unsafe {
+            self.user_map(vpn_range, perm);
+        }
+        Err(errno::ENOMEM)
+    }
+
+    /// 尝试根据 `va_range` 进行映射
+    pub fn try_map_file(
+        &mut self,
+        addr: usize,
+        len: NonZeroUsize,
+        perm: MapPermission,
+        flags: MmapFlags,
+        file: Arc<DynPagedInode>,
+        file_page_id: usize,
+    ) -> KResult<VirtPageNum> {
+        let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
+        // SAFETY: 上面寻找映射区域的函数保证不会返回重叠的区域
+        unsafe {
+            self.user_map_with_file(vpn_range.clone(), perm, file, file_page_id);
+        }
+        flush_tlb(None);
+        Ok(vpn_range.start)
+    }
+
+    fn try_find_mmap_area(
+        &mut self,
+        addr: usize,
+        len: NonZeroUsize,
+        flags: MmapFlags,
+    ) -> KResult<Range<VirtPageNum>> {
         if flags.contains(MmapFlags::MAP_FIXED) {
+            if addr & PAGE_OFFSET_MASK != 0 {
+                return Err(errno::EINVAL);
+            }
             // TODO: [mid] 实现 fixed 映射
             error!("fixed map unsupported");
             return Err(errno::UNSUPPORTED);
         }
         // 尝试找到一个合适的段来映射
-        let mut start = VirtAddr(MMAP_START).max(va_range.start);
-        let len = va_range.end.0 - va_range.start.0;
-        let mut cursor = self
-            .user_areas
-            .lower_bound(Bound::Excluded(&start.vpn_ceil()));
+        let mut start = VirtAddr(MMAP_START).max(VirtAddr(addr)).vpn_floor();
+        let mut cursor = self.user_areas.lower_bound(Bound::Excluded(&start));
         // `MMAP_START` 左侧的一个 area 有可能恰好包含了它，所以需要特判一下
         if let Some((_, area)) = cursor.peek_prev() {
-            start = VirtAddr::max(start, area.vpn_range().end.page_start());
+            start = start.max(area.vpn_range().end);
         }
         while let Some((_, area)) = cursor.next() {
-            let end = start + len;
-            if end <= area.vpn_range().start.page_start() {
-                // SAFETY: 条件语句检查了不会和其他区域重叠
-                unsafe {
-                    self.user_map(start, end, perm, AreaType::Lazy);
-                }
-                return Ok(start.0 as isize);
+            let end_va = start.page_start() + len.get();
+            if end_va <= area.vpn_range().start.page_start() {
+                return Ok(start..end_va.vpn_ceil());
             }
-            start = area.vpn_range().end.page_start();
+            start = area.vpn_range().end;
         }
         // 最后一个 area 末尾到低地址末端也可以试一下
-        let end = start + len;
-        if end.0 <= LOW_ADDRESS_END {
-            // SAFETY: 条件语句检查了不会和其他区域重叠
-            unsafe {
-                self.user_map(start, end, perm, AreaType::Lazy);
-            }
-            return Ok(start.0 as isize);
+        let end_va = start.page_start() + len.get();
+        if end_va.0 <= LOW_ADDRESS_END {
+            return Ok(start..end_va.vpn_ceil());
         }
         Err(errno::ENOMEM)
     }
@@ -349,6 +310,8 @@ impl MemorySpace {
             let mut area = self.user_areas.remove(&vpn).unwrap();
             area.unmap(&mut self.page_table);
         }
+
+        flush_tlb(None);
     }
 
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
@@ -362,14 +325,25 @@ impl MemorySpace {
     /// # Safety
     ///
     /// 需要保证该虚拟地址区域未被映射
-    pub unsafe fn user_map(
+    pub unsafe fn user_map(&mut self, vpn_range: Range<VirtPageNum>, perm: MapPermission) {
+        let map_area = FramedVmArea::new(vpn_range, perm, AreaType::Lazy);
+        self.user_areas.insert(map_area.vpn_range().start, map_area);
+    }
+
+    /// 映射一段用户的帧映射内存区域。但并不立刻分配内存
+    ///
+    /// # Safety
+    ///
+    /// 需要保证该虚拟地址区域未被映射
+    pub unsafe fn user_map_with_file(
         &mut self,
-        start_va: VirtAddr,
-        end_va: VirtAddr,
+        vpn_range: Range<VirtPageNum>,
         perm: MapPermission,
-        area_type: AreaType,
+        file: Arc<DynPagedInode>,
+        file_page_id: usize,
     ) {
-        let map_area = FramedVmArea::new(start_va..end_va, perm, area_type);
+        let mut map_area = FramedVmArea::new(vpn_range.clone(), perm, AreaType::Mmap);
+        map_area.init_backed_file(file, file_page_id, &mut self.page_table);
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 
@@ -380,20 +354,20 @@ impl MemorySpace {
     /// 需要保证该虚拟地址区域未被映射
     unsafe fn user_map_with_data(
         &mut self,
-        va_range: Range<VirtAddr>,
+        vpn_range: Range<VirtPageNum>,
         perm: MapPermission,
-        area_type: AreaType,
         data: &[u8],
         page_offset: usize,
     ) {
-        let mut map_area = FramedVmArea::new(va_range, perm, area_type);
+        // TODO: [low] 实现 ELF 懒加载
+        let mut map_area = FramedVmArea::new(vpn_range, perm, AreaType::Lazy);
         unsafe {
             map_area.map_with_data(&mut self.page_table, data, page_offset);
         }
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 
-    fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+    unsafe fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
         let start_vpn = start_va.vpn_floor();
         let end_vpn = end_va.vpn_ceil();
         for vpn in start_vpn..end_vpn {
@@ -429,7 +403,7 @@ impl MemorySpace {
                         flush_tlb(Some(vpn.page_start()));
                         return true;
                     }
-                    AreaType::Elf => todo!("[mid] impl elf backed memory"),
+                    AreaType::Mmap => todo!("[high] impl mmap memory"),
                 }
             }
             false
@@ -457,4 +431,74 @@ impl MemorySpace {
         );
         Some(area.init_stack_impl(ctx))
     }
+}
+
+bitflags! {
+    /// 对应于 PTE 中权限位的映射权限：`R W X U`
+    #[derive(Clone, Copy, Debug)]
+    pub struct MapPermission: u8 {
+        const R = 1 << 1;
+        const W = 1 << 2;
+        const X = 1 << 3;
+        const U = 1 << 4;
+        const G = 1 << 5;
+    }
+}
+
+impl From<MmapProt> for MapPermission {
+    fn from(mmap_prot: MmapProt) -> Self {
+        Self::from_bits_truncate((mmap_prot.bits() << 1) as u8) | MapPermission::U
+    }
+}
+
+/// 刷新 tlb，可选刷新一部分，或者全部刷新
+pub fn flush_tlb(vaddr: Option<VirtAddr>) {
+    if let Some(vaddr) = vaddr {
+        unsafe {
+            riscv::asm::sfence_vma(0, vaddr.0);
+        }
+    } else {
+        unsafe {
+            riscv::asm::sfence_vma_all();
+        }
+    }
+}
+
+extern "C" {
+    fn stext();
+    fn etext();
+    fn srodata();
+    fn erodata();
+    fn sdata();
+    fn edata();
+    fn sstack();
+    fn estack();
+    fn sbss();
+    fn ebss();
+    fn ekernel();
+}
+
+pub fn log_kernel_sections() {
+    info!(
+        "kernel     text {:#x}..{:#x}",
+        stext as usize, etext as usize
+    );
+    info!(
+        "kernel   rodata {:#x}..{:#x}",
+        srodata as usize, erodata as usize
+    );
+    info!(
+        "kernel     data {:#x}..{:#x}",
+        sdata as usize, edata as usize
+    );
+    info!(
+        "kernel    stack {:#x}..{:#x}",
+        sstack as usize, estack as usize
+    );
+    info!("kernel      bss {:#x}..{:#x}", sbss as usize, ebss as usize);
+    info!(
+        "physical memory {:#x}..{:#x}",
+        ekernel as usize,
+        PA_TO_VA + MEMORY_END
+    );
 }

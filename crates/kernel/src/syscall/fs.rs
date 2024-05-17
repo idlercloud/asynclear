@@ -221,6 +221,11 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
             return Err(errno::ENOENT);
         }
 
+        debug!(
+            "create {} under {}",
+            p2i.last_component,
+            p2i.dir.inode().meta().name()
+        );
         let dentry = p2i.dir.mknod(p2i.last_component, InodeMode::Regular)?;
         File::Paged(Arc::new(PagedFile::new(dentry)))
     };

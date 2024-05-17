@@ -40,6 +40,7 @@ pub mod errno {
         ECHILD,         -10,    "No child process",
         EAGAIN,         -11,    "Try again.",
         ENOMEM,         -12,    "Out of memory",
+        EACCES,         -13,    "EACCES",
         EFAULT,         -14,    "Bad address.",
         EBUSY,          -16,    "Device or resource busy.",
         EEXIST,         -17,    "File exists.",
