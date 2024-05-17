@@ -13,7 +13,7 @@ macro_rules! declare_syscall_id {
 #[rustfmt::skip]
 declare_syscall_id!(
     GETCWD,             17,
-    // DUP,                23,
+    DUP,                23,
     DUP3,               24,
     FCNTL64,            25,
     IOCTL,              29,

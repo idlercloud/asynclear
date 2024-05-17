@@ -26,7 +26,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     }
     let ret = match id {
         GETCWD => sys_getcwd(UserCheck::new_slice(args[0] as _, args[1])),
-        // DUP => sys_dup(args[0]),
+        DUP => sys_dup(args[0]),
         DUP3 => sys_dup3(args[0], args[1], args[2] as _),
         FCNTL64 => sys_fcntl64(args[0], args[1], args[2]),
         IOCTL => sys_ioctl(args[0], args[1], args[2]),

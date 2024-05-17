@@ -379,7 +379,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
     }
 }
 
-// /// 复制文件描述符，复制到当前进程最小可用 fd
+// /// 复制文件描述符，复制到
 // ///
 // /// 参数：
 // /// - `fd` 是被复制的文件描述符
@@ -397,6 +397,17 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
 // Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));     // Ok(new_fd as
 // isize)     todo!("[blocked] sys_dup")
 // }
+
+/// 复制文件描述符 `old_fd` 到当前进程最小可用 fd
+pub fn sys_dup(old_fd: usize) -> KResult {
+    let process = local_hart().curr_process();
+    let mut inner = process.lock_inner();
+    let Some(new_desc) = inner.fd_table.get(old_fd).cloned() else {
+        return Err(errno::EBADF);
+    };
+    let new_fd = inner.fd_table.add(new_desc);
+    Ok(new_fd as isize)
+}
 
 /// 复制文件描述符 `old_fd` 到指定描述符 `new_fd`
 ///
