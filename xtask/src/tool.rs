@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{Seek, SeekFrom, Write},
+    io::{self, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 
@@ -64,6 +64,8 @@ impl AsmArgs {
 pub struct FatProbeArgs {
     #[clap(long)]
     img_path: String,
+    #[clap(long)]
+    file_path: Option<String>,
 }
 
 impl FatProbeArgs {
@@ -74,22 +76,41 @@ impl FatProbeArgs {
             .open(&self.img_path)
             .unwrap();
         let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
-        let root_dir = fs.root_dir();
-        fn walk_dir(curr: Dir<'_, File>, depth: usize) {
-            for entry in curr.iter() {
-                let entry = entry.unwrap();
-                for _ in 0..depth {
-                    print!(" ");
+        if let Some(file_path) = &self.file_path {
+            let mut dir = fs.root_dir();
+            let components = file_path.split('/').collect::<Vec<_>>();
+            for &component in &components[0..components.len() - 1] {
+                dir = dir.open_dir(component).unwrap();
+            }
+            let last_component = components.last().unwrap();
+            if let Ok(dir) = dir.open_dir(&last_component) {
+                for entry in dir.iter() {
+                    let entry = entry.unwrap();
+                    let name = entry.file_name();
+                    println!("{name}");
                 }
-                let name = entry.file_name();
-                println!("{name}");
-                if entry.is_dir() && name != "." && name != ".." {
-                    let child = entry.to_dir();
-                    walk_dir(child, depth + 1);
+            } else if let Ok(mut file) = dir.open_file(&last_component) {
+                let mut target = File::create(format!("res/{last_component}")).unwrap();
+                io::copy(&mut file, &mut target).unwrap();
+            }
+        } else {
+            fn walk_dir(curr: Dir<'_, File>, depth: usize) {
+                for entry in curr.iter() {
+                    let entry = entry.unwrap();
+                    for _ in 0..depth {
+                        print!(" ");
+                    }
+                    let name = entry.file_name();
+                    println!("{name}");
+                    if entry.is_dir() && name != "." && name != ".." {
+                        let child = entry.to_dir();
+                        walk_dir(child, depth + 1);
+                    }
                 }
             }
+            let root_dir = fs.root_dir();
+            walk_dir(root_dir, 0);
         }
-        walk_dir(root_dir, 0);
     }
 }
 
