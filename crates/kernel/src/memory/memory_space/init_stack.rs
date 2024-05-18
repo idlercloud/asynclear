@@ -6,25 +6,19 @@ use triomphe::Arc;
 
 use crate::memory::{FramedVmArea, Page, PageTable, VirtAddr, VirtPageNum};
 
-// PH 相关和 Entry 应该是用于动态链接的，交由所谓 interpreter 解析
-// PH 的起始地址
-#[allow(unused)]
+/// PH 的起始地址。PH 相关和 Entry 应该是用于动态链接的，交由所谓 interpreter 解析
 pub const AT_PHDR: u8 = 3;
-// PH 项的大小
-#[allow(unused)]
+/// PH 项的大小
 pub const AT_PHENT: u8 = 4;
-// PH 的数量
-#[allow(unused)]
+/// PH 的数量
 pub const AT_PHNUM: u8 = 5;
-// PAGE_SIZE 的值
+/// PAGE_SIZE 的值
 pub const AT_PAGESZ: u8 = 6;
-// interpreter 的基地址
-#[allow(unused)]
+/// interpreter 的基地址
 pub const AT_BASE: u8 = 7;
-// 可执行文件的程序入口
-#[allow(unused)]
+/// 可执行文件的程序入口
 pub const AT_ENTRY: u8 = 9;
-// 指向 16 字节随机值的地址
+/// 指向 16 字节随机值的地址
 pub const AT_RANDOM: u8 = 25;
 
 impl<'a, 'b> FramedVmArea {

@@ -1,6 +1,8 @@
 mod inner;
 mod user;
 
+use core::ops::Range;
+
 use atomic::{Atomic, Ordering};
 use common::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use defines::signal::KSignalSet;
@@ -61,10 +63,10 @@ impl Thread {
         f(&mut self.inner.lock())
     }
 
-    /// 分配用户栈，一般用于创建新线程。返回用户栈高地址
+    /// 分配用户栈，一般用于创建新线程。返回用户栈范围
     ///
     /// 注意 `memory_space` 是本进程的 `MemorySpace`
-    pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> VirtPageNum {
+    pub fn alloc_user_stack(tid: usize, memory_space: &mut MemorySpace) -> Range<VirtPageNum> {
         // 分配用户栈
         let ustack_low_vpn = Self::user_stack_low_addr(tid);
         let ustack_high_vpn = Self::user_stack_high_addr(tid);
@@ -81,7 +83,7 @@ impl Thread {
                 MapPermission::R | MapPermission::W | MapPermission::U,
             );
         }
-        ustack_high_vpn
+        ustack_low_vpn..ustack_high_vpn
     }
 
     /// 获取当前线程用户栈的低地址，即高地址减去用户栈大小

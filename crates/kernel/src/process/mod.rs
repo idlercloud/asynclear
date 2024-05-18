@@ -53,29 +53,24 @@ impl Process {
             process_name.push_str(arg);
         }
 
-        let elf_entry;
-        let elf_end;
         let mut memory_space;
-        {
+        let (elf_end, auxv, elf_entry) = {
             let DEntry::Paged(paged) = fs::find_file(Arc::clone(VFS.root_dir()), &path)? else {
                 return Err(errno::EISDIR);
             };
-            let elf_data = fs::read_file(&paged)?;
+            let elf_data = fs::read_file(&paged.inode())?;
             let elf = Elf::parse(&elf_data).map_err(|e| {
                 warn!("parse elf error {e}");
                 errno::ENOEXEC
             })?;
-            elf_entry = elf.entry as usize;
-            (memory_space, elf_end) = MemorySpace::new_user(&elf, &elf_data);
-        };
 
-        let user_sp_vpn = Thread::alloc_user_stack(0, &mut memory_space);
+            memory_space = MemorySpace::empty_user();
+            memory_space.load_elf_sections(&elf, &elf_data)?
+        };
 
         // 在用户栈上推入参数、环境变量、辅助向量等
         let argc = args.len();
-        let (user_sp, argv_base) = memory_space
-            .init_stack(user_sp_vpn, args, Vec::new())
-            .expect("Should have stack");
+        let (user_sp, argv_base) = memory_space.init_stack(0, args, Vec::new(), auxv);
 
         let brk = elf_end.vpn_ceil().page_start();
         let mut tid_allocator = RecycleAllocator::new();
@@ -183,51 +178,114 @@ impl Process {
         args: Vec<CompactString>,
         envs: Vec<CompactString>,
     ) -> KResult<()> {
-        let mut process_name = path.clone();
-        for arg in args.iter().skip(1) {
-            process_name.push(' ');
-            process_name.push_str(arg);
-        }
-
         let elf_data = {
             let DEntry::Paged(paged) =
                 fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
             else {
                 return Err(errno::EISDIR);
             };
-            fs::read_file(&paged)?
+            fs::read_file(paged.inode())?
         };
+        // let paged = {
+        //     let DEntry::Paged(paged) =
+        //         fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
+        //     else {
+        //         return Err(errno::EISDIR);
+        //     };
+        //     paged.into_inode()
+        // };
+        // let header_buf = {
+        //     let mut buf = MaybeUninit::uninit_array::<{ elf64::header::SIZEOF_EHDR }>();
+        //     let n_read = paged.inner.read_at(paged.meta(), buf.as_out(), 0)?;
+        //     if n_read != elf64::header::SIZEOF_EHDR {
+        //         return Err(errno::ENOEXEC);
+        //     }
+        //     // SAFETY: 如上已保证全部读取
+        //     unsafe { MaybeUninit::array_assume_init(buf) }
+        // };
+        // let elf: goblin::error::Result<Elf<'_>> = try {
+        //     let header = Elf::parse_header(&header_buf)?;
+        //     Elf::lazy_parse(header)?
+        // };
+        // let mut elf = elf.map_err(|e| {
+        //     warn!("parse elf header error {e}");
+        //     errno::ENOEXEC
+        // })?;
+        // {
+        //     let header = &elf.header;
+        //     let ph_size = header.e_phnum as usize * header.e_phentsize as usize;
+        //     let mut buf = Vec::new();
+        //     let out = buf.reserve_uninit(ph_size).as_out();
+        //     let n_read = paged
+        //         .inner
+        //         .read_at(paged.meta(), out, header.e_phoff as usize)?;
+        //     if n_read != ph_size {
+        //         return Err(errno::ENOEXEC);
+        //     }
+        //     // SAFETY: 如上已保证全部读取
+        //     unsafe {
+        //         buf.set_len(ph_size);
+        //     }
+
+        //     let ctx = Ctx::new(
+        //         if elf.is_64 {
+        //             Container::Big
+        //         } else {
+        //             Container::Little
+        //         },
+        //         if elf.little_endian {
+        //             Endian::Little
+        //         } else {
+        //             Endian::Big
+        //         },
+        //     );
+        //     elf.program_headers = ProgramHeader::parse(&buf, 0, elf.header.e_phnum as usize, ctx)
+        //         .map_err(|e| {
+        //         warn!("parse program header error {e}");
+        //         errno::ENOEXEC
+        //     })?;
+        // }
+
         let elf = Elf::parse(&elf_data).map_err(|e| {
             warn!("parse elf error {e}");
             errno::ENOEXEC
         })?;
-        self.lock_inner_with(|inner| {
+        let mut process_name = path;
+        for arg in args.iter().skip(1) {
+            process_name.push(' ');
+            process_name.push_str(arg);
+        }
+        let ret = self.lock_inner_with(|inner| {
             // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
             inner.name = process_name;
             inner.memory_space.recycle_user_pages();
-            let elf_end = inner.memory_space.load_sections(&elf, &elf_data);
+            // TODO: 执行新进程过程中发生错误，该退出还是恢复？
+            let (elf_end, auxv, elf_entry) =
+                inner.memory_space.load_elf_sections(&elf, &elf_data)?;
             inner.heap_range = {
                 let brk = elf_end.vpn_ceil().page_start();
                 brk..brk
             };
-            let user_sp = Thread::alloc_user_stack(0, &mut inner.memory_space);
             inner.fd_table.close_on_exec();
             inner.signal_handlers = SignalHandlers::new();
 
             let argc = args.len();
-            let (user_sp, argv_base) = inner.memory_space.init_stack(user_sp, args, envs).unwrap();
+            let (user_sp, argv_base) = inner.memory_space.init_stack(0, args, envs, auxv);
             memory::flush_tlb(None);
 
             inner.main_thread().lock_inner_with(|inner| {
-                inner.trap_context = TrapContext::app_init_context(elf.entry as usize, user_sp);
+                inner.trap_context = TrapContext::app_init_context(elf_entry, user_sp);
                 *inner.trap_context.a0_mut() = argc;
                 *inner.trap_context.a1_mut() = argv_base;
             });
+            Ok(())
         });
-
-        Ok(())
+        if ret.is_err() {
+            exit_process(self, -10);
+        }
+        ret
     }
 
     pub fn lock_inner(&self) -> SpinMutexGuard<'_, ProcessInner> {

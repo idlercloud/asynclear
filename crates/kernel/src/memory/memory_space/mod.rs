@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeMap, vec, vec::Vec};
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::{
     num::NonZeroUsize,
     ops::{Bound, Range},
@@ -12,7 +12,7 @@ use defines::{
     misc::{MmapFlags, MmapProt},
 };
 use goblin::elf::{
-    program_header::{PF_R, PF_W, PF_X, PT_LOAD},
+    program_header::{PF_R, PF_W, PF_X, PT_INTERP, PT_LOAD},
     Elf,
 };
 use klocks::Lazy;
@@ -22,13 +22,13 @@ use virtio_drivers::PAGE_SIZE;
 use vm_area::AreaType;
 
 use self::{
-    init_stack::{StackInitCtx, AT_PAGESZ},
+    init_stack::{StackInitCtx, AT_BASE, AT_ENTRY, AT_PAGESZ, AT_PHDR, AT_PHENT, AT_PHNUM},
     vm_area::FramedVmArea,
 };
 use super::{
     kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
-use crate::fs::DynPagedInode;
+use crate::{fs::DynPagedInode, thread::Thread};
 
 pub mod init_stack;
 pub mod page_table;
@@ -107,12 +107,10 @@ impl MemorySpace {
         memory_set
     }
 
-    /// 返回的 `VirtAddr` 是 `elf_end`，用户的 brk 放在这之后
-    pub fn new_user(elf: &Elf<'_>, elf_data: &[u8]) -> (Self, VirtAddr) {
-        let mut memory_set = Self::new_bare();
-        let elf_end = memory_set.load_sections(elf, elf_data);
-        memory_set.map_kernel_areas();
-        (memory_set, elf_end)
+    pub fn empty_user() -> Self {
+        let mut ret = Self::new_bare();
+        ret.map_kernel_areas();
+        ret
     }
 
     /// 从当前用户地址空间复制一个地址空间
@@ -147,15 +145,44 @@ impl MemorySpace {
         memory_set
     }
 
-    /// 加载所有段，返回 ELF 数据的结束地址
+    /// 加载所有段，返回 ELF 数据的结束地址、辅助数组、程序入口
     ///
     /// 记得调用前清理地址空间，否则可能 panic
-    pub fn load_sections(&mut self, elf: &Elf<'_>, elf_data: &[u8]) -> VirtAddr {
+    pub fn load_elf_sections(
+        &mut self,
+        elf: &Elf<'_>,
+        elf_data: &[u8],
+    ) -> KResult<(VirtAddr, Vec<(u8, usize)>, usize)> {
         let mut elf_end = VirtAddr(0);
+        let mut auxv = Vec::with_capacity(6);
+        // TODO: [low] 实现动态链接和 elf 懒加载
+        let elf_entry = elf.entry as usize;
+        auxv.extend_from_slice(&[
+            (AT_PHENT, elf.header.e_phentsize as usize),
+            (AT_PHNUM, elf.header.e_phnum as usize),
+            (AT_PAGESZ, PAGE_SIZE),
+            (AT_BASE, 0),
+            (AT_ENTRY, elf_entry),
+        ]);
+
+        if let Some(interpreter) = elf.interpreter {
+            warn!("interpreter is {interpreter}");
+            return Err(errno::UNSUPPORTED);
+        }
+
+        let mut ph_va = None;
+
         for ph in &elf.program_headers {
+            if ph.p_type == PT_INTERP {
+                warn!("dynamic link not supported yet");
+                return Err(errno::UNSUPPORTED);
+            }
             if ph.p_type == PT_LOAD {
                 // Program header 在 ELF 中的偏移为 0，所以其地址就是 ELF 段的起始地址
                 let start_va = VirtAddr(ph.p_vaddr as usize);
+                if ph_va.is_none() {
+                    ph_va = Some(start_va.0);
+                }
                 let start_offset = start_va.page_offset();
                 let end_va = VirtAddr((ph.p_vaddr + ph.p_memsz) as usize);
                 elf_end = VirtAddr::max(elf_end, end_va);
@@ -169,7 +196,7 @@ impl MemorySpace {
                 if ph.p_flags & PF_X != 0 {
                     map_perm |= MapPermission::X;
                 }
-                trace!("load vm area {:#x}..{:#x}", start_va.0, end_va.0);
+                debug!("load vm area {:#x}..{:#x}", start_va.0, end_va.0);
                 unsafe {
                     self.user_map_with_data(
                         start_va.vpn_floor()..end_va.vpn_ceil(),
@@ -180,7 +207,10 @@ impl MemorySpace {
                 }
             }
         }
-        elf_end
+        let ph_addr = ph_va.ok_or(errno::ENOEXEC)? + elf.header.e_phoff as usize;
+        auxv.push((AT_PHDR, ph_addr));
+
+        Ok((elf_end, auxv, elf_entry))
     }
 
     /// 映射高地址中的内核段，注意不持有它们的所有权
@@ -413,23 +443,16 @@ impl MemorySpace {
     // 返回 `user_sp` 与 `argv_base`
     pub fn init_stack(
         &mut self,
-        user_sp_vpn: VirtPageNum,
+        tid: usize,
         args: Vec<CompactString>,
         envs: Vec<CompactString>,
-    ) -> Option<(usize, usize)> {
-        let (_, area) = self.user_areas.range_mut(..=user_sp_vpn).next_back()?;
-        if user_sp_vpn > area.vpn_range().end {
-            return None;
-        }
+        auxv: Vec<(u8, usize)>,
+    ) -> (usize, usize) {
+        let ustack_range = Thread::alloc_user_stack(tid, self);
+        let area = self.user_areas.get_mut(&ustack_range.start).unwrap();
 
-        let ctx = StackInitCtx::new(
-            user_sp_vpn,
-            &mut self.page_table,
-            args,
-            envs,
-            vec![(AT_PAGESZ, PAGE_SIZE)],
-        );
-        Some(area.init_stack_impl(ctx))
+        let ctx = StackInitCtx::new(ustack_range.end, &mut self.page_table, args, envs, auxv);
+        area.init_stack_impl(ctx)
     }
 }
 

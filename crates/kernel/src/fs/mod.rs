@@ -258,10 +258,10 @@ pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
         .ok_or(errno::ENOENT)
 }
 
-pub fn read_file(file: &DEntryPaged) -> KResult<Vec<u8>> {
+pub fn read_file(file: &Arc<DynPagedInode>) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
-    let inner = &file.inode().inner;
-    let meta = file.inode().meta();
+    let inner = &file.inner;
+    let meta = file.meta();
     let mut ret = Vec::new();
     let out = ret
         .reserve_uninit(meta.lock_inner_with(|inner| inner.data_len))

@@ -176,4 +176,8 @@ impl DEntryPaged {
     pub fn inode(&self) -> &Arc<DynPagedInode> {
         &self.inode
     }
+
+    pub fn into_inode(self) -> Arc<DynPagedInode> {
+        self.inode
+    }
 }
