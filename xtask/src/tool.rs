@@ -34,7 +34,7 @@ impl AsmArgs {
             self.build.build_kernel();
         }
         let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
-        let output = Cmd::parse("rust-objdump --arch-name=riscv64 -g")
+        let output = Cmd::parse("rust-objdump --arch-name=riscv64 --mattr=+d -g")
             .args([
                 "--source",
                 "--demangle",
