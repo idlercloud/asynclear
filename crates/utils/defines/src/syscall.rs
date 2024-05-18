@@ -25,7 +25,7 @@ declare_syscall_id!(
     CHDIR,              49,
     OPENAT,             56,
     CLOSE,              57,
-    // PIPE2,              59,
+    PIPE2,              59,
     GETDENTS64,         61,
     READ,               63,
     WRITE,              64,

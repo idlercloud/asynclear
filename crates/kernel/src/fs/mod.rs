@@ -6,6 +6,7 @@ mod fat32;
 mod file;
 mod inode;
 mod page_cache;
+mod pipe;
 mod stdio;
 mod tmpfs;
 
@@ -18,15 +19,18 @@ use defines::{
     error::{errno, KResult},
     fs::{MountFlags, Stat, StatMode, UnmountFlags, AT_FDCWD},
 };
-pub use dentry::{DEntry, DEntryDir, DEntryPaged};
-pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
 use hashbrown::HashMap;
-use inode::InodeMeta;
-pub use inode::{DynPagedInode, InodeMode};
 use klocks::{Lazy, SpinNoIrqMutex};
 use triomphe::Arc;
 use uninit::extension_traits::{AsOut, VecCapacity};
 
+use self::inode::InodeMeta;
+pub use self::{
+    dentry::{DEntry, DEntryDir, DEntryPaged},
+    file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile},
+    inode::{DynPagedInode, InodeMode},
+    pipe::make_pipe,
+};
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
     hart::local_hart,

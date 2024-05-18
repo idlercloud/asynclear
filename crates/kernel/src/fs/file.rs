@@ -12,6 +12,7 @@ use uninit::out_ref::Out;
 
 use super::{
     inode::{InodeMeta, InodeMode},
+    pipe::Pipe,
     stdio, DEntryDir, DEntryPaged, DynPagedInode,
 };
 use crate::memory::UserCheck;
@@ -20,6 +21,7 @@ use crate::memory::UserCheck;
 pub enum File {
     Stdin,
     Stdout,
+    Pipe(Pipe),
     Dir(Arc<DirFile>),
     Paged(Arc<PagedFile>),
 }
@@ -184,6 +186,7 @@ impl FileDescriptor {
         match &self.file {
             File::Stdin => stdio::read_stdin(buf).await,
             File::Stdout | File::Dir(_) => Err(errno::EBADF),
+            File::Pipe(pipe) => pipe.read(buf).await,
             File::Paged(paged) => {
                 let inode = paged.dentry.inode();
                 let meta = inode.meta();
@@ -202,6 +205,7 @@ impl FileDescriptor {
         match &self.file {
             File::Stdin | File::Dir(_) => Err(errno::EBADF),
             File::Stdout => stdio::write_stdout(buf),
+            File::Pipe(pipe) => pipe.write(buf).await,
             File::Paged(paged) => {
                 let inode = paged.dentry.inode();
                 let meta = inode.meta();
@@ -221,6 +225,7 @@ impl FileDescriptor {
             File::Stdin | File::Stdout => stdio::get_tty_inode().meta(),
             File::Dir(dir) => dir.dentry.inode().meta(),
             File::Paged(paged) => paged.dentry.inode().meta(),
+            File::Pipe(pipe) => pipe.meta(),
         }
     }
 
@@ -297,6 +302,14 @@ bitflags! {
 }
 
 impl OpenFlags {
+    pub fn with_read_only(self) -> Self {
+        self.difference(Self::WRONLY | Self::RDWR)
+    }
+
+    pub fn with_write_only(self) -> Self {
+        self.difference(Self::RDWR) | Self::WRONLY
+    }
+
     pub fn read_write(&self) -> (bool, bool) {
         match self.bits() & 0b11 {
             0 => (true, false),

@@ -251,25 +251,26 @@ pub fn sys_close(fd: usize) -> KResult {
     Ok(0)
 }
 
-// /// 创建管道，返回 0
-// ///
-// /// 参数
-// /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
-// pub fn sys_pipe2(filedes: *mut i32) -> Result {
-//     let filedes = unsafe { check_slice_mut(filedes, 2)? };
-//     let process = curr_process();
-//     let mut inner = process.inner();
-//     let (pipe_read, pipe_write) = make_pipe();
-//     let read_fd = inner.alloc_fd();
-//     inner.fd_table[read_fd] = Some(Arc::new(File::new(FileEntity::ReadPipe(pipe_read))));
-//     let write_fd = inner.alloc_fd();
-//     inner.fd_table[write_fd] = Some(Arc::new(File::new(FileEntity::WritePipe(pipe_write))));
-//     info!("read_fd {read_fd}, write_fd {write_fd}");
-//     filedes[0] = read_fd as i32;
-//     filedes[1] = write_fd as i32;
-//     // Ok(0)
-//     todo!("[blocked] sys_pipe2")
-// }
+/// 创建管道，返回 0
+///
+/// 参数
+/// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
+/// - `flags`: 同 [`sys_openat()`] 的 [`OpenFlags`]，只有某些位有用
+pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
+    let pipefd = unsafe { pipefd.check_ptr_mut()? };
+    let Some(flags) = OpenFlags::from_bits(flags) else {
+        todo!("[low] unsupported OpenFlags: {flags:#b}");
+    };
+    let (read_end, write_end) = fs::make_pipe();
+    let read_end = FileDescriptor::new(File::Pipe(read_end), flags.with_read_only());
+    let write_end = FileDescriptor::new(File::Pipe(write_end), flags.with_write_only());
+    let fds = local_hart()
+        .curr_process()
+        .lock_inner_with(|inner| (inner.fd_table.add(read_end), inner.fd_table.add(write_end)));
+    pipefd.write([fds.0 as i32, fds.1 as i32]);
+
+    Ok(0)
+}
 
 /// 获取目录项信息
 pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {

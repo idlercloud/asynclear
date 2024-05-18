@@ -755,6 +755,7 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "anstyle",
+ "async-channel",
  "async-lock",
  "async-task",
  "atomic",

@@ -52,7 +52,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
             .await
         }
         CLOSE => sys_close(args[0]),
-        // PIPE2 => sys_pipe2(args[0] as _),
+        PIPE2 => sys_pipe2(UserCheck::new(args[0] as _), args[1] as _),
         GETDENTS64 => sys_getdents64(args[0], UserCheck::new_slice(args[1] as _, args[2])),
         READ => sys_read(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
         WRITE => sys_write(args[0], UserCheck::new_slice(args[1] as _, args[2])).await,
