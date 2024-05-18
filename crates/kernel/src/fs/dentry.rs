@@ -1,4 +1,5 @@
 use alloc::collections::{btree_map::Entry, BTreeMap};
+use core::hash::Hash;
 
 use cervine::Cow;
 use compact_str::CompactString;
@@ -18,11 +19,32 @@ pub enum DEntry {
     Paged(DEntryPaged),
 }
 
+impl Hash for DEntry {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        state.write_usize(self.addr());
+    }
+}
+
+impl PartialEq for DEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr() == other.addr()
+    }
+}
+
+impl Eq for DEntry {}
+
 impl DEntry {
     pub fn meta(&self) -> &InodeMeta {
         match self {
             DEntry::Dir(dir) => dir.inode.meta(),
             DEntry::Paged(paged) => paged.inode.meta(),
+        }
+    }
+
+    fn addr(&self) -> usize {
+        match self {
+            DEntry::Dir(dir) => dir.as_ptr() as usize,
+            DEntry::Paged(paged) => paged.inode.as_ptr().addr(),
         }
     }
 }
@@ -66,7 +88,9 @@ impl DEntryDir {
                     DynInode::Dir(dir) => {
                         DEntry::Dir(Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir)))
                     }
-                    DynInode::Paged(paged) => DEntry::Paged(DEntryPaged::new(paged)),
+                    DynInode::Paged(paged) => {
+                        DEntry::Paged(DEntryPaged::new(Arc::clone(self), paged))
+                    }
                 };
                 vacant.insert(Some(new_dentry.clone()));
                 Some(new_dentry)
@@ -111,7 +135,7 @@ impl DEntryDir {
             return Err(errno::EEXIST);
         }
         let file = self.inode.mknod(child_entry.key(), mode)?;
-        let dentry = DEntryPaged::new(file);
+        let dentry = DEntryPaged::new(Arc::clone(self), file);
         *child_entry.or_insert(None) = Some(DEntry::Paged(dentry.clone()));
         Ok(dentry)
     }
@@ -136,12 +160,17 @@ impl DEntryDir {
 
 #[derive(Clone)]
 pub struct DEntryPaged {
+    parent: Arc<DEntryDir>,
     inode: Arc<DynPagedInode>,
 }
 
 impl DEntryPaged {
-    pub fn new(inode: Arc<DynPagedInode>) -> Self {
-        Self { inode }
+    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynPagedInode>) -> Self {
+        Self { parent, inode }
+    }
+
+    pub fn parent(&self) -> &Arc<DEntryDir> {
+        &self.parent
     }
 
     pub fn inode(&self) -> &Arc<DynPagedInode> {

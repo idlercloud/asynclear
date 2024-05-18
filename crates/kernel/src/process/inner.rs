@@ -1,9 +1,10 @@
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core::ops::Range;
 
 use common::config::LOW_ADDRESS_END;
 use compact_str::CompactString;
 use defines::signal::{KSignalSet, Signal};
+use hashbrown::HashMap;
 use idallocator::RecycleAllocator;
 use memory::{MemorySpace, VirtAddr};
 use triomphe::Arc;
@@ -44,7 +45,7 @@ pub struct ProcessInner {
 
     // 线程
     pub tid_allocator: RecycleAllocator,
-    pub threads: BTreeMap<usize, Arc<Thread>>,
+    pub threads: HashMap<usize, Arc<Thread>>,
 }
 
 impl ProcessInner {

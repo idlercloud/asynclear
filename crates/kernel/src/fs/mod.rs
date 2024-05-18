@@ -7,26 +7,29 @@ mod file;
 mod inode;
 mod page_cache;
 mod stdio;
+mod tmpfs;
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
+use core::str::FromStr;
 
 use cervine::Cow;
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
-    fs::{Stat, StatMode},
+    fs::{MountFlags, Stat, StatMode, UnmountFlags, AT_FDCWD},
 };
 pub use dentry::{DEntry, DEntryDir, DEntryPaged};
 pub use file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile};
+use hashbrown::HashMap;
 use inode::InodeMeta;
 pub use inode::{DynPagedInode, InodeMode};
 use klocks::{Lazy, SpinNoIrqMutex};
-pub use page_cache::BackedPage;
 use triomphe::Arc;
 use uninit::extension_traits::{AsOut, VecCapacity};
 
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
+    hart::local_hart,
     uart_console::println,
 };
 
@@ -36,7 +39,7 @@ pub fn init() {
 
 pub struct VirtFileSystem {
     root_dir: Arc<DEntryDir>,
-    mount_table: SpinNoIrqMutex<BTreeMap<CompactString, FileSystem>>,
+    mount_table: SpinNoIrqMutex<HashMap<DEntry, FileSystem>>,
 }
 
 impl VirtFileSystem {
@@ -44,7 +47,88 @@ impl VirtFileSystem {
         &self.root_dir
     }
 
-    // pub fn mount(&self, mount_point: &str, device_path: CompactString, fs_type: FileSystemType) {}
+    pub fn mount(
+        &self,
+        mount_point: &str,
+        device_path: &str,
+        fs_type: FileSystemType,
+        flags: MountFlags,
+    ) -> KResult<()> {
+        debug!("mount {device_path} under {mount_point}, fs_type: {fs_type:?}, flags: {flags:?}",);
+        let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
+        let dentry = p2i
+            .dir
+            .lookup(Cow::Borrowed(&p2i.last_component))
+            .ok_or(errno::ENOENT)?;
+
+        let mut mount_table = self.mount_table.lock();
+
+        if mount_table.contains_key(&dentry) {
+            // 暂时不支持挂载到已有挂载的挂载点上
+            error!("cover mount fs not supported yet");
+            return Err(errno::EBUSY);
+        }
+        let parent = match &dentry {
+            DEntry::Dir(dir) => match dir.parent() {
+                Some(parent) => parent,
+                None => todo!("[low] mount under root dir"),
+            },
+            DEntry::Paged(paged) => paged.parent(),
+        };
+
+        let fs = {
+            let mut children = parent.lock_children();
+
+            let name = dentry.meta().name();
+
+            // TODO: 暂时是放了一个 tmpfs 进去
+            let mut fs = tmpfs::new_tmp_fs(
+                Arc::clone(parent),
+                name.to_compact_string(),
+                device_path.to_compact_string(),
+            )?;
+
+            if let Some(Some(covered_dentry)) = children.insert(
+                name.to_compact_string(),
+                Some(DEntry::Dir(Arc::clone(&fs.root_dentry))),
+            ) {
+                fs.mounted_dentry = Some(covered_dentry);
+            }
+
+            fs
+        };
+        mount_table.insert(DEntry::Dir(Arc::clone(&fs.root_dentry)), fs);
+        Ok(())
+    }
+
+    pub fn unmount(&self, mount_point: &str, flags: UnmountFlags) -> KResult<()> {
+        debug!("mount {mount_point}, flags: {flags:?}");
+        let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
+        let dentry = p2i
+            .dir
+            .lookup(Cow::Borrowed(&p2i.last_component))
+            .ok_or(errno::ENOENT)?;
+
+        let Some(fs) = self.mount_table.lock().remove(&dentry) else {
+            return Err(errno::EINVAL);
+        };
+
+        if let Some(mounted_dentry) = fs.mounted_dentry {
+            let parent = match &dentry {
+                DEntry::Dir(dir) => match dir.parent() {
+                    Some(parent) => parent,
+                    None => todo!("[low] mount under root dir"),
+                },
+                DEntry::Paged(paged) => paged.parent(),
+            };
+            parent.lock_children().insert(
+                mounted_dentry.meta().name().to_compact_string(),
+                Some(mounted_dentry),
+            );
+        }
+
+        Ok(())
+    }
 }
 
 pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
@@ -68,7 +152,7 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
     }
 
     let root_dir = Arc::clone(&root_fs.root_dentry);
-    let mount_table = BTreeMap::from([(CompactString::from_static_str("/"), root_fs)]);
+    let mount_table = HashMap::from([(DEntry::Dir(Arc::clone(&root_dir)), root_fs)]);
     VirtFileSystem {
         root_dir,
         mount_table: SpinNoIrqMutex::new(mount_table),
@@ -82,8 +166,22 @@ pub struct FileSystem {
     mounted_dentry: Option<DEntry>,
 }
 
+#[derive(Debug)]
 pub enum FileSystemType {
-    Fat32,
+    VFat,
+    Tmpfs,
+}
+
+impl FromStr for FileSystemType {
+    type Err = defines::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "vfat" => Ok(FileSystemType::VFat),
+            "tmpfs" => Ok(FileSystemType::Tmpfs),
+            _ => Err(errno::ENODEV),
+        }
+    }
 }
 
 /// 类似于 linux 的 `struct nameidata`，存放 path walk 的结果。
@@ -92,6 +190,30 @@ pub enum FileSystemType {
 pub struct PathToInode {
     pub dir: Arc<DEntryDir>,
     pub last_component: CompactString,
+}
+
+pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
+    let start_dir;
+    // 绝对路径则忽视 fd
+    if path.starts_with('/') {
+        start_dir = Arc::clone(VFS.root_dir());
+    } else {
+        let process = local_hart().curr_process();
+        let inner = process.lock_inner();
+        if dir_fd == AT_FDCWD {
+            start_dir = Arc::clone(&inner.cwd);
+        } else if let Some(base) = inner.fd_table.get(dir_fd) {
+            // 相对路径名，需要从一个目录开始
+            let File::Dir(dir) = &**base else {
+                return Err(errno::ENOTDIR);
+            };
+            start_dir = Arc::clone(dir.dentry());
+        } else {
+            return Err(errno::EBADF);
+        }
+    }
+
+    path_walk(start_dir, path)
 }
 
 pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {

@@ -1,4 +1,3 @@
-use alloc::collections::BTreeMap;
 use core::{
     future::Future,
     mem,
@@ -7,6 +6,7 @@ use core::{
     task::{Context, Poll},
 };
 
+use hashbrown::HashMap;
 use triomphe::Arc;
 
 use super::Thread;
@@ -71,7 +71,7 @@ fn exit_thread(thread: &Thread) {
         // 不太想让 `cwd` 加个 `Option`，但是也最好不要保持原来的引用了，所以引到根目录去得了
         process_inner.cwd = Arc::clone(VFS.root_dir());
         process_inner.memory_space.recycle_user_pages();
-        process_inner.threads = BTreeMap::new();
+        process_inner.threads = HashMap::new();
         process_inner.tid_allocator.release();
         let children = mem::take(&mut process_inner.children);
         let parent = process_inner.parent.take();

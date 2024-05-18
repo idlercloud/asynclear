@@ -33,14 +33,14 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         MKDIRAT => sys_mkdirat(args[0], UserCheck::new(args[1] as _), args[2]),
         // UNLINKAT => sys_unlinkat(args[0], args[1] as _, args[2] as _),
         // LINKAT => sys_linkat(args[1] as _, args[3] as _),
-        // UMOUNT => sys_umount(args[0] as _, args[1] as _),
-        // MOUNT => sys_mount(
-        //     args[0] as _,
-        //     args[1] as _,
-        //     args[2] as _,
-        //     args[3],
-        //     args[4] as _,
-        // ),
+        UMOUNT => sys_umount(UserCheck::new(args[0] as _), args[1] as _),
+        MOUNT => sys_mount(
+            UserCheck::new(args[0] as _),
+            UserCheck::new(args[1] as _),
+            UserCheck::new(args[2] as _),
+            args[3] as _,
+            UserCheck::new(args[4] as _),
+        ),
         CHDIR => sys_chdir(UserCheck::new(args[0] as _)),
         OPENAT => {
             sys_openat(

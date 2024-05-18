@@ -34,7 +34,7 @@ const BOOT_SECTOR_ID: usize = 0;
 
 pub fn new_fat32_fs(
     block_device: &'static DiskDriver,
-    mount_point: CompactString,
+    name: CompactString,
     device_path: CompactString,
 ) -> KResult<FileSystem> {
     let _enter = debug_span!("fat32_fs_init").entered();
@@ -61,7 +61,7 @@ pub fn new_fat32_fs(
     Ok(FileSystem {
         root_dentry,
         device_path,
-        fs_type: crate::fs::FileSystemType::Fat32,
+        fs_type: crate::fs::FileSystemType::VFat,
         mounted_dentry: None,
     })
 }

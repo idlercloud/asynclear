@@ -24,6 +24,7 @@ goblin = { version = "0.8", default-features = false, features = [
   "elf64",
   "endian_fd",
 ] }
+hashbrown = { version = "0.14" }
 spin = { version = "0.9", default-features = false, features = [
   "lazy",
   "spin_mutex",

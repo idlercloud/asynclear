@@ -140,10 +140,12 @@ impl FileAllocTable {
     }
 
     pub fn cluster_chain(&self, first_cluster_id: u32) -> impl Iterator<Item = u32> + '_ {
-        assert!(first_cluster_id >= 2);
         core::iter::from_coroutine(
             #[coroutine]
             move || {
+                if first_cluster_id < 2 {
+                    return;
+                }
                 let entries = self.fat_entries.read();
                 let mut curr_cluster_id = first_cluster_id;
                 while curr_cluster_id < 0x0fff_fff8 {

@@ -1,5 +1,4 @@
 use alloc::collections::BTreeMap;
-use core::ops::Deref;
 
 use async_lock::Mutex as SleepMutex;
 use atomic::Atomic;
@@ -8,6 +7,7 @@ use triomphe::Arc;
 use crate::memory::{Frame, Page};
 
 pub struct PageCache {
+    // TODO: 也许页缓存可以用 `HashMap`，代价可能是减缓初次 `mmap`
     /// 文件页号 -> 页
     pages: BTreeMap<usize, Arc<BackedPage>>,
 }

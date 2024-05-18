@@ -7,7 +7,7 @@ pub const AT_FDCWD: usize = -100isize as usize;
 
 bitflags! {
     /// 一个 inode 的 mode。如文件类型、用户权限等
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default)]
     pub struct StatMode: u32 {
         // 以下类型只为其一
         /// 是普通文件
@@ -56,6 +56,48 @@ bitflags! {
         const AT_SYMLINK_NOFOLLOW   = 1 << 8;
         /// 不要自动挂载路径名的 terminal(basename) component
         const AT_NO_AUTOMOUNT       = 1 << 11;
+    }
+
+    #[derive(Debug)]
+    pub struct MountFlags : u32 {
+        // const MS_RDONLY         = 1 <<  0;
+        // const MS_NOSUID         = 1 <<  1;
+        // const MS_NODEV          = 1 <<  2;
+        // const MS_NOEXEC         = 1 <<  3;
+        // const MS_SYNCHRONOUS    = 1 <<  4;
+        // const MS_REMOUNT        = 1 <<  5;
+        // const MS_MANDLOCK       = 1 <<  6;
+        // const MS_DIRSYNC        = 1 <<  7;
+        // const MS_NOSYMFOLLOW    = 1 <<  8;
+        // const MS_NOATIME        = 1 <<  9;
+        // const MS_NODIRATIME     = 1 << 10;
+        // const MS_BIND           = 1 << 11;
+        // const MS_MOVE           = 1 << 12;
+        // const MS_REC            = 1 << 13;
+        // const MS_SILENT         = 1 << 14;
+        // const MS_POSIXACL       = 1 << 16;
+        // const MS_UNBINDABLE     = 1 << 17;
+        // const MS_PRIVATE        = 1 << 18;
+        // const MS_SLAVE          = 1 << 19;
+        // const MS_SHARED         = 1 << 20;
+        // const MS_RELATIME       = 1 << 21;
+        // const MS_KERNMOUNT      = 1 << 22;
+        // const MS_I_VERSION      = 1 << 23;
+        // const MS_STRICTATIME    = 1 << 24;
+        // const MS_LAZYTIME       = 1 << 25;
+        // const MS_NOREMOTELOCK   = 1 << 27;
+        // const MS_NOSEC          = 1 << 28;
+        // const MS_BORN           = 1 << 29;
+        // const MS_ACTIVE         = 1 << 30;
+        // const MS_NOUSER         = 1 << 31;
+    }
+
+    #[derive(Debug)]
+    pub struct UnmountFlags : u32 {
+        // const MNT_FORCE         =   1 << 0;
+        // const MNT_DETACH        =   1 << 1;
+        // const MNT_EXPIRE        =   1 << 2;
+        // const UMOUNT_NOFOLLOW   =   1 << 3;
     }
 }
 

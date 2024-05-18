@@ -1,4 +1,4 @@
-use core::{num::NonZeroUsize, ops::Deref};
+use core::num::NonZeroUsize;
 
 use common::config::{LOW_ADDRESS_END, PAGE_OFFSET_MASK, PAGE_SIZE_BITS};
 use defines::{
@@ -134,7 +134,7 @@ fn shared_file_map(
         }
     }
 
-    let File::Paged(paged) = desc.deref() else {
+    let File::Paged(paged) = &**desc else {
         warn!("paged file marked as regular file");
         return Err(errno::EACCES);
     };

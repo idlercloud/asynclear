@@ -13,6 +13,7 @@ riscv.workspace = true
 compact_str.workspace = true
 delegate.workspace = true
 goblin.workspace = true
+hashbrown.workspace = true
 bitflags.workspace = true
 sbi-rt.workspace = true
 smallvec.workspace = true

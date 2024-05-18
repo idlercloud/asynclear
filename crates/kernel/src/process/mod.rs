@@ -1,6 +1,6 @@
 mod inner;
 
-use alloc::{collections::BTreeMap, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::num::NonZeroUsize;
 
 use atomic::{Atomic, Ordering};
@@ -11,6 +11,7 @@ use defines::{
 };
 use event_listener::Event;
 use goblin::elf::Elf;
+use hashbrown::HashMap;
 use idallocator::RecycleAllocator;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use memory::MemorySpace;
@@ -99,7 +100,7 @@ impl Process {
                 fd_table: FdTable::with_stdio(),
                 signal_handlers: SignalHandlers::new(),
                 tid_allocator,
-                threads: BTreeMap::new(),
+                threads: HashMap::new(),
             }),
         });
         process.lock_inner_with(|inner| {
@@ -150,7 +151,7 @@ impl Process {
                     fd_table: inner.fd_table.clone(),
                     signal_handlers: inner.signal_handlers.clone(),
                     tid_allocator: inner.tid_allocator.clone(),
-                    threads: BTreeMap::new(),
+                    threads: HashMap::new(),
                 }),
             });
             child.lock_inner_with(|inner| {

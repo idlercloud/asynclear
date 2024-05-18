@@ -202,6 +202,7 @@ impl DirInodeBackend for FatDir {
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Paged(DEntryPaged::new(
+                    Arc::clone(parent),
                     Arc::new(fat_file).unsize(DynPagedInodeCoercion!()),
                 ))
             };

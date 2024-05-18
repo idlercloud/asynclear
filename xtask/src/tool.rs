@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::Parser;
-use fatfs::{FileSystem, FsOptions};
+use fatfs::{Dir, FileSystem, FsOptions};
 use tap::Tap;
 
 use crate::{
@@ -75,10 +75,21 @@ impl FatProbeArgs {
             .unwrap();
         let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
         let root_dir = fs.root_dir();
-        for entry in root_dir.iter() {
-            let entry = entry.unwrap();
-            println!("{}", entry.file_name());
+        fn walk_dir(curr: Dir<'_, File>, depth: usize) {
+            for entry in curr.iter() {
+                let entry = entry.unwrap();
+                for _ in 0..depth {
+                    print!(" ");
+                }
+                let name = entry.file_name();
+                println!("{name}");
+                if entry.is_dir() && name != "." && name != ".." {
+                    let child = entry.to_dir();
+                    walk_dir(child, depth + 1);
+                }
+            }
         }
+        walk_dir(root_dir, 0);
     }
 }
 

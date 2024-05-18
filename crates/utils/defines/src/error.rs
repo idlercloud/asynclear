@@ -44,6 +44,7 @@ pub mod errno {
         EFAULT,         -14,    "Bad address.",
         EBUSY,          -16,    "Device or resource busy.",
         EEXIST,         -17,    "File exists.",
+        ENODEV,         -19,    "No such device",
         ENOTDIR,        -20,    "Not a directory.",
         EISDIR,         -21,    "Is a directory.",
         EINVAL,         -22,    "Invalid argument.",

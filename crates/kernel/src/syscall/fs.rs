@@ -1,17 +1,17 @@
 use alloc::vec::Vec;
-use core::ops::Deref;
+use core::{ops::Deref, str::FromStr};
 
 use cervine::Cow;
 use defines::{
     error::{errno, KResult},
-    fs::{FstatFlags, IoVec, Stat, AT_FDCWD},
+    fs::{FstatFlags, IoVec, MountFlags, Stat, UnmountFlags, AT_FDCWD},
 };
 use triomphe::Arc;
 
 use crate::{
     fs::{
-        self, DEntry, DirFile, File, FileDescriptor, InodeMode, OpenFlags, PagedFile, PathToInode,
-        VFS,
+        self, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode, OpenFlags,
+        PagedFile, VFS,
     },
     hart::local_hart,
     memory::UserCheck,
@@ -42,7 +42,7 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
 pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult {
     // TODO: [low] 暂时未支持 mode
     let path = path.check_cstr()?;
-    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
+    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
     p2i.dir.mkdir(p2i.last_component)?;
     Ok(0)
 }
@@ -192,7 +192,7 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
         todo!("[low] unsupported openflags: {flags:#b}");
     }
 
-    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
+    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
     // TODO: [low] 其实可以做一个 `CompactCowString` 避免不必要的拷贝
     let new_file = if let Some(final_dentry) = p2i.dir.lookup(Cow::Borrowed(&p2i.last_component)) {
         // 指定了必须要创建文件，但该文件已存在
@@ -234,30 +234,6 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
         .curr_process()
         .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
     Ok(ret_fd as isize)
-}
-
-fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
-    let start_dir;
-    // 绝对路径则忽视 fd
-    if path.starts_with('/') {
-        start_dir = Arc::clone(VFS.root_dir());
-    } else {
-        let process = local_hart().curr_process();
-        let inner = process.lock_inner();
-        if dir_fd == AT_FDCWD {
-            start_dir = Arc::clone(&inner.cwd);
-        } else if let Some(base) = inner.fd_table.get(dir_fd) {
-            // 相对路径名，需要从一个目录开始
-            let File::Dir(dir) = &**base else {
-                return Err(errno::ENOTDIR);
-            };
-            start_dir = Arc::clone(dir.dentry());
-        } else {
-            return Err(errno::EBADF);
-        }
-    }
-
-    fs::path_walk(start_dir, path)
 }
 
 pub fn sys_close(fd: usize) -> KResult {
@@ -465,7 +441,7 @@ pub fn sys_newfstatat(
         let file = inner.fd_table.get(dir_fd).ok_or(errno::EBADF)?;
         fs::stat_from_meta(file.meta())
     } else {
-        let p2i = resolve_path_with_dir_fd(dir_fd, &file_name)?;
+        let p2i = fs::resolve_path_with_dir_fd(dir_fd, &file_name)?;
         let dentry = p2i
             .dir
             .lookup(Cow::Owned(p2i.last_component))
@@ -522,26 +498,44 @@ pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
 //     Err(errno::UNSUPPORTED)
 // }
 
-// /// TODO: sys_umount 完善，写文档
-// pub fn sys_umount(_special: *const u8, _flags: i32) -> Result {
-//     Ok(0)
-// }
+// TODO: [low] 完善 mount 和 umount
 
-// /// TODO: sys_mount 完善，写文档
-// pub fn sys_mount(
-//     _special: *const u8,
-//     _dir: *const u8,
-//     _fstype: *const u8,
-//     _flags: usize,
-//     _data: *const u8,
-// ) -> Result {
-//     Ok(0)
-// }
+/// 卸载安装在 `target` 上的文件系统
+pub fn sys_umount(target: UserCheck<u8>, flags: u32) -> KResult {
+    let Some(flags) = UnmountFlags::from_bits(flags) else {
+        todo!("[low] unsupported MountFlags: {flags:#b}");
+    };
+    let target = target.check_cstr()?;
+    VFS.unmount(&target, flags)?;
+    Ok(0)
+}
+
+/// 将 `source` 指定的文件系统（通常是设备的路径名，但也可以是目录或文件的路径名，或者虚拟字符串）附加到路径名指定的位置（目录或文件）在目标中。
+pub fn sys_mount(
+    source: UserCheck<u8>,
+    target: UserCheck<u8>,
+    fs_type: UserCheck<u8>,
+    flags: u32,
+    data: UserCheck<u8>,
+) -> KResult {
+    let source = source.check_cstr()?;
+    let target = target.check_cstr()?;
+    let fs_type = FileSystemType::from_str(&fs_type.check_cstr()?)?;
+    let Some(flags) = MountFlags::from_bits(flags) else {
+        todo!("[low] unsupported MountFlags: {flags:#b}");
+    };
+    if !data.is_null() {
+        let _data = data.check_cstr()?;
+    }
+
+    VFS.mount(&target, &source, fs_type, flags)?;
+    Ok(0)
+}
 
 /// 将调用进程的当前工作目录更改为 `path` 中指定的目录
 pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
     let path = path.check_cstr()?;
-    let p2i = resolve_path_with_dir_fd(AT_FDCWD, &path)?;
+    let p2i = fs::resolve_path_with_dir_fd(AT_FDCWD, &path)?;
     let DEntry::Dir(dir) = p2i
         .dir
         .lookup(Cow::Owned(p2i.last_component))
@@ -562,19 +556,20 @@ pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
 /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
 pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     let ret = buf.addr() as isize;
-    let mut cwd = local_hart()
+    let cwd = local_hart()
         .curr_process()
         .lock_inner_with(|inner| Arc::clone(&inner.cwd));
     let mut dirs = Vec::new();
+    let mut dir = &cwd;
     // 根目录 `/` 和 `\0`
     let mut path_len = 2;
     loop {
-        let Some(parent) = cwd.parent().cloned() else {
+        let Some(parent) = dir.parent() else {
             break;
         };
-        path_len += cwd.inode().meta().name().len();
-        dirs.push(cwd);
-        cwd = parent;
+        path_len += dir.inode().meta().name().len();
+        dirs.push(dir);
+        dir = parent;
     }
 
     path_len += dirs.len().saturating_sub(1);
@@ -588,7 +583,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     buf.reborrow().get_out(0).unwrap().write(b'/');
     let mut curr = 1;
     for name in dirs
-        .iter()
+        .into_iter()
         .rev()
         .map(|dir| dir.inode().meta().name().as_bytes())
         .intersperse(b"/")

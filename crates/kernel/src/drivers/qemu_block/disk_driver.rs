@@ -1,5 +1,4 @@
-use alloc::collections::BTreeMap;
-
+use hashbrown::HashMap;
 use klocks::{RwLock, SpinMutex};
 use virtio_drivers::{device::blk::VirtIOBlk, transport::mmio::MmioTransport};
 
@@ -15,7 +14,7 @@ pub struct DiskDriver {
     /// 这里其实可以考虑实现一个 lru 之类的方式乃至类似于 CMU15445 的 `BufferPoolManager` 的东西
     ///
     /// 不过暂时而言，直接使用块缓存的应该只有目录所用的扇区
-    caches: RwLock<BTreeMap<usize, [u8; BLOCK_SIZE]>>,
+    caches: RwLock<HashMap<usize, [u8; BLOCK_SIZE]>>,
 }
 
 unsafe impl Send for DiskDriver {}
@@ -25,7 +24,7 @@ impl DiskDriver {
     pub fn init() -> Self {
         Self {
             device: SpinMutex::new(virtio::init()),
-            caches: RwLock::new(BTreeMap::new()),
+            caches: RwLock::new(HashMap::new()),
         }
     }
 
