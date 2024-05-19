@@ -91,7 +91,7 @@ fn fat_date_to_naive_date(date: u16) -> NaiveDate {
     let year = (1980 + (date >> 9)) as i32;
     let month = (((date >> 5) & 0x0F) - 1) as u32;
     let day = ((date & 0x1F) - 1) as u32;
-    NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    NaiveDate::from_ymd_opt(year, month, day).unwrap_or(NaiveDate::default())
 }
 
 fn fat_time_to_naive_time(time: u16, ten_ms: u8) -> NaiveTime {
@@ -99,7 +99,7 @@ fn fat_time_to_naive_time(time: u16, ten_ms: u8) -> NaiveTime {
     let min = ((time >> 5) & 0x3F) as u32;
     let sec = (time & 0x1F) as u32 * 2 + (ten_ms / 100) as u32;
     let ms = (ten_ms % 100) as u32 * 10;
-    NaiveTime::from_hms_milli_opt(hour, min, sec, ms).unwrap()
+    NaiveTime::from_hms_milli_opt(hour, min, sec, ms).unwrap_or(NaiveTime::default())
 }
 
 bitflags! {
