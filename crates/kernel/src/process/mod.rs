@@ -26,10 +26,12 @@ use crate::{
     trap::TrapContext,
 };
 
+static RUNTESTS: &[u8] = include_bytes!("../../../../res/preliminary_tests");
+
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
     Process::from_path(
-        CompactString::from_static_str("/initproc"),
-        vec![CompactString::from_static_str("/initproc")],
+        CompactString::from_static_str("/preliminary_tests"),
+        vec![CompactString::from_static_str("/preliminary_tests")],
     )
     .expect("INITPROC Failed.")
 });
@@ -55,10 +57,7 @@ impl Process {
 
         let mut memory_space;
         let (elf_end, auxv, elf_entry) = {
-            let DEntry::Paged(paged) = fs::find_file(Arc::clone(VFS.root_dir()), &path)? else {
-                return Err(errno::EISDIR);
-            };
-            let elf_data = fs::read_file(&paged.inode())?;
+            let elf_data = RUNTESTS;
             let elf = Elf::parse(&elf_data).map_err(|e| {
                 warn!("parse elf error {e}");
                 errno::ENOEXEC

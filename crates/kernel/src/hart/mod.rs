@@ -5,7 +5,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use common::config::{HART_NUM, HART_START_ADDR};
+use common::config::HART_NUM;
 use crossbeam_utils::CachePadded;
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
@@ -102,12 +102,12 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
         // 将下面的代码取消注释即可启动多核
-        for i in 0..HART_NUM {
-            if i == hart_id {
-                continue;
-            }
-            sbi_rt::hart_start(i, HART_START_ADDR, 0);
-        }
+        // for i in 0..HART_NUM {
+        //     if i == hart_id {
+        //         continue;
+        //     }
+        //     sbi_rt::hart_start(i, HART_START_ADDR, 0);
+        // }
     } else {
         while !INIT_FINISHED.load(Ordering::SeqCst) {
             core::hint::spin_loop();

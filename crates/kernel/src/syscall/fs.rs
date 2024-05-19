@@ -471,8 +471,7 @@ pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
 /// 参数：
 /// - `dir_fd` 要删除的链接所在的目录
 /// - `path` 要删除的链接的名字
-/// - `flags` 可设置为 0 或 AT_REMOVEDIR
-/// TODO: 完善 sys_unlinkat，写文档
+/// - `flags` 可设置为 0 或 `AT_REMOVEDIR`
 pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
     let path = path.check_cstr()?;
     let Some(flags) = FstatFlags::from_bits(flags) else {

@@ -3,7 +3,7 @@ use std::{fs, sync::LazyLock};
 use clap::Parser;
 use tap::Tap;
 
-use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
+use crate::{cmd_util::Cmd, variables::TARGET_ARCH, KERNEL_BIN_PATH, KERNEL_ELF_PATH};
 
 /// 构建内核和用户程序
 #[derive(Parser)]
@@ -33,16 +33,21 @@ impl BuildArgs {
 
     fn build_user_apps() {
         println!("Building user apps...");
-        Cmd::parse("cargo build --package user --release")
+        Cmd::parse("cargo build --package user --release --offline")
             .args(["--target", TARGET_ARCH])
             .args(["--target-dir", "user/target"])
             .env("RUSTFLAGS", "-Clink-arg=-Tuser/src/linker.ld")
             .invoke();
+        fs::copy(
+            &format!("user/target/{TARGET_ARCH}/release/preliminary_tests"),
+            "res/preliminary_tests",
+        )
+        .unwrap();
     }
 
     pub fn build_kernel(&self) {
         println!("Building kernel...");
-        Cmd::parse("cargo build --package kernel")
+        Cmd::parse("cargo build --package kernel --offline")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .tap_mut(|cmd| {
@@ -61,7 +66,12 @@ impl BuildArgs {
             "target/{TARGET_ARCH}/{}/kernel",
             if self.release { "release" } else { "debug" }
         );
-        fs::copy(kernel_path, format!("target/{TARGET_ARCH}/kernel")).unwrap();
+        fs::copy(kernel_path, KERNEL_ELF_PATH).unwrap();
+        println!("Making kernel bin...");
+        Cmd::new("rust-objcopy")
+            .arg(KERNEL_ELF_PATH)
+            .args(["-O", "binary", KERNEL_BIN_PATH])
+            .invoke();
     }
 }
 

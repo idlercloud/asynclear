@@ -18,7 +18,7 @@ use tool::{AsmArgs, FatProbeArgs};
 use variables::TARGET_ARCH;
 
 const KERNEL_ELF_PATH: &str = formatcp!("target/{TARGET_ARCH}/kernel");
-const KERNEL_BIN_PATH: &str = formatcp!("{KERNEL_ELF_PATH}.bin");
+const KERNEL_BIN_PATH: &str = formatcp!("kernel-qemu");
 
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]

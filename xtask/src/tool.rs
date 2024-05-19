@@ -1,11 +1,11 @@
 use std::{
     fs::{self, File},
-    io::{self, Seek, SeekFrom, Write},
+    io::{self, Write},
     path::PathBuf,
 };
 
 use clap::Parser;
-use fatfs::{Dir, FileSystem, FormatVolumeOptions, FsOptions};
+use fatfs::{Dir, FileSystem, FsOptions};
 use tap::Tap;
 
 use crate::{
@@ -74,9 +74,16 @@ impl FatProbeArgs {
     pub fn probe(&self) {
         if self.mkfs {
             {
-                let mut fs = File::create(&self.img_path).unwrap();
-                fs.set_len(40 * 1024 * 1024).unwrap();
-                fatfs::format_volume(&mut fs, FormatVolumeOptions::new()).unwrap();
+                // 复制一个原始镜像
+                let mut origin = File::open("res/fat32_origin.img").unwrap();
+                let mut fs = File::options()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(&self.img_path)
+                    .unwrap();
+                std::io::copy(&mut origin, &mut fs).unwrap();
             }
             let fs = File::options()
                 .read(true)
@@ -84,7 +91,26 @@ impl FatProbeArgs {
                 .open(&self.img_path)
                 .unwrap();
             let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
+            println!("{:?}", fs.fat_type());
             let root_dir = fs.root_dir();
+            let entries = root_dir
+                .iter()
+                .filter_map(|entry| {
+                    let entry = entry.unwrap();
+                    if entry.is_dir() {
+                        return None;
+                    }
+                    let name = entry.file_name();
+                    if name == "." || name == ".." {
+                        None
+                    } else {
+                        Some(name)
+                    }
+                })
+                .collect::<Vec<String>>();
+            for entry in entries {
+                root_dir.remove(&entry).unwrap();
+            }
             let pack_into = |place_in_host: &str, path: &str| {
                 let elf = fs::read(place_in_host).expect(place_in_host);
                 let mut dir = root_dir.clone();
@@ -174,44 +200,44 @@ pub fn pack() {
         .open(FS_IMG_PATH)
         .unwrap();
     std::io::copy(&mut origin, &mut fs).unwrap();
-    fs.seek(SeekFrom::Start(0)).unwrap();
-    let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
-    let root_dir = fs.root_dir();
+    // fs.seek(SeekFrom::Start(0)).unwrap();
+    // let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
+    // let root_dir = fs.root_dir();
 
-    let pack_into = |place_in_host: &str, path: &str| {
-        let elf = fs::read(place_in_host).expect(place_in_host);
-        let mut dir = root_dir.clone();
-        let components = path.split('/').collect::<Vec<_>>();
-        for &component in &components[0..components.len() - 1] {
-            dir = dir.create_dir(component).unwrap();
-        }
-        let mut file = dir.create_file(components[components.len() - 1]).unwrap();
-        file.truncate().unwrap();
-        file.write_all(&elf).unwrap();
-    };
-    for elf_name in USER_BINS.iter() {
-        if elf_name.starts_with("test_") {
-            pack_into(
-                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-                &format!("ktest/{elf_name}"),
-            );
-        } else {
-            pack_into(
-                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-                elf_name,
-            );
-        }
-    }
-    for ptest_name in PTEST_BINS.iter() {
-        pack_into(
-            &format!("res/preliminary/{ptest_name}"),
-            &format!("ptest/{ptest_name}"),
-        );
-    }
-    if USER_BINS.len() > 0 {
-        pack_into("res/preliminary/text.txt", "ptest/text.txt");
-        pack_into("res/preliminary/mnt/test_mount", "ptest/mnt/test_mount");
-    }
+    // let pack_into = |place_in_host: &str, path: &str| {
+    //     let elf = fs::read(place_in_host).expect(place_in_host);
+    //     let mut dir = root_dir.clone();
+    //     let components = path.split('/').collect::<Vec<_>>();
+    //     for &component in &components[0..components.len() - 1] {
+    //         dir = dir.create_dir(component).unwrap();
+    //     }
+    //     let mut file = dir.create_file(components[components.len() - 1]).unwrap();
+    //     file.truncate().unwrap();
+    //     file.write_all(&elf).unwrap();
+    // };
+    // for elf_name in USER_BINS.iter() {
+    //     if elf_name.starts_with("test_") {
+    //         pack_into(
+    //             &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
+    //             &format!("ktest/{elf_name}"),
+    //         );
+    //     } else {
+    //         pack_into(
+    //             &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
+    //             elf_name,
+    //         );
+    //     }
+    // }
+    // for ptest_name in PTEST_BINS.iter() {
+    //     pack_into(
+    //         &format!("res/preliminary/{ptest_name}"),
+    //         &format!("ptest/{ptest_name}"),
+    //     );
+    // }
+    // if USER_BINS.len() > 0 {
+    //     pack_into("res/preliminary/text.txt", "ptest/text.txt");
+    //     pack_into("res/preliminary/mnt/test_mount", "ptest/mnt/test_mount");
+    // }
 }
 
 pub fn clean() {

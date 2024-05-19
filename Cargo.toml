@@ -47,6 +47,11 @@ opt-level = 1
 codegen-units = 1
 lto = "fat"
 
+[profile.xtask]
+inherits = "dev"
+opt-level = 0
+debug = false
+
 [workspace.lints.clippy]
 all = "warn"
 await_holding_lock = "warn"

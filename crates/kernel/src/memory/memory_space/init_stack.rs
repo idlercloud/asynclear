@@ -12,7 +12,7 @@ pub const AT_PHDR: u8 = 3;
 pub const AT_PHENT: u8 = 4;
 /// PH 的数量
 pub const AT_PHNUM: u8 = 5;
-/// PAGE_SIZE 的值
+/// `PAGE_SIZE` 的值
 pub const AT_PAGESZ: u8 = 6;
 /// interpreter 的基地址
 pub const AT_BASE: u8 = 7;
