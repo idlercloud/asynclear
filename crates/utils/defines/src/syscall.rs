@@ -37,7 +37,7 @@ declare_syscall_id!(
     EXIT,               93,
     EXIT_GROUP,         94,
     SET_TID_ADDRESS,    96,
-    // SLEEP,              101,
+    NANOSLEEP,          101,
     CLOCK_GETTIME,      113,
     SCHED_YIELD,        124,
     // KILL,               129,

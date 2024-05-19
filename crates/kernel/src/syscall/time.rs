@@ -1,10 +1,12 @@
+use core::time::Duration;
+
 use common::constant::{MICRO_PER_SEC, NANO_PER_SEC};
 use defines::{
     error::KResult,
     misc::{TimeSpec, TimeVal, Tms},
 };
 
-use crate::memory::UserCheck;
+use crate::{memory::UserCheck, time};
 
 /// 获取自 Epoch 以来所过的时间（不过目前实现中似乎是自开机或复位以来时间）
 ///
@@ -62,5 +64,13 @@ pub fn sys_times(tms: UserCheck<Tms>) -> KResult {
         tms_cutime: ticks / 4,
         tms_cstime: ticks / 4,
     });
+    Ok(0)
+}
+
+/// 挂起调用线程的执行，直到至少经过 `req` 中指定的时间。成功后返回 0
+pub async fn sys_nanosleep(req: UserCheck<TimeSpec>) -> KResult {
+    let req = req.check_ptr()?.read();
+    let req = Duration::try_from(req)?;
+    time::sleep(req).await;
     Ok(0)
 }

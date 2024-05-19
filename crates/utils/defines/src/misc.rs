@@ -3,6 +3,9 @@
 use core::time::Duration;
 
 use bitflags::bitflags;
+use common::constant::NANO_PER_SEC;
+
+use crate::error::{errno, Error};
 
 /// `sys_uname` 中指定的结构体类型。目前遵循 musl 的设置，每个字段硬编码为 65 字节长
 #[repr(C)]
@@ -63,6 +66,17 @@ impl From<Duration> for TimeSpec {
             sec: value.as_secs() as i64,
             nsec: value.subsec_nanos() as i64,
         }
+    }
+}
+
+impl TryFrom<TimeSpec> for Duration {
+    type Error = Error;
+
+    fn try_from(value: TimeSpec) -> Result<Self, Self::Error> {
+        if value.sec < 0 || value.nsec < 0 || value.nsec > NANO_PER_SEC as i64 {
+            return Err(errno::EINVAL);
+        }
+        Ok(Duration::new(value.sec as u64, value.nsec as u32))
     }
 }
 

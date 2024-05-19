@@ -9,6 +9,7 @@ edition.workspace = true
 [dependencies]
 num_enum.workspace = true
 bitflags.workspace = true
+common = { path = "../common" }
 
 [lints]
 workspace = true

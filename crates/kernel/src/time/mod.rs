@@ -2,7 +2,7 @@ mod timer;
 
 use core::time::Duration;
 
-pub use self::timer::check_timer;
+pub use self::timer::{check_timer, sleep};
 
 /// 目前是返回自开机以来的 [`Duration`]
 pub fn curr_time() -> Duration {

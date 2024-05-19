@@ -463,6 +463,7 @@ name = "defines"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
+ "common",
  "num_enum",
 ]
 

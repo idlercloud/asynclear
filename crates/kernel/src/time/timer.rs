@@ -4,6 +4,7 @@ use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll, Waker},
+    time::Duration,
 };
 
 use klocks::SpinNoIrqMutex;
@@ -62,13 +63,22 @@ static TIMERS: SpinNoIrqMutex<BinaryHeap<Reverse<Timer>>> =
 
 pub fn check_timer() {
     let mut timers = TIMERS.lock();
-    let current_ms = riscv_time::get_time_ms();
+    let curr_ms = riscv_time::get_time_ms();
     while let Some(timer) = timers.peek() {
-        if current_ms >= timer.0.expire_ms {
+        if curr_ms >= timer.0.expire_ms {
             let timer = timers.pop().unwrap();
             timer.0.waker.wake();
         } else {
             break;
         }
+    }
+}
+
+pub fn sleep(time: Duration) -> impl Future<Output = ()> {
+    let curr_ms = riscv_time::get_time_ms();
+    let expire_ms = curr_ms + time.as_millis() as usize;
+    TimerFuture {
+        expire_ms,
+        timer_activated: false,
     }
 }

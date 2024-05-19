@@ -69,7 +69,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
         EXIT => sys_exit(args[0] as _),
         EXIT_GROUP => sys_exit_group(args[0] as _),
         SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
-        // SLEEP => sys_sleep(args[0] as _),
+        NANOSLEEP => sys_nanosleep(UserCheck::new(args[0] as _)).await,
         CLOCK_GETTIME => sys_clock_gettime(args[0] as _, UserCheck::new(args[1] as _)),
         SCHED_YIELD => sys_sched_yield().await,
         RT_SIGACTION => sys_rt_sigaction(
