@@ -46,16 +46,20 @@ bitflags! {
         // const S_IXOTH = 1 << 0;
     }
 
-    /// fcntl flags
+    #[derive(Debug)]
     pub struct FstatFlags: u32 {
+        /// 如果传入的 `path` 是符号链接，则不要将其解引用，而是返回符号链接本身的信息
+        const AT_SYMLINK_NOFOLLOW   = 1 << 8;
+        /// `unlinkat` 时对路径名执行相当于 `rmdir` 的操作
+        const AT_REMOVEDIR          = 1 << 9;
+        /// `linkat` 时如果传入的 `path` 是符号链接，则将其解引用
+        const AT_SYMLINK_FOLLOW     = 1 << 10;
+        /// 不要自动挂载路径名的 terminal(basename) component
+        const AT_NO_AUTOMOUNT       = 1 << 11;
         /// 如果传入的 `path` 是空，则对 `dirfd` 指向的文件进行操作。
         ///
         /// 此时 `dirfd` 可以指向任意类型的文件而不止是目录
-        const AT_EMPTY_PATH         = 1 << 0;
-        /// 如果传入的 `path` 是符号链接，则不要将其解引用，而是返回符号链接本身的信息
-        const AT_SYMLINK_NOFOLLOW   = 1 << 8;
-        /// 不要自动挂载路径名的 terminal(basename) component
-        const AT_NO_AUTOMOUNT       = 1 << 11;
+        const AT_EMPTY_PATH         = 1 << 12;
     }
 
     #[derive(Debug)]

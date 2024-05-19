@@ -140,6 +140,20 @@ impl DEntryDir {
         Ok(dentry)
     }
 
+    pub fn unlink(self: &Arc<Self>, name: &str) -> KResult<()> {
+        if name == "." || name == ".." {
+            return Err(errno::EINVAL);
+        }
+        let mut children = self.lock_children();
+        if let Some(v) = children.get_mut(name) {
+            *v = None;
+            Ok(())
+        } else {
+            // 不在 `children` 中就说明它还未被引用，因此可以直接删除
+            self.inode.unlink(name)
+        }
+    }
+
     pub fn read_dir(self: &Arc<Self>) -> KResult<()> {
         let _enter = debug_span!("read_dir", name = self.inode.meta().name()).entered();
         self.inode.read_dir(self)

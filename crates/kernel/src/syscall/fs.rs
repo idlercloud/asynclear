@@ -10,8 +10,8 @@ use triomphe::Arc;
 
 use crate::{
     fs::{
-        self, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode, OpenFlags,
-        PagedFile, VFS,
+        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType,
+        InodeMode, OpenFlags, PagedFile, VFS,
     },
     hart::local_hart,
     memory::UserCheck,
@@ -38,7 +38,7 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
     desc.ioctl(request, argp)
 }
 
-/// 创建目录。`mode` 含义同 `sys_openat()`
+/// 创建目录。`mode` 含义同 [`sys_openat()`]
 pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult {
     // TODO: [low] 暂时未支持 mode
     let path = path.check_cstr()?;
@@ -466,38 +466,57 @@ pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
     Ok(0)
 }
 
-// /// 移除指定文件的链接（可用于删除文件）
-// ///
-// /// 参数
-// ///
-// /// TODO: 完善 sys_unlinkat，写文档
-// pub fn sys_unlinkat(dirfd: usize, path: *const u8, _flags: u32) -> Result {
-//     let path = unsafe { check_cstr(path) }?;
-//     let path = path_with_fd(dirfd, path)?;
-//     let dir_path;
-//     let base_name;
-//     if path.ends_with('/') {
-//         base_name = path[1..path.len() - 1].split('/').next_back().unwrap();
-//         dir_path = &path[..path.len() - base_name.len() - 1];
-//     } else {
-//         base_name = path[1..].split('/').next_back().unwrap();
-//         dir_path = &path[..path.len() - base_name.len()];
-//     }
-//     let Fat32DirOrFile::Dir(dir) = open_fat_entry(
-//         dir_path.to_string(),
-//         OpenFlags::O_WRONLY | OpenFlags::O_DIRECTORY,
-//     )?
-//     else {
-//         unreachable!("")
-//     };
-//     dir.remove(base_name)?;
-//     Ok(0)
-// }
+/// 移除指定文件的链接（可用于删除文件）。成功时返回 0
+///
+/// 参数：
+/// - `dir_fd` 要删除的链接所在的目录
+/// - `path` 要删除的链接的名字
+/// - `flags` 可设置为 0 或 AT_REMOVEDIR
+/// TODO: 完善 sys_unlinkat，写文档
+pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
+    let path = path.check_cstr()?;
+    let Some(flags) = FstatFlags::from_bits(flags) else {
+        todo!("[low] unsupported OpenFlags: {flags:#b}");
+    };
+    info!("flags {flags:?}");
+    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
+    let dentry = p2i
+        .dir
+        .lookup(Cow::Owned(p2i.last_component))
+        .ok_or(errno::ENOENT)?;
+    if flags.contains(FstatFlags::AT_REMOVEDIR) {
+        todo!("[mid] impl rmdir");
+    } else {
+        let DEntry::Paged(paged) = dentry else {
+            return Err(errno::EISDIR);
+        };
+        paged.parent().unlink(paged.inode().meta().name())?;
+    }
+    Ok(0)
+}
 
-// pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> Result {
-//     // FIXME: 尚未实现 sys_linkat
-//     Err(errno::UNSUPPORTED)
-// }
+/// 创建文件的（硬）链接，成功返回 0
+///
+/// 参数：
+/// - `old_dir_fd` 原来的文件所在目录的文件描述符
+/// - `old_path` 文件原来的名字
+/// - `new_dir_fd` 新文件名所在的目录
+/// - `new_path` 文件的新名字
+/// - `flags` 可包含 `AT_SYMLINK_FOLLOW` 和 `AT_EMPTY_PATH`
+#[allow(unused)]
+pub fn sys_linkat(
+    old_dir_fd: usize,
+    old_path: UserCheck<u8>,
+    new_dir_fd: usize,
+    new_path: UserCheck<u8>,
+    flags: u32,
+) -> KResult {
+    // 在 2.6.18 内核之前，应置为 0
+    if flags != 0 {
+        return Err(errno::EINVAL);
+    }
+    todo!("[low] impl sys_linkat")
+}
 
 // TODO: [low] 完善 mount 和 umount
 

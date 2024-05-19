@@ -51,6 +51,10 @@ impl DirInodeBackend for TmpDir {
         todo!()
     }
 
+    fn unlink(&self, name: &str) -> KResult<()> {
+        Ok(())
+    }
+
     fn read_dir(&self, _parent: &Arc<DEntryDir>) -> KResult<()> {
         Ok(())
     }

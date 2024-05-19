@@ -116,6 +116,7 @@ pub trait DirInodeBackend: Send + Sync {
     fn lookup(&self, name: &str) -> Option<DynInode>;
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>>;
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>>;
+    fn unlink(&self, name: &str) -> KResult<()>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
     fn disk_space(&self) -> usize;
 }
@@ -131,20 +132,39 @@ impl<T: ?Sized + DirInodeBackend> Inode<T> {
         ret
     }
 
+    pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
+        let ret = self.inner.mkdir(name)?;
+        self.meta.lock_inner_with(|inner| {
+            inner.data_len = self.inner.disk_space();
+            inner.modify_time = TimeSpec::from(time::curr_time());
+        });
+        Ok(ret)
+    }
+
+    pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+        let ret = self.inner.mknod(name, mode)?;
+        self.meta.lock_inner_with(|inner| {
+            inner.data_len = self.inner.disk_space();
+            inner.modify_time = TimeSpec::from(time::curr_time());
+        });
+        Ok(ret)
+    }
+
+    pub fn unlink(&self, name: &str) -> KResult<()> {
+        self.inner.unlink(name)?;
+        self.meta.lock_inner_with(|inner| {
+            inner.data_len = self.inner.disk_space();
+            inner.modify_time = TimeSpec::from(time::curr_time());
+        });
+        Ok(())
+    }
+
     pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
         // TODO: [low] `read_dir` 可以记录一个状态表示是否已经全部读入，有的话就不用调用底层文件系统
         self.inner.read_dir(dentry)?;
         self.meta
             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
         Ok(())
-    }
-
-    pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
-        self.inner.mkdir(name)
-    }
-
-    pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
-        self.inner.mknod(name, mode)
     }
 }
 

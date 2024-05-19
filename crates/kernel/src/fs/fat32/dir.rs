@@ -179,6 +179,10 @@ impl DirInodeBackend for FatDir {
         Ok(Arc::new(fat_file).unsize(DynPagedInodeCoercion!()))
     }
 
+    fn unlink(&self, name: &str) -> KResult<()> {
+        todo!("[mid] impl unlink for fat32");
+    }
+
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {
         debug!("fat32 read dir");
         let mut children = parent.lock_children();
