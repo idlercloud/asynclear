@@ -12,10 +12,11 @@
 #![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init)]
 #![feature(sync_unsafe_cell)]
 #![feature(naked_functions)]
-#![feature(slice_ptr_get)]
+#![feature(slice_ptr_get, slice_ptr_len, pointer_is_aligned)]
 #![feature(strict_provenance)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]
+#![feature(inline_const)]
 
 #[macro_use]
 extern crate kernel_tracer;

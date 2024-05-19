@@ -96,7 +96,7 @@ impl FatDir {
         clusters: &'a RwLockReadGuard<'a, SmallVec<[u32; 4]>>,
     ) -> impl Iterator<Item = KResult<DirEntry>> + 'a {
         let mut raw_entry_iter = core::iter::from_coroutine(
-            #[coroutine]
+            // #[coroutine]
             || {
                 let mut buf = local_hart().block_buffer.borrow_mut();
                 for sector_id in clusters

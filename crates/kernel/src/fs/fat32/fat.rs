@@ -141,7 +141,7 @@ impl FileAllocTable {
 
     pub fn cluster_chain(&self, first_cluster_id: u32) -> impl Iterator<Item = u32> + '_ {
         core::iter::from_coroutine(
-            #[coroutine]
+            // #[coroutine]
             move || {
                 if first_cluster_id < 2 {
                     return;
