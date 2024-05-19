@@ -4,6 +4,7 @@
 !/res/rustsbi-qemu.bin
 !/res/fat32_origin.img
 !/res/images
+/kernel-qemu
 /logs
 /.vscode/settings.json
 /justfile
