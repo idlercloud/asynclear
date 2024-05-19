@@ -4,7 +4,7 @@ use core::ops::Deref;
 use bitflags::bitflags;
 use defines::{
     error::{errno, KResult},
-    fs::{Dirent64, StatMode, NAME_MAX},
+    fs::{Dirent64, OpenFlags, StatMode, NAME_MAX},
 };
 use klocks::SpinMutex;
 use triomphe::Arc;
@@ -92,7 +92,7 @@ impl DirFile {
 
 pub struct PagedFile {
     dentry: DEntryPaged,
-    offset: SpinMutex<usize>,
+    offset: SpinMutex<u64>,
 }
 
 impl PagedFile {
@@ -195,7 +195,7 @@ impl FileDescriptor {
                     inode
                         .inner
                         .read_at(meta, unsafe { buf.check_slice_mut()?.out() }, *offset)?;
-                *offset += nread;
+                *offset += nread as u64;
                 Ok(nread)
             }
         }
@@ -214,8 +214,40 @@ impl FileDescriptor {
                     *offset = meta.lock_inner_with(|inner| inner.data_len);
                 }
                 let nwrite = inode.inner.write_at(meta, &buf.check_slice()?, *offset)?;
-                *offset += nwrite;
+                *offset += nwrite as u64;
                 Ok(nwrite)
+            }
+        }
+    }
+
+    pub fn seek(&self, pos: SeekFrom) -> KResult<usize> {
+        match &self.file {
+            File::Stdin | File::Stdout | File::Pipe(_) => Err(errno::ESPIPE),
+            File::Dir(_) => Ok(0),
+            File::Paged(paged) => {
+                let ret = match pos {
+                    SeekFrom::Start(pos) => {
+                        *paged.offset.lock() = pos;
+                        pos as usize
+                    }
+                    SeekFrom::End(offset) => {
+                        let new_pos = paged
+                            .dentry
+                            .inode()
+                            .meta()
+                            .lock_inner_with(|inner| inner.data_len)
+                            .checked_add_signed(offset)
+                            .ok_or(errno::EOVERFLOW)?;
+                        *paged.offset.lock() = new_pos;
+                        new_pos as usize
+                    }
+                    SeekFrom::Current(pos) => {
+                        let mut curr = paged.offset.lock();
+                        *curr = curr.checked_add_signed(pos).ok_or(errno::EOVERFLOW)?;
+                        *curr as usize
+                    }
+                };
+                Ok(ret)
             }
         }
     }
@@ -257,65 +289,9 @@ impl Deref for FileDescriptor {
     }
 }
 
-bitflags! {
-    /// 注意低 2 位指出文件的打开模式
-    /// 0、1、2 分别对应只读、只写、可读可写。3 为错误。
-    #[derive(Clone, Copy, Debug)]
-    pub struct OpenFlags: u32 {
-        const RDONLY    = 0;
-        const WRONLY    = 1 << 0;
-        const RDWR      = 1 << 1;
-
-        /// 如果所查询的路径不存在，则在该路径创建一个常规文件
-        const CREATE    = 1 << 6;
-        /// 在创建文件的情况下，保证该文件之前不存在，否则返回错误
-        const EXCL      = 1 << 7;
-        /// 如果路径指向一个终端设备，那么它不会成为本进程的控制终端
-        const NOCTTY    = 1 << 8;
-        // /// 如果是常规文件，且允许写入，则将该文件长度截断为 0
-        // const TRUNCATE  = 1 << 9;
-        /// 写入追加到文件末尾，它是在每次 `sys_write` 时生效
-        const APPEND    = 1 << 10;
-        /// 在可能的情况下，让该文件以非阻塞模式打开
-        const NONBLOCK  = 1 << 11;
-        /// 保持文件数据与磁盘阻塞同步。但如果该写操作不影响后续的读取，则不会同步更新元数据
-        const DSYNC     = 1 << 12;
-        /// 文件操作完成时发出信号
-        const ASYNC     = 1 << 13;
-        /// 不经过缓存，直接写入磁盘中
-        const DIRECT    = 1 << 14;
-        /// 允许打开文件大小超过 32 位表示范围的大文件。在 64 位系统上此标志位应永远为真
-        const LARGEFILE = 1 << 15;
-        /// 如果打开的文件不是目录，那么就返回失败
-        const DIRECTORY = 1 << 16;
-        // /// 如果路径的 basename 是一个符号链接，则打开失败并返回 `ELOOP`，目前不支持
-        // const O_NOFOLLOW    = 1 << 17;
-        // /// 读文件时不更新文件的 last access time，暂不支持
-        // const O_NOATIME     = 1 << 18;
-        /// 设置打开的文件描述符的 close-on-exec 标志
-        const CLOEXEC   = 1 << 19;
-        // /// 仅打开一个文件描述符，而不实际打开文件。后续只允许进行纯文件描述符级别的操作
-        // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
-        // FIXME: 初赛误把 `O_DIRECTORY` 定义成了 `O_PATH`，这里暂时开启以便通过测试，实际未支持
-        const PATH        = 1 << 21;
-    }
-}
-
-impl OpenFlags {
-    pub fn with_read_only(self) -> Self {
-        self.difference(Self::WRONLY | Self::RDWR)
-    }
-
-    pub fn with_write_only(self) -> Self {
-        self.difference(Self::RDWR) | Self::WRONLY
-    }
-
-    pub fn read_write(&self) -> (bool, bool) {
-        match self.bits() & 0b11 {
-            0 => (true, false),
-            1 => (false, true),
-            2 => (true, true),
-            _ => unreachable!(),
-        }
-    }
+#[derive(Copy, PartialEq, Eq, Clone, Debug)]
+pub enum SeekFrom {
+    Start(u64),
+    End(i64),
+    Current(i64),
 }

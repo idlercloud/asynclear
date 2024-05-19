@@ -43,8 +43,8 @@ impl DirEntry {
         self.attr == DirEntryAttr::DIRECTORY
     }
 
-    pub fn file_size(&self) -> usize {
-        self.file_size as usize
+    pub fn file_size(&self) -> u64 {
+        self.file_size as u64
     }
 
     pub fn take_name(&mut self) -> CompactString {

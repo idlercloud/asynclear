@@ -22,7 +22,7 @@ pub struct FramedVmArea {
     unbacked_map: BTreeMap<VirtPageNum, Arc<Page>>,
     backed_file: Option<Arc<DynPagedInode>>,
     backed_pages: BTreeSet<VirtPageNum>,
-    backed_file_page_id: usize,
+    backed_file_page_id: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -68,7 +68,7 @@ impl FramedVmArea {
         self.backed_file.as_ref()
     }
 
-    pub fn backed_file_page_id(&self) -> usize {
+    pub fn backed_file_page_id(&self) -> u64 {
         self.backed_file_page_id
     }
 
@@ -79,7 +79,7 @@ impl FramedVmArea {
     pub fn init_backed_file(
         &mut self,
         file: Arc<DynPagedInode>,
-        file_page_id: usize,
+        file_page_id: u64,
         page_table: &mut PageTable,
     ) {
         let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
@@ -88,10 +88,10 @@ impl FramedVmArea {
             let page_cache = file.inner.lock_page_cache();
             for (&page_id, page) in page_cache
                 .pages()
-                .range(file_page_id..file_page_id + n_pages)
+                .range(file_page_id..file_page_id + n_pages as u64)
             {
                 let frame = page.inner_page().frame();
-                let vpn = self.vpn_range.start + page_id - file_page_id;
+                let vpn = self.vpn_range.start + (page_id - file_page_id) as usize;
                 page_table.map(vpn, frame.ppn(), PTEFlags::from(self.perm));
                 self.backed_pages.insert(vpn);
             }

@@ -39,10 +39,10 @@ pub fn sys_clock_gettime(_clock_id: usize, ts: UserCheck<TimeSpec>) -> KResult {
     // TODO: 目前只考虑挂钟时间
     assert_eq!(_clock_id, CLOCK_REALTIME);
     let ts = unsafe { ts.check_ptr_mut()? };
-    let us = riscv_time::get_time_ns();
+    let ns = riscv_time::get_time_ns();
     ts.write(TimeSpec {
-        sec: (us / NANO_PER_SEC) as i64,
-        nsec: (us % NANO_PER_SEC) as i64,
+        sec: (ns / NANO_PER_SEC) as i64,
+        nsec: (ns % NANO_PER_SEC) as i64,
     });
     Ok(0)
 }

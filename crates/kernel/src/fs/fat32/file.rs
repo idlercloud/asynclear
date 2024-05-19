@@ -34,7 +34,7 @@ impl FatFile {
         // 文件的大小显然是不超过它占用的簇的总大小的
         assert!(
             dir_entry.file_size()
-                <= clusters.len() * fat.sector_per_cluster() as usize * SECTOR_SIZE
+                <= clusters.len() as u64 * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64
         );
         let fat_file = Self {
             clusters: RwLock::new(clusters),
@@ -72,8 +72,8 @@ impl FatFile {
     }
 
     /// 返回对应的簇索引和簇内的扇区索引
-    pub fn page_id_to_cluster_pos(&self, page_id: usize) -> (u32, u8) {
-        let sector_index = (page_id * SECOTR_COUNT_PER_PAGE) as u32;
+    pub fn page_id_to_cluster_pos(&self, page_id: u64) -> (u32, u8) {
+        let sector_index = (page_id * SECOTR_COUNT_PER_PAGE as u64) as u32;
         let cluster_index = sector_index / self.fat.sector_per_cluster() as u32;
         let sector_offset = sector_index % self.fat.sector_per_cluster() as u32;
         (cluster_index, sector_offset as u8)
@@ -83,7 +83,7 @@ impl FatFile {
 const SECOTR_COUNT_PER_PAGE: usize = PAGE_SIZE / SECTOR_SIZE;
 
 impl PagedInodeBackend for FatFile {
-    fn read_page(&self, frame: &mut Frame, page_id: usize) -> defines::error::KResult<()> {
+    fn read_page(&self, frame: &mut Frame, page_id: u64) -> defines::error::KResult<()> {
         let (mut cluster_index, mut sector_offset) = self.page_id_to_cluster_pos(page_id);
 
         let mut sector_count = 0;
@@ -115,7 +115,7 @@ impl PagedInodeBackend for FatFile {
         Ok(())
     }
 
-    fn write_page(&self, frame: &Frame, page_id: usize) -> defines::error::KResult<()> {
+    fn write_page(&self, frame: &Frame, page_id: u64) -> defines::error::KResult<()> {
         todo!("[high] impl write_page for FatFile")
     }
 }

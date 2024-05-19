@@ -216,7 +216,9 @@ impl DirInodeBackend for FatDir {
         Ok(())
     }
 
-    fn disk_space(&self) -> usize {
-        self.clusters.read().len() * self.fat.sector_per_cluster() as usize * SECTOR_SIZE
+    fn disk_space(&self) -> u64 {
+        self.clusters.read().len() as u64
+            * self.fat.sector_per_cluster() as u64
+            * SECTOR_SIZE as u64
     }
 }

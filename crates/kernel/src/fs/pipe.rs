@@ -87,7 +87,7 @@ pub fn make_pipe() -> (Pipe, Pipe) {
         CompactString::from_static_str("_pipe"),
     ));
     meta.lock_inner_with(|inner| {
-        inner.data_len = PIPE_CAPACITY;
+        inner.data_len = PIPE_CAPACITY as u64;
         inner.change_time = TimeSpec::from(time::curr_time());
     });
     (

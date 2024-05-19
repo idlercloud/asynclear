@@ -5,6 +5,10 @@ use crate::misc::TimeSpec;
 // path walk 时，忽略 fd，从当前工作目录开始
 pub const AT_FDCWD: usize = -100isize as usize;
 
+pub const SEEK_SET: usize = 0;
+pub const SEEK_CUR: usize = 1;
+pub const SEEK_END: usize = 2;
+
 bitflags! {
     /// 一个 inode 的 mode。如文件类型、用户权限等
     #[derive(Clone, Copy, Debug, Default)]
@@ -102,6 +106,67 @@ bitflags! {
         // const MNT_DETACH        =   1 << 1;
         // const MNT_EXPIRE        =   1 << 2;
         // const UMOUNT_NOFOLLOW   =   1 << 3;
+    }
+
+    /// 注意低 2 位指出文件的打开模式
+    /// 0、1、2 分别对应只读、只写、可读可写。3 为错误。
+    #[derive(Clone, Copy, Debug)]
+    pub struct OpenFlags: u32 {
+        const RDONLY    = 0;
+        const WRONLY    = 1 << 0;
+        const RDWR      = 1 << 1;
+
+        /// 如果所查询的路径不存在，则在该路径创建一个常规文件
+        const CREATE    = 1 << 6;
+        /// 在创建文件的情况下，保证该文件之前不存在，否则返回错误
+        const EXCL      = 1 << 7;
+        /// 如果路径指向一个终端设备，那么它不会成为本进程的控制终端
+        const NOCTTY    = 1 << 8;
+        // /// 如果是常规文件，且允许写入，则将该文件长度截断为 0
+        // const TRUNCATE  = 1 << 9;
+        /// 写入追加到文件末尾，它是在每次 `sys_write` 时生效
+        const APPEND    = 1 << 10;
+        /// 在可能的情况下，让该文件以非阻塞模式打开
+        const NONBLOCK  = 1 << 11;
+        /// 保持文件数据与磁盘阻塞同步。但如果该写操作不影响后续的读取，则不会同步更新元数据
+        const DSYNC     = 1 << 12;
+        /// 文件操作完成时发出信号
+        const ASYNC     = 1 << 13;
+        /// 不经过缓存，直接写入磁盘中
+        const DIRECT    = 1 << 14;
+        /// 允许打开文件大小超过 32 位表示范围的大文件。在 64 位系统上此标志位应永远为真
+        const LARGEFILE = 1 << 15;
+        /// 如果打开的文件不是目录，那么就返回失败
+        const DIRECTORY = 1 << 16;
+        // /// 如果路径的 basename 是一个符号链接，则打开失败并返回 `ELOOP`，目前不支持
+        // const O_NOFOLLOW    = 1 << 17;
+        // /// 读文件时不更新文件的 last access time，暂不支持
+        // const O_NOATIME     = 1 << 18;
+        /// 设置打开的文件描述符的 close-on-exec 标志
+        const CLOEXEC   = 1 << 19;
+        // /// 仅打开一个文件描述符，而不实际打开文件。后续只允许进行纯文件描述符级别的操作
+        // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
+        // FIXME: 初赛误把 `O_DIRECTORY` 定义成了 `O_PATH`，这里暂时开启以便通过测试，实际未支持
+        const PATH        = 1 << 21;
+    }
+}
+
+impl OpenFlags {
+    pub fn with_read_only(self) -> Self {
+        self.difference(Self::WRONLY | Self::RDWR)
+    }
+
+    pub fn with_write_only(self) -> Self {
+        self.difference(Self::RDWR) | Self::WRONLY
+    }
+
+    pub fn read_write(&self) -> (bool, bool) {
+        match self.bits() & 0b11 {
+            0 => (true, false),
+            1 => (false, true),
+            2 => (true, true),
+            _ => unreachable!(),
+        }
     }
 }
 

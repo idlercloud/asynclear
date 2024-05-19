@@ -53,6 +53,7 @@ pub mod errno {
         ENOSPC,         -28,    "No space left on device",
         ESPIPE,         -29,    "Illegal seek.",
         ERANGE,         -34,    "Exceed range.",
+        EOVERFLOW,      -75,    "Value too large for data type",
         ENAMETOOLONG,   -78,    "Filename too long",
     );
 }

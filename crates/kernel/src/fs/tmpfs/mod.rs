@@ -59,7 +59,7 @@ impl DirInodeBackend for TmpDir {
         Ok(())
     }
 
-    fn disk_space(&self) -> usize {
+    fn disk_space(&self) -> u64 {
         0
     }
 }

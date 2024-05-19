@@ -9,7 +9,7 @@ use crate::memory::{Frame, Page};
 pub struct PageCache {
     // TODO: 也许页缓存可以用 `HashMap`，代价可能是减缓初次 `mmap`
     /// 文件页号 -> 页
-    pages: BTreeMap<usize, Arc<BackedPage>>,
+    pages: BTreeMap<u64, Arc<BackedPage>>,
 }
 
 impl PageCache {
@@ -19,11 +19,11 @@ impl PageCache {
         }
     }
 
-    pub fn get(&self, page_id: usize) -> Option<Arc<BackedPage>> {
+    pub fn get(&self, page_id: u64) -> Option<Arc<BackedPage>> {
         self.pages.get(&page_id).cloned()
     }
 
-    pub fn create(&mut self, page_id: usize) -> Arc<BackedPage> {
+    pub fn create(&mut self, page_id: u64) -> Arc<BackedPage> {
         let new_page: Arc<BackedPage> = Arc::new(BackedPage {
             inner: Page::with_frame(Frame::alloc().unwrap()),
             state_guard: SleepMutex::new(()),
@@ -34,7 +34,7 @@ impl PageCache {
         new_page
     }
 
-    pub fn pages(&self) -> &BTreeMap<usize, Arc<BackedPage>> {
+    pub fn pages(&self) -> &BTreeMap<u64, Arc<BackedPage>> {
         &self.pages
     }
 }

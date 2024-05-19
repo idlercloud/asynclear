@@ -103,7 +103,7 @@ impl InodeMeta {
 
 pub struct InodeMetaInner {
     /// 对常规文件来说，是其文件内容大小；对目录来说，是它目录项列表占据的总共块空间；其他情况是 0
-    pub data_len: usize,
+    pub data_len: u64,
     /// 上一次访问时间
     pub access_time: TimeSpec,
     /// 上一次修改时间
@@ -118,7 +118,7 @@ pub trait DirInodeBackend: Send + Sync {
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>>;
     fn unlink(&self, name: &str) -> KResult<()>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
-    fn disk_space(&self) -> usize;
+    fn disk_space(&self) -> u64;
 }
 
 // NOTE: `meta` 的信息其实不知道应该在这里改还是在具体文件系统里改。
@@ -190,29 +190,24 @@ impl<T: ?Sized> PagedInode<T> {
 }
 
 pub trait PagedInodeBackend: Send + Sync {
-    fn read_page(&self, frame: &mut Frame, page_id: usize) -> KResult<()>;
-    fn write_page(&self, frame: &Frame, page_id: usize) -> KResult<()>;
+    fn read_page(&self, frame: &mut Frame, page_id: u64) -> KResult<()>;
+    fn write_page(&self, frame: &Frame, page_id: u64) -> KResult<()>;
 }
 
 impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
-    pub fn read_at(
-        &self,
-        meta: &InodeMeta,
-        mut buf: Out<'_, [u8]>,
-        offset: usize,
-    ) -> KResult<usize> {
+    pub fn read_at(&self, meta: &InodeMeta, mut buf: Out<'_, [u8]>, offset: u64) -> KResult<usize> {
         let data_len = meta.lock_inner_with(|inner| inner.data_len);
 
         if offset >= data_len {
             return Ok(0);
         }
 
-        let read_end = usize::min(buf.len(), data_len - offset);
+        let read_end = usize::min(buf.len(), (data_len - offset) as usize);
         let mut nread = 0;
 
         while nread < read_end {
-            let page_id = (offset + nread) >> PAGE_SIZE_BITS;
-            let page_offset = (offset + nread) & PAGE_OFFSET_MASK;
+            let page_id = (offset + nread as u64) >> PAGE_SIZE_BITS;
+            let page_offset = ((offset + nread as u64) & PAGE_OFFSET_MASK as u64) as usize;
             let page = self.get_or_init_page(page_id);
 
             // 检查页状态，如有必要则读后备文件
@@ -238,20 +233,20 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
         Ok(nread)
     }
 
-    pub fn write_at(&self, meta: &InodeMeta, buf: &[u8], offset: usize) -> KResult<usize> {
+    pub fn write_at(&self, meta: &InodeMeta, buf: &[u8], offset: u64) -> KResult<usize> {
         let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
         let curr_last_page_id = curr_data_len >> PAGE_SIZE_BITS;
 
         // 写范围是 offset..offset + buf.len()。
         // 中间可能有一些页被完全覆盖，因此可以直接设为 Dirty 而不需要读
-        let full_page_range =
-            (offset & !PAGE_OFFSET_MASK)..(offset + buf.len()).next_multiple_of(PAGE_SIZE);
+        let full_page_range = (offset & (!PAGE_OFFSET_MASK) as u64)
+            ..(offset + buf.len() as u64).next_multiple_of(PAGE_SIZE as u64);
 
         let mut nwrite = 0;
 
         while nwrite < buf.len() {
-            let page_id = (offset + nwrite) >> PAGE_SIZE_BITS;
-            let page_offset = (offset + nwrite) & PAGE_OFFSET_MASK;
+            let page_id = (offset + nwrite as u64) >> PAGE_SIZE_BITS as u64;
+            let page_offset = ((offset + nwrite as u64) & PAGE_OFFSET_MASK as u64) as usize;
             let page = self.get_or_init_page(page_id);
 
             let mut frame;
@@ -275,7 +270,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             nwrite += copy_len;
         }
         meta.lock_inner_with(|inner| {
-            inner.data_len = usize::max(inner.data_len, offset + buf.len());
+            inner.data_len = u64::max(inner.data_len, offset + buf.len() as u64);
             inner.access_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
             inner.modify_time = inner.change_time;
@@ -284,7 +279,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
         Ok(nwrite)
     }
 
-    fn get_or_init_page(&self, page_id: usize) -> Arc<BackedPage> {
+    fn get_or_init_page(&self, page_id: u64) -> Arc<BackedPage> {
         let page = self.page_cache.read().get(page_id);
         page.unwrap_or_else(|| self.page_cache.write().create(page_id))
     }

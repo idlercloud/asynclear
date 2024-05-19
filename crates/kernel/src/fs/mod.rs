@@ -27,7 +27,7 @@ use uninit::extension_traits::{AsOut, VecCapacity};
 use self::inode::InodeMeta;
 pub use self::{
     dentry::{DEntry, DEntryDir, DEntryPaged},
-    file::{DirFile, FdTable, File, FileDescriptor, OpenFlags, PagedFile},
+    file::{DirFile, FdTable, File, FileDescriptor, PagedFile, SeekFrom},
     inode::{DynPagedInode, InodeMode},
     pipe::make_pipe,
 };
@@ -264,7 +264,7 @@ pub fn read_file(file: &Arc<DynPagedInode>) -> KResult<Vec<u8>> {
     let meta = file.meta();
     let mut ret = Vec::new();
     let out = ret
-        .reserve_uninit(meta.lock_inner_with(|inner| inner.data_len))
+        .reserve_uninit(meta.lock_inner_with(|inner| inner.data_len as usize))
         .as_out();
     let len = inner.read_at(meta, out, 0)?;
     // SAFETY: `0..len` 在 read_at 中已被初始化

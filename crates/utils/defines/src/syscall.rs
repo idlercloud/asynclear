@@ -27,6 +27,7 @@ declare_syscall_id!(
     CLOSE,              57,
     PIPE2,              59,
     GETDENTS64,         61,
+    LSEEK,              62,
     READ,               63,
     WRITE,              64,
     READV,              65,

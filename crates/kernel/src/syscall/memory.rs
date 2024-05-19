@@ -3,12 +3,13 @@ use core::num::NonZeroUsize;
 use common::config::{LOW_ADDRESS_END, PAGE_OFFSET_MASK, PAGE_SIZE_BITS};
 use defines::{
     error::{errno, KResult},
+    fs::OpenFlags,
     misc::{MmapFlags, MmapProt},
 };
 use triomphe::Arc;
 
 use crate::{
-    fs::{File, InodeMode, OpenFlags},
+    fs::{File, InodeMode},
     hart::local_hart,
     memory::{MapPermission, VirtAddr, VirtPageNum},
 };
@@ -54,7 +55,7 @@ pub fn sys_mmap(
         warn!("offset is not page aligned");
         return Err(errno::EINVAL);
     }
-    let file_page_id = offset >> PAGE_SIZE_BITS;
+    let file_page_id = (offset >> PAGE_SIZE_BITS) as u64;
     debug!("prot: {prot:?}, flags: {flags:?}");
     let vpn = if flags.contains(MmapFlags::MAP_SHARED) {
         if flags.contains(MmapFlags::MAP_ANONYMOUS) {
@@ -109,7 +110,7 @@ fn shared_file_map(
     prot: MmapProt,
     flags: MmapFlags,
     fd: usize,
-    file_page_id: usize,
+    file_page_id: u64,
 ) -> KResult<VirtPageNum> {
     let process = local_hart().curr_process();
     let mut inner = process.lock_inner();

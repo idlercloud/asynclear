@@ -262,7 +262,7 @@ impl MemorySpace {
         perm: MapPermission,
         flags: MmapFlags,
         file: Arc<DynPagedInode>,
-        file_page_id: usize,
+        file_page_id: u64,
     ) -> KResult<VirtPageNum> {
         let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
         // SAFETY: 上面寻找映射区域的函数保证不会返回重叠的区域
@@ -370,7 +370,7 @@ impl MemorySpace {
         vpn_range: Range<VirtPageNum>,
         perm: MapPermission,
         file: Arc<DynPagedInode>,
-        file_page_id: usize,
+        file_page_id: u64,
     ) {
         let mut map_area = FramedVmArea::new(vpn_range.clone(), perm, AreaType::Mmap);
         map_area.init_backed_file(file, file_page_id, &mut self.page_table);

@@ -4,14 +4,17 @@ use core::{ops::Deref, str::FromStr};
 use cervine::Cow;
 use defines::{
     error::{errno, KResult},
-    fs::{FstatFlags, IoVec, MountFlags, Stat, UnmountFlags, AT_FDCWD},
+    fs::{
+        FstatFlags, IoVec, MountFlags, OpenFlags, Stat, UnmountFlags, AT_FDCWD, SEEK_CUR, SEEK_END,
+        SEEK_SET,
+    },
 };
 use triomphe::Arc;
 
 use crate::{
     fs::{
         self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType,
-        InodeMode, OpenFlags, PagedFile, VFS,
+        InodeMode, PagedFile, SeekFrom, VFS,
     },
     hart::local_hart,
     memory::UserCheck,
@@ -45,6 +48,22 @@ pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult 
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
     p2i.dir.mkdir(p2i.last_component)?;
     Ok(0)
+}
+
+/// 根据 `whence` 和 `offset` 重新设置 `fd` 指向的文件的偏移量
+///
+/// 成功后返回最终的偏移位置（从文件头开始算）
+pub fn sys_lseek(fd: usize, offset: i64, whence: usize) -> KResult {
+    let process = local_hart().curr_process();
+    let inner = process.lock_inner();
+    let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
+    let pos = match whence {
+        SEEK_SET => SeekFrom::Start(offset as u64),
+        SEEK_END => SeekFrom::End(offset),
+        SEEK_CUR => SeekFrom::Current(offset),
+        _ => return Err(errno::EINVAL),
+    };
+    Ok(file.seek(pos)? as isize)
 }
 
 fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
