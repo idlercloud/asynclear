@@ -87,7 +87,9 @@ impl FatProbeArgs {
                 for entry in dir.iter() {
                     let entry = entry.unwrap();
                     let name = entry.file_name();
-                    println!("{name}");
+                    if name != "." && name != ".." {
+                        println!("{name}");
+                    }
                 }
             } else if let Ok(mut file) = dir.open_file(&last_component) {
                 let mut target = File::create(format!("res/{last_component}")).unwrap();
@@ -98,10 +100,12 @@ impl FatProbeArgs {
                 for entry in curr.iter() {
                     let entry = entry.unwrap();
                     for _ in 0..depth {
-                        print!(" ");
+                        print!("  ");
                     }
                     let name = entry.file_name();
-                    println!("{name}");
+                    if name != "." && name != ".." {
+                        println!("{name}");
+                    }
                     if entry.is_dir() && name != "." && name != ".." {
                         let child = entry.to_dir();
                         walk_dir(child, depth + 1);
