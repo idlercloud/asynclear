@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::Parser;
-use fatfs::{Dir, FileSystem, FormatVolumeOptions, FsOptions};
+use fatfs::{Dir, FileSystem, FsOptions};
 use tap::Tap;
 
 use crate::{
@@ -66,48 +66,10 @@ pub struct FatProbeArgs {
     img_path: String,
     #[clap(long)]
     file_path: Option<String>,
-    #[clap(long)]
-    mkfs: bool,
 }
 
 impl FatProbeArgs {
     pub fn probe(&self) {
-        if self.mkfs {
-            {
-                let mut fs = File::create(&self.img_path).unwrap();
-                fs.set_len(40 * 1024 * 1024).unwrap();
-                fatfs::format_volume(&mut fs, FormatVolumeOptions::new()).unwrap();
-            }
-            let fs = File::options()
-                .read(true)
-                .write(true)
-                .open(&self.img_path)
-                .unwrap();
-            let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
-            let root_dir = fs.root_dir();
-            let pack_into = |place_in_host: &str, path: &str| {
-                let elf = fs::read(place_in_host).expect(place_in_host);
-                let mut dir = root_dir.clone();
-                let components = path.split('/').collect::<Vec<_>>();
-                for &component in &components[0..components.len() - 1] {
-                    dir = dir.create_dir(component).unwrap();
-                }
-                let mut file = dir.create_file(components[components.len() - 1]).unwrap();
-                file.truncate().unwrap();
-                file.write_all(&elf).unwrap();
-            };
-            for ptest_name in PTEST_BINS.iter() {
-                pack_into(
-                    &format!("res/preliminary/{ptest_name}"),
-                    &format!("{ptest_name}"),
-                );
-            }
-            if USER_BINS.len() > 0 {
-                pack_into("res/preliminary/text.txt", "text.txt");
-                pack_into("res/preliminary/mnt/test_mount", "mnt/test_mount");
-            }
-            return;
-        }
         let fs = File::options()
             .read(true)
             .write(true)
