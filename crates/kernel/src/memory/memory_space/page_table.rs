@@ -32,7 +32,7 @@ impl From<MapPermission> for PTEFlags {
 
 /// page table entry structure
 #[derive(Copy, Clone, Debug)]
-#[repr(C)]
+#[repr(transparent)]
 pub struct PageTableEntry {
     bits: usize,
 }

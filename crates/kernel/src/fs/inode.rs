@@ -65,6 +65,7 @@ pub struct InodeMeta {
     /// inode number，在一个文件系统中唯一标识一个 Inode
     ino: usize,
     mode: InodeMode,
+    // FIXME: name 应该是属于 DEntry 的属性，不应该放在这里
     name: CompactString,
     inner: SpinMutex<InodeMetaInner>,
 }
@@ -270,10 +271,12 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             nwrite += copy_len;
         }
         meta.lock_inner_with(|inner| {
-            inner.data_len = u64::max(inner.data_len, offset + buf.len() as u64);
             inner.access_time = TimeSpec::from(time::curr_time());
-            inner.change_time = inner.access_time;
-            inner.modify_time = inner.change_time;
+            inner.modify_time = inner.access_time;
+            if inner.data_len < offset + buf.len() as u64 {
+                inner.data_len = offset + buf.len() as u64;
+                inner.change_time = inner.access_time;
+            }
         });
 
         Ok(nwrite)

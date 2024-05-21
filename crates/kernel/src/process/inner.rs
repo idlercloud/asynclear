@@ -20,9 +20,10 @@ use crate::{
 pub struct ProcessInner {
     // 这里添加的资源都需要考虑在 `exit_thread` 和 `sys_wait4` 时候释放 */
     // 以及在 `Process:from_path()`、`Process::clone()`、`Process::exec()` 时初始化
+    /// 进程名
     pub name: CompactString,
 
-    // 地址空间
+    /// 地址空间
     pub memory_space: MemorySpace,
     /// 用户堆的范围。
     ///
@@ -32,19 +33,25 @@ pub struct ProcessInner {
     pub heap_range: Range<VirtAddr>,
 
     // 进程
+    /// 父进程引用
     pub parent: Option<Arc<Process>>,
+    /// 子进程引用列表
     pub children: Vec<Arc<Process>>,
-    /// cwd 应当永远有着 `/xxx/yyy/` 的形式（包括 `/`）
+    /// 当前工作目录
     pub cwd: Arc<DEntryDir>,
 
     // 文件
+    /// 文件描述符表
     pub fd_table: FdTable,
 
     // 信号
+    /// 信号处理函数
     pub signal_handlers: SignalHandlers,
 
     // 线程
+    /// 线程 tid 分配器
     pub tid_allocator: RecycleAllocator,
+    /// 线程引用列表
     pub threads: HashMap<usize, Arc<Thread>>,
 }
 

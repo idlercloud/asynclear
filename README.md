@@ -227,7 +227,8 @@ sudo make install
     - lseek 超出文件末尾后再写
     - mmap 后读写与 read、write
     - munmap 后测试是否已经无效
-- [ ] CoW、Lazy Page
+- [ ] CoW、零页映射、mmap 私有映射
+- [ ] mmap 和用户栈以及共享映射的区域划分要重新考虑
 - [ ] 内核线程
 - [ ] kernel 内容能否放入 huge page？
 

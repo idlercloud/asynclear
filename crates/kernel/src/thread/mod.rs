@@ -20,6 +20,7 @@ use crate::{
 /// 进程控制块
 pub struct Thread {
     tid: usize,
+    /// 线程状态
     pub status: Atomic<ThreadStatus>,
     /// 线程的退出码，在 `sys_exit` 时被设置。
     ///

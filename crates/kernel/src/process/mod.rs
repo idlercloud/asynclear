@@ -36,8 +36,11 @@ pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
 
 pub struct Process {
     pid: usize,
+    /// 用于 `sys_wait4` 唤醒
     pub wait4_event: Event,
+    /// 进程状态，指示是否成为僵尸或已退出。如已退出，则其中还包含了退出码
     pub status: Atomic<ProcessStatus>,
+    /// 退出时向父进程发送的信号
     pub exit_signal: Option<Signal>,
     inner: SpinMutex<ProcessInner>,
 }
@@ -58,7 +61,7 @@ impl Process {
             let DEntry::Paged(paged) = fs::find_file(Arc::clone(VFS.root_dir()), &path)? else {
                 return Err(errno::EISDIR);
             };
-            let elf_data = fs::read_file(&paged.inode())?;
+            let elf_data = fs::read_file(paged.inode())?;
             let elf = Elf::parse(&elf_data).map_err(|e| {
                 warn!("parse elf error {e}");
                 errno::ENOEXEC

@@ -286,7 +286,7 @@ pub fn stat_from_meta(meta: &InodeMeta) -> Stat {
     stat.st_blksize = BLOCK_SIZE as u32;
     // TODO: 文件有空洞时，可能小于 st_size/512。而且可能实际占用的块数量会更多
     meta.lock_inner_with(|meta_inner| {
-        stat.st_size = meta_inner.data_len as u64;
+        stat.st_size = meta_inner.data_len;
         stat.st_atime = meta_inner.access_time;
         stat.st_mtime = meta_inner.modify_time;
         stat.st_ctime = meta_inner.change_time;

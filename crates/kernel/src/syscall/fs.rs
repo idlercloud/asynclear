@@ -375,25 +375,6 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
     }
 }
 
-// /// 复制文件描述符，复制到
-// ///
-// /// 参数：
-// /// - `fd` 是被复制的文件描述符
-// pub fn sys_dup(fd: usize) -> Result {
-//     // let process = curr_process();
-//     // let mut inner = process.inner();
-//     // if fd >= inner.fd_table.len() {
-//     //     return Err(errno::UNSUPPORTED);
-//     // }
-//     // if inner.fd_table[fd].is_none() {
-//     //     return Err(errno::UNSUPPORTED);
-//     // }
-//     // let new_fd = inner.alloc_fd();
-//     // inner.fd_table[new_fd] =
-// Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));     // Ok(new_fd as
-// isize)     todo!("[blocked] sys_dup")
-// }
-
 /// 复制文件描述符 `old_fd` 到当前进程最小可用 fd
 pub fn sys_dup(old_fd: usize) -> KResult {
     let process = local_hart().curr_process();
@@ -490,8 +471,7 @@ pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
 /// 参数：
 /// - `dir_fd` 要删除的链接所在的目录
 /// - `path` 要删除的链接的名字
-/// - `flags` 可设置为 0 或 AT_REMOVEDIR
-/// TODO: 完善 sys_unlinkat，写文档
+/// - `flags` 可设置为 0 或 `AT_REMOVEDIR`
 pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
     let path = path.check_cstr()?;
     let Some(flags) = FstatFlags::from_bits(flags) else {
