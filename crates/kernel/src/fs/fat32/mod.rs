@@ -39,7 +39,7 @@ pub fn new_fat32_fs(
 ) -> KResult<FileSystem> {
     let _enter = debug_span!("fat32_fs_init").entered();
     let bpb = {
-        let _enter = debug_span!("fat_bpb").entered();
+        let _enter = trace_span!("fat_bpb").entered();
         let mut buf = local_hart().block_buffer.borrow_mut();
         block_device.read_blocks(BOOT_SECTOR_ID, &mut buf);
         BiosParameterBlock::new(&buf)

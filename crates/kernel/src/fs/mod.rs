@@ -10,7 +10,7 @@ mod pipe;
 mod stdio;
 mod tmpfs;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::str::FromStr;
 
 use cervine::Cow;
@@ -34,7 +34,7 @@ pub use self::{
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
     hart::local_hart,
-    uart_console::println,
+    uart_console::{print, println},
 };
 
 pub fn init() {
@@ -150,9 +150,30 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
         .expect("read root dir failed");
     {
         let children = root_fs.root_dentry.lock_children();
+        let mut curr_col = 0;
+        let mut output = String::with_capacity(128);
         for name in children.keys() {
-            println!("{name}");
+            let mut this_end = curr_col + name.len();
+            // 当前行超过硬上限了，且至少输出了一个名字，因此换行
+            if this_end > 120 && curr_col != 0 {
+                curr_col = 0;
+                this_end = name.len();
+                output.push('\n');
+            }
+
+            output.push_str(name);
+            // 当前行达到硬上限，但一个名字都没输出；或者达到了软上限。输出后立刻换行
+            if this_end >= 120 && curr_col == 0 || this_end >= 80 {
+                output.push('\n');
+                curr_col = 0;
+            }
+            // 当前行未达到上限，继续尝试在当前行输出
+            else {
+                output.push_str("  ");
+                curr_col = this_end + 2;
+            }
         }
+        println!("{output}");
     }
 
     let root_dir = Arc::clone(&root_fs.root_dentry);
