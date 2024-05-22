@@ -249,9 +249,9 @@ impl MemorySpace {
         let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
         // SAFETY: 上面寻找映射区域的函数保证不会返回重叠的区域
         unsafe {
-            self.user_map(vpn_range, perm);
+            self.user_map(vpn_range.clone(), perm);
         }
-        Err(errno::ENOMEM)
+        Ok(vpn_range.start)
     }
 
     /// 尝试根据 `va_range` 进行映射
