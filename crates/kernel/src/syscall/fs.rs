@@ -212,7 +212,6 @@ pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mod
     }
 
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
-    // TODO: [low] 其实可以做一个 `CompactCowString` 避免不必要的拷贝
     let new_file = if let Some(final_dentry) = p2i.dir.lookup(Cow::Borrowed(&p2i.last_component)) {
         // 指定了必须要创建文件，但该文件已存在
         if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
