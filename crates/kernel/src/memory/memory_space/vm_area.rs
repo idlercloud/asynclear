@@ -85,7 +85,7 @@ impl FramedVmArea {
         let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
         // 先把已经在页缓存中的映射好
         {
-            let page_cache = file.inner.lock_page_cache();
+            let page_cache = file.lock_page_cache();
             for (&page_id, page) in page_cache
                 .pages()
                 .range(file_page_id..file_page_id + n_pages as u64)

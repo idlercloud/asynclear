@@ -192,9 +192,7 @@ impl FileDescriptor {
                 let meta = inode.meta();
                 let mut offset = paged.offset.lock();
                 let nread =
-                    inode
-                        .inner
-                        .read_at(meta, unsafe { buf.check_slice_mut()?.out() }, *offset)?;
+                    inode.read_at(meta, unsafe { buf.check_slice_mut()?.out() }, *offset)?;
                 *offset += nread as u64;
                 Ok(nread)
             }
@@ -213,7 +211,7 @@ impl FileDescriptor {
                 if self.flags.contains(OpenFlags::APPEND) {
                     *offset = meta.lock_inner_with(|inner| inner.data_len);
                 }
-                let nwrite = inode.inner.write_at(meta, &buf.check_slice()?, *offset)?;
+                let nwrite = inode.write_at(meta, &buf.check_slice()?, *offset)?;
                 *offset += nwrite as u64;
                 Ok(nwrite)
             }

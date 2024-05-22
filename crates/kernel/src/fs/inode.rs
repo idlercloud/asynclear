@@ -1,4 +1,7 @@
-use core::sync::atomic::AtomicUsize;
+use core::{
+    ops::{Deref, DerefMut},
+    sync::atomic::AtomicUsize,
+};
 
 use atomic::Ordering;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
@@ -46,7 +49,7 @@ impl From<InodeMode> for StatMode {
 
 pub struct Inode<T: ?Sized> {
     meta: InodeMeta,
-    pub inner: T,
+    inner: T,
 }
 
 impl<T> Inode<T> {
@@ -58,6 +61,20 @@ impl<T> Inode<T> {
 impl<T: ?Sized> Inode<T> {
     pub fn meta(&self) -> &InodeMeta {
         &self.meta
+    }
+}
+
+impl<T: ?Sized> Deref for Inode<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T: ?Sized> DerefMut for Inode<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 

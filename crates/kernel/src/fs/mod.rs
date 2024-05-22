@@ -261,13 +261,12 @@ pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
 
 pub fn read_file(file: &Arc<DynPagedInode>) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
-    let inner = &file.inner;
     let meta = file.meta();
     let mut ret = Vec::new();
     let out = ret
         .reserve_uninit(meta.lock_inner_with(|inner| inner.data_len as usize))
         .as_out();
-    let len = inner.read_at(meta, out, 0)?;
+    let len = file.read_at(meta, out, 0)?;
     // SAFETY: `0..len` 在 read_at 中已被初始化
     unsafe { ret.set_len(len) }
     Ok(ret)
