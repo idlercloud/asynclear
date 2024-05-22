@@ -1,4 +1,30 @@
-//! 参考 <https://man7.org/linux/man-pages/man2/ioctl_tty.2.html/>
+//! 参考
+//! - <https://man7.org/linux/man-pages/man2/ioctl_tty.2.html/>
+//! - musl arch/generic/bits/termios.h
+
+// NOTE: 关于 termios 的定义，musl 和 linux 似乎略有不同
+// musl 中 NCCS 为 32，且 termios 结构体含有 __c_ispeed 和 __c_ospeed 两个字段
+// linux 中 NCCS 为 19 且不含这两个字段
+
+pub const NCCS: usize = 19;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Termios {
+    /// 输入模式
+    pub iflag: u32,
+    /// 输出模式
+    pub oflag: u32,
+    /// 控制模式
+    pub cflag: u32,
+    /// 本地模式？
+    pub lflag: u32,
+    pub line: u8,
+    /// 终端的特殊字符
+    pub cc: [u8; NCCS],
+    // pub _ispeed: u32,
+    // pub _ospeed: u32,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -126,3 +152,155 @@ pub const SIOCGPGRP: usize = 0x8904;
 pub const SIOCATMARK: usize = 0x8905;
 pub const SIOCGSTAMP: usize = 0x8906;
 pub const SIOCGSTAMPNS: usize = 0x8907;
+
+pub const VINTR: u32 = 0;
+pub const VQUIT: u32 = 1;
+pub const VERASE: u32 = 2;
+pub const VKILL: u32 = 3;
+pub const VEOF: u32 = 4;
+pub const VTIME: u32 = 5;
+pub const VMIN: u32 = 6;
+pub const VSWTC: u32 = 7;
+pub const VSTART: u32 = 8;
+pub const VSTOP: u32 = 9;
+pub const VSUSP: u32 = 10;
+pub const VEOL: u32 = 11;
+pub const VREPRINT: u32 = 12;
+pub const VDISCARD: u32 = 13;
+pub const VWERASE: u32 = 14;
+pub const VLNEXT: u32 = 15;
+pub const VEOL2: u32 = 16;
+
+pub const IGNBRK: u32 = 0o000001;
+pub const BRKINT: u32 = 0o000002;
+pub const IGNPAR: u32 = 0o000004;
+pub const PARMRK: u32 = 0o000010;
+pub const INPCK: u32 = 0o000020;
+pub const ISTRIP: u32 = 0o000040;
+pub const INLCR: u32 = 0o000100;
+pub const IGNCR: u32 = 0o000200;
+pub const ICRNL: u32 = 0o000400;
+pub const IUCLC: u32 = 0o001000;
+pub const IXON: u32 = 0o002000;
+pub const IXANY: u32 = 0o004000;
+pub const IXOFF: u32 = 0o010000;
+pub const IMAXBEL: u32 = 0o020000;
+pub const IUTF8: u32 = 0o040000;
+
+pub const OPOST: u32 = 0o000001;
+pub const OLCUC: u32 = 0o000002;
+pub const ONLCR: u32 = 0o000004;
+pub const OCRNL: u32 = 0o000010;
+pub const ONOCR: u32 = 0o000020;
+pub const ONLRET: u32 = 0o000040;
+pub const OFILL: u32 = 0o000100;
+pub const OFDEL: u32 = 0o000200;
+pub const NLDLY: u32 = 0o000400;
+pub const NL0: u32 = 0o000000;
+pub const NL1: u32 = 0o000400;
+pub const CRDLY: u32 = 0o003000;
+pub const CR0: u32 = 0o000000;
+pub const CR1: u32 = 0o001000;
+pub const CR2: u32 = 0o002000;
+pub const CR3: u32 = 0o003000;
+pub const TABDLY: u32 = 0o014000;
+pub const TAB0: u32 = 0o000000;
+pub const TAB1: u32 = 0o004000;
+pub const TAB2: u32 = 0o010000;
+pub const TAB3: u32 = 0o014000;
+pub const BSDLY: u32 = 0o020000;
+pub const BS0: u32 = 0o000000;
+pub const BS1: u32 = 0o020000;
+pub const FFDLY: u32 = 0o100000;
+pub const FF0: u32 = 0o000000;
+pub const FF1: u32 = 0o100000;
+
+pub const VTDLY: u32 = 0o040000;
+pub const VT0: u32 = 0o000000;
+pub const VT1: u32 = 0o040000;
+
+pub const B0: u32 = 0o000000;
+pub const B50: u32 = 0o000001;
+pub const B75: u32 = 0o000002;
+pub const B110: u32 = 0o000003;
+pub const B134: u32 = 0o000004;
+pub const B150: u32 = 0o000005;
+pub const B200: u32 = 0o000006;
+pub const B300: u32 = 0o000007;
+pub const B600: u32 = 0o000010;
+pub const B1200: u32 = 0o000011;
+pub const B1800: u32 = 0o000012;
+pub const B2400: u32 = 0o000013;
+pub const B4800: u32 = 0o000014;
+pub const B9600: u32 = 0o000015;
+pub const B19200: u32 = 0o000016;
+pub const B38400: u32 = 0o000017;
+
+pub const B57600: u32 = 0o010001;
+pub const B115200: u32 = 0o010002;
+pub const B230400: u32 = 0o010003;
+pub const B460800: u32 = 0o010004;
+pub const B500000: u32 = 0o010005;
+pub const B576000: u32 = 0o010006;
+pub const B921600: u32 = 0o010007;
+pub const B1000000: u32 = 0o010010;
+pub const B1152000: u32 = 0o010011;
+pub const B1500000: u32 = 0o010012;
+pub const B2000000: u32 = 0o010013;
+pub const B2500000: u32 = 0o010014;
+pub const B3000000: u32 = 0o010015;
+pub const B3500000: u32 = 0o010016;
+pub const B4000000: u32 = 0o010017;
+
+pub const CSIZE: u32 = 0o000060;
+pub const CS5: u32 = 0o000000;
+pub const CS6: u32 = 0o000020;
+pub const CS7: u32 = 0o000040;
+pub const CS8: u32 = 0o000060;
+pub const CSTOPB: u32 = 0o000100;
+pub const CREAD: u32 = 0o000200;
+pub const PARENB: u32 = 0o000400;
+pub const PARODD: u32 = 0o001000;
+pub const HUPCL: u32 = 0o002000;
+pub const CLOCAL: u32 = 0o004000;
+
+pub const ISIG: u32 = 0o000001;
+pub const ICANON: u32 = 0o000002;
+pub const ECHO: u32 = 0o000010;
+pub const ECHOE: u32 = 0o000020;
+pub const ECHOK: u32 = 0o000040;
+pub const ECHONL: u32 = 0o000100;
+pub const NOFLSH: u32 = 0o000200;
+pub const TOSTOP: u32 = 0o000400;
+pub const IEXTEN: u32 = 0o100000;
+
+pub const TCOOFF: u32 = 0;
+pub const TCOON: u32 = 1;
+pub const TCIOFF: u32 = 2;
+pub const TCION: u32 = 3;
+
+pub const TCIFLUSH: u32 = 0;
+pub const TCOFLUSH: u32 = 1;
+pub const TCIOFLUSH: u32 = 2;
+
+pub const TCSANOW: u32 = 0;
+pub const TCSADRAIN: u32 = 1;
+pub const TCSAFLUSH: u32 = 2;
+
+pub const EXTA: u32 = 0o000016;
+pub const EXTB: u32 = 0o000017;
+pub const CBAUD: u32 = 0o010017;
+pub const CBAUDEX: u32 = 0o010000;
+pub const CIBAUD: u32 = 0o02003600000;
+pub const CMSPAR: u32 = 0o10000000000;
+pub const CRTSCTS: u32 = 0o20000000000;
+
+pub const XCASE: u32 = 0o000004;
+pub const ECHOCTL: u32 = 0o001000;
+pub const ECHOPRT: u32 = 0o002000;
+pub const ECHOKE: u32 = 0o004000;
+pub const FLUSHO: u32 = 0o010000;
+pub const PENDIN: u32 = 0o040000;
+pub const EXTPROC: u32 = 0o200000;
+
+pub const XTABS: u32 = 0o014000;

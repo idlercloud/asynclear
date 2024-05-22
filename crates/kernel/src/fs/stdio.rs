@@ -8,7 +8,7 @@ use compact_str::CompactString;
 use defines::{
     error::KResult,
     ioctl::{
-        WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
+        Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
     },
 };
@@ -35,41 +35,47 @@ pub fn get_tty_inode() -> &'static Inode<TtyInode> {
     &TTY_INODE
 }
 
-pub fn tty_ioctl(command: usize, value: usize) -> KResult {
-    debug!("tty ioctl. command {command:#x}, value {value:#x}");
-    match command {
+pub fn tty_ioctl(cmd: usize, value: usize) -> KResult {
+    let _enter = debug_span!("tty_ioctl", cmd = cmd, value = value).entered();
+    match cmd {
         TCGETS | TCGETA => {
-            todo!("TCGETS | TCGETA")
+            debug!("Get termios");
+            let termios_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
+            termios_ptr.write(TTY_INODE.inner.lock().termios);
+            Ok(0)
         }
         TCSETS | TCSETSW | TCSETSF => {
-            todo!("TCSETS | TCSETSW | TCSETSF")
+            debug!("Set termios");
+            let termios = UserCheck::<Termios>::new(value as _).check_ptr()?.read();
+            TTY_INODE.inner.lock().termios = termios;
+            Ok(0)
         }
         TIOCGPGRP => {
             debug!("Get foreground pgid");
             let fg_pgid_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
-            fg_pgid_ptr.write(TTY_INODE.inner.inner.lock().fg_pgid);
+            fg_pgid_ptr.write(TTY_INODE.inner.lock().fg_pgid);
             Ok(0)
         }
         TIOCSPGRP => {
             debug!("Set foreground pgid");
             let fg_pgid = UserCheck::<usize>::new(value as _).check_ptr()?.read();
-            TTY_INODE.inner.inner.lock().fg_pgid = fg_pgid;
+            TTY_INODE.inner.lock().fg_pgid = fg_pgid;
             Ok(0)
         }
         TIOCGWINSZ => {
             debug!("Get window size");
             let win_size_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
-            win_size_ptr.write(TTY_INODE.inner.inner.lock().win_size);
+            win_size_ptr.write(TTY_INODE.inner.lock().win_size);
             Ok(0)
         }
         TIOCSWINSZ => {
             debug!("Set window size");
             let win_size = UserCheck::<WinSize>::new(value as _).check_ptr()?.read();
-            TTY_INODE.inner.inner.lock().win_size = win_size;
+            TTY_INODE.inner.lock().win_size = win_size;
             Ok(0)
         }
         TCSBRK => Ok(0),
-        _ => todo!("others"),
+        _ => todo!("[low] other tty ioctl command"),
     }
 }
 
@@ -80,6 +86,7 @@ pub struct TtyInode {
 struct TtyInodeInner {
     fg_pgid: usize,
     win_size: WinSize,
+    termios: Termios,
 }
 
 static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
@@ -93,6 +100,37 @@ static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
                     ws_col: 120,
                     xpixel: 0,
                     ypixel: 0,
+                },
+                termios: Termios {
+                    // IMAXBEL | IUTF8 | IXON | IXANY | ICRNL | BRKINT
+                    iflag: 0o66402,
+                    // OPOST | ONLCR
+                    oflag: 0o5,
+                    // HUPCL | CREAD | CSIZE | EXTB
+                    cflag: 0o2277,
+                    // IEXTEN | ECHOTCL | ECHOKE ECHO | ECHOE | ECHOK | ISIG | ICANON
+                    lflag: 0o105073,
+                    line: 0,
+                    cc: [
+                        3,   // VINTR Ctrl-C
+                        28,  // VQUIT
+                        127, // VERASE
+                        21,  // VKILL
+                        4,   // VEOF Ctrl-D
+                        0,   // VTIME
+                        1,   // VMIN
+                        0,   // VSWTC
+                        17,  // VSTART
+                        19,  // VSTOP
+                        26,  // VSUSP Ctrl-Z
+                        255, // VEOL
+                        18,  // VREPAINT
+                        15,  // VDISCARD
+                        23,  // VWERASE
+                        22,  // VLNEXT
+                        255, // VEOL2
+                        0, 0,
+                    ],
                 },
             }),
         },

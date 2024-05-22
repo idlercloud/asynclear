@@ -148,6 +148,8 @@ impl MemorySpace {
     /// 加载所有段，返回 ELF 数据的结束地址、辅助数组、程序入口
     ///
     /// 记得调用前清理地址空间，否则可能 panic
+    // TODO: [mid] 尝试更好的封装
+    #[allow(clippy::type_complexity)]
     pub fn load_elf_sections(
         &mut self,
         elf: &Elf<'_>,
