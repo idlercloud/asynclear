@@ -228,7 +228,8 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     let mut split = path
         .trim_start_matches('/')
         .trim_end_matches('/')
-        .split('/');
+        .split('/')
+        .skip_while(|c| c.is_empty());
 
     let mut ret = PathToInode {
         dir: start_dir,
