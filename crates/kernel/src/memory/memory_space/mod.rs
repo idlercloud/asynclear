@@ -172,7 +172,7 @@ impl MemorySpace {
             return Err(errno::UNSUPPORTED);
         }
 
-        let mut ph_va = None;
+        let mut ph_start_va = None;
 
         for ph in &elf.program_headers {
             if ph.p_type == PT_INTERP {
@@ -182,8 +182,8 @@ impl MemorySpace {
             if ph.p_type == PT_LOAD {
                 // Program header 在 ELF 中的偏移为 0，所以其地址就是 ELF 段的起始地址
                 let start_va = VirtAddr(ph.p_vaddr as usize);
-                if ph_va.is_none() {
-                    ph_va = Some(start_va.0);
+                if ph_start_va.is_none() {
+                    ph_start_va = Some(start_va.0);
                 }
                 let start_offset = start_va.page_offset();
                 let end_va = VirtAddr((ph.p_vaddr + ph.p_memsz) as usize);
@@ -198,7 +198,10 @@ impl MemorySpace {
                 if ph.p_flags & PF_X != 0 {
                     map_perm |= MapPermission::X;
                 }
-                debug!("load vm area {:#x}..{:#x}", start_va.0, end_va.0);
+                debug!(
+                    "load vm area {:#x}..{:#x}, {map_perm:?}",
+                    start_va.0, end_va.0
+                );
                 unsafe {
                     self.user_map_with_data(
                         start_va.vpn_floor()..end_va.vpn_ceil(),
@@ -209,7 +212,7 @@ impl MemorySpace {
                 }
             }
         }
-        let ph_addr = ph_va.ok_or(errno::ENOEXEC)? + elf.header.e_phoff as usize;
+        let ph_addr = ph_start_va.ok_or(errno::ENOEXEC)? + elf.header.e_phoff as usize;
         auxv.push((AT_PHDR, ph_addr));
 
         Ok((elf_end, auxv, elf_entry))
