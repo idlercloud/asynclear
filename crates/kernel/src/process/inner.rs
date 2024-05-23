@@ -3,7 +3,6 @@ use core::ops::Range;
 
 use common::config::LOW_ADDRESS_END;
 use compact_str::CompactString;
-use defines::signal::{KSignalSet, Signal};
 use hashbrown::HashMap;
 use idallocator::RecycleAllocator;
 use memory::{MemorySpace, VirtAddr};
@@ -13,7 +12,7 @@ use super::Process;
 use crate::{
     fs::{DEntryDir, FdTable},
     memory,
-    signal::SignalHandlers,
+    signal::{KSignalSet, Signal, SignalHandlers},
     thread::Thread,
 };
 

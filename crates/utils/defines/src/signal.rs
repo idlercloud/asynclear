@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use num_enum::TryFromPrimitive;
 
 /// 信号机制所需的 bitset 大小
 pub const SIGSET_SIZE: usize = 64;
@@ -13,33 +12,17 @@ pub struct KSignalAction {
     pub handler: usize,
     pub flags: SignalActionFlags,
     pub restorer: usize,
-    pub mask: KSignalSet,
+    pub mask: u64,
 }
 
 impl KSignalAction {
     pub const fn new() -> Self {
         Self {
             handler: 0,
-            mask: KSignalSet::empty(),
+            mask: 0,
             flags: SignalActionFlags::empty(),
             restorer: 0,
         }
-    }
-
-    pub fn handler(&self) -> usize {
-        self.handler
-    }
-
-    pub fn mask(&self) -> KSignalSet {
-        self.mask
-    }
-
-    pub fn flags(&self) -> SignalActionFlags {
-        self.flags
-    }
-
-    pub fn restorer(&self) -> usize {
-        self.restorer
     }
 }
 
@@ -47,95 +30,6 @@ impl Default for KSignalAction {
     fn default() -> Self {
         Self::new()
     }
-}
-
-// TODO: 出于简单性，暂时只考虑标准信号，后续有需要实时信号再添加
-
-bitflags! {
-    /// 其实 posix 规定 64 位平台上应该有 1024bits。[Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
-    ///
-    /// 然而实践中比较混乱。比如理论应该区分 sigset_t(1024bits) 和 kernel_sigset_t(64bits?)，但 linux 内核中后者的名字是前者。
-    ///
-    /// 而在 syscall 边界上，linux 也是直接使用的 64bits 的
-    #[derive(Clone, Copy, Debug)]
-    pub struct KSignalSet: u64 {
-        const SIGHUP    = 1 << (Signal::SIGHUP as u8);
-        const SIGINT    = 1 << (Signal::SIGINT as u8);
-        const SIGQUIT   = 1 << (Signal::SIGQUIT as u8);
-        const SIGILL    = 1 << (Signal::SIGILL as u8);
-        const SIGTRAP   = 1 << (Signal::SIGTRAP as u8);
-        const SIGABRT   = 1 << (Signal::SIGABRT as u8);
-        const SIGBUS    = 1 << (Signal::SIGBUS as u8);
-        const SIGFPE    = 1 << (Signal::SIGFPE as u8);
-        const SIGKILL   = 1 << (Signal::SIGKILL as u8);
-        const SIGUSR1   = 1 << (Signal::SIGUSR1 as u8);
-        const SIGSEGV   = 1 << (Signal::SIGSEGV as u8);
-        const SIGUSR2   = 1 << (Signal::SIGUSR2 as u8);
-        const SIGPIPE   = 1 << (Signal::SIGPIPE as u8);
-        const SIGALRM   = 1 << (Signal::SIGALRM as u8);
-        const SIGTERM   = 1 << (Signal::SIGTERM as u8);
-        const SIGSTKFLT = 1 << (Signal::SIGSTKFLT as u8);
-        const SIGCHLD   = 1 << (Signal::SIGCHLD as u8);
-        const SIGCONT   = 1 << (Signal::SIGCONT as u8);
-        const SIGSTOP   = 1 << (Signal::SIGSTOP as u8);
-        const SIGTSTP   = 1 << (Signal::SIGTSTP as u8);
-        const SIGTTIN   = 1 << (Signal::SIGTTIN as u8);
-        const SIGTTOU   = 1 << (Signal::SIGTTOU as u8);
-        const SIGURG    = 1 << (Signal::SIGURG as u8);
-        const SIGXCPU   = 1 << (Signal::SIGXCPU as u8);
-        const SIGXFSZ   = 1 << (Signal::SIGXFSZ as u8);
-        const SIGVTALRM = 1 << (Signal::SIGVTALRM as u8);
-        const SIGPROF   = 1 << (Signal::SIGPROF as u8);
-        const SIGWINCH  = 1 << (Signal::SIGWINCH as u8);
-        const SIGIO     = 1 << (Signal::SIGIO as u8);
-        const SIGPWR    = 1 << (Signal::SIGPWR as u8);
-        const SIGSYS    = 1 << (Signal::SIGSYS as u8);
-    }
-}
-
-impl From<Signal> for KSignalSet {
-    fn from(value: Signal) -> Self {
-        Self::from_bits_truncate(1 << (value as u8))
-    }
-}
-
-/// 注意，和 linux 不同，信号的编号从 0 开始而非从 1
-/// 开始。因此在一些系统调用上应当将传入的值减 1
-#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
-#[repr(u8)]
-#[allow(clippy::upper_case_acronyms)]
-pub enum Signal {
-    SIGHUP = 0,
-    SIGINT = 1,
-    SIGQUIT = 2,
-    SIGILL = 3,
-    SIGTRAP = 4,
-    SIGABRT = 5,
-    SIGBUS = 6,
-    SIGFPE = 7,
-    SIGKILL = 8,
-    SIGUSR1 = 9,
-    SIGSEGV = 10,
-    SIGUSR2 = 11,
-    SIGPIPE = 12,
-    SIGALRM = 13,
-    SIGTERM = 14,
-    SIGSTKFLT = 15,
-    SIGCHLD = 16,
-    SIGCONT = 17,
-    SIGSTOP = 18,
-    SIGTSTP = 19,
-    SIGTTIN = 20,
-    SIGTTOU = 21,
-    SIGURG = 22,
-    SIGXCPU = 23,
-    SIGXFSZ = 24,
-    SIGVTALRM = 25,
-    SIGPROF = 26,
-    SIGWINCH = 27,
-    SIGIO = 28,
-    SIGPWR = 29,
-    SIGSYS = 30,
 }
 
 bitflags! {
@@ -154,3 +48,35 @@ bitflags! {
         // const SA_RESETHAND = 0x80_000_000;
     }
 }
+
+pub const SIGHUP: u8 = 1;
+pub const SIGINT: u8 = 2;
+pub const SIGQUIT: u8 = 3;
+pub const SIGILL: u8 = 4;
+pub const SIGTRAP: u8 = 5;
+pub const SIGABRT: u8 = 6;
+pub const SIGBUS: u8 = 7;
+pub const SIGFPE: u8 = 8;
+pub const SIGKILL: u8 = 9;
+pub const SIGUSR1: u8 = 10;
+pub const SIGSEGV: u8 = 11;
+pub const SIGUSR2: u8 = 12;
+pub const SIGPIPE: u8 = 13;
+pub const SIGALRM: u8 = 14;
+pub const SIGTERM: u8 = 15;
+pub const SIGSTKFLT: u8 = 16;
+pub const SIGCHLD: u8 = 17;
+pub const SIGCONT: u8 = 18;
+pub const SIGSTOP: u8 = 19;
+pub const SIGTSTP: u8 = 20;
+pub const SIGTTIN: u8 = 21;
+pub const SIGTTOU: u8 = 22;
+pub const SIGURG: u8 = 23;
+pub const SIGXCPU: u8 = 24;
+pub const SIGXFSZ: u8 = 25;
+pub const SIGVTALRM: u8 = 26;
+pub const SIGPROF: u8 = 27;
+pub const SIGWINCH: u8 = 28;
+pub const SIGIO: u8 = 29;
+pub const SIGPWR: u8 = 30;
+pub const SIGSYS: u8 = 31;

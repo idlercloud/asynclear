@@ -94,7 +94,7 @@ impl Tracer for KernelTracerImpl {
     }
 }
 
-fn span_id_to_slab_index(span_id: &SpanId) -> usize {
+const fn span_id_to_slab_index(span_id: &SpanId) -> usize {
     (span_id.to_u32() - 1) as usize
 }
 

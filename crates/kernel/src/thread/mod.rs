@@ -5,7 +5,6 @@ use core::ops::Range;
 
 use atomic::{Atomic, Ordering};
 use common::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
-use defines::signal::KSignalSet;
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
@@ -14,6 +13,7 @@ pub use self::user::{spawn_user_thread, BlockingFuture};
 use crate::{
     memory::{self, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
     process::Process,
+    signal::KSignalSet,
     trap::TrapContext,
 };
 

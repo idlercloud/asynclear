@@ -1,4 +1,6 @@
-use defines::signal::{KSignalAction, Signal, SIGSET_SIZE};
+use defines::signal::{KSignalAction, SIGSET_SIZE};
+
+use super::Signal;
 
 pub enum DefaultHandler {
     Terminate,

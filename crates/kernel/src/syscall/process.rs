@@ -8,7 +8,6 @@ use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::{CloneFlags, UtsName, WaitFlags},
-    signal::Signal,
 };
 use event_listener::listener;
 use triomphe::Arc;
@@ -18,6 +17,7 @@ use crate::{
     hart::local_hart,
     memory::UserCheck,
     process::{exit_process, INITPROC},
+    signal::Signal,
     thread::BlockingFuture,
 };
 
@@ -97,7 +97,11 @@ pub fn sys_clone(
         ));
 
         // 创建线程时不该有 `exit_signal`
-        if Signal::try_from((flags as u8).wrapping_sub(1)).is_ok() {
+        if flags as u8 != 0 {
+            warn!(
+                "create thread not allowed to set exit_signal: {:#b}",
+                flags as u8
+            );
             return Err(errno::EINVAL);
         }
         todo!("[mid] support create thread");
@@ -117,7 +121,7 @@ pub fn sys_clone(
         let signum = flags as u8;
         let mut exit_signal = None;
         if signum != 0 {
-            let Ok(signal) = Signal::try_from((flags as u8).wrapping_sub(1)) else {
+            let Some(signal) = Signal::from_user(flags as u8) else {
                 error!("undefined signal: {:#b}", flags as u8);
                 return Err(errno::UNSUPPORTED);
             };

@@ -5,10 +5,7 @@ use core::num::NonZeroUsize;
 
 use atomic::{Atomic, Ordering};
 use compact_str::CompactString;
-use defines::{
-    error::{errno, KResult},
-    signal::{KSignalSet, Signal},
-};
+use defines::error::{errno, KResult};
 use event_listener::Event;
 use goblin::elf::Elf;
 use hashbrown::HashMap;
@@ -21,7 +18,7 @@ use self::inner::ProcessInner;
 use crate::{
     fs::{self, DEntry, FdTable, VFS},
     memory,
-    signal::SignalHandlers,
+    signal::{KSignalSet, Signal, SignalHandlers},
     thread::{self, Thread},
     trap::TrapContext,
 };

@@ -5,9 +5,10 @@ use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{
-        FstatFlags, IoVec, MountFlags, OpenFlags, Stat, UnmountFlags, AT_FDCWD, SEEK_CUR, SEEK_END,
-        SEEK_SET,
+        FstatFlags, IoVec, MountFlags, OpenFlags, PollFd, Stat, UnmountFlags, AT_FDCWD, SEEK_CUR,
+        SEEK_END, SEEK_SET,
     },
+    misc::TimeSpec,
 };
 use triomphe::Arc;
 
@@ -616,9 +617,11 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     Ok(ret)
 }
 
-// /// 等待文件描述符上的事件
-// ///
-// /// TODO: 暂不实现 sys_ppoll
-// pub fn sys_ppoll() -> Result {
-//     Ok(1)
-// }
+/// 等待一组文件描述符上的事件
+pub fn sys_ppoll(
+    fds: UserCheck<[PollFd]>,
+    timeout: UserCheck<TimeSpec>,
+    signal_mask: UserCheck<u64>,
+) -> KResult {
+    Ok(1)
+}

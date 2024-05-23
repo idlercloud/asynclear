@@ -1,6 +1,4 @@
-use defines::signal::KSignalSet;
-
-use crate::trap::TrapContext;
+use crate::{signal::KSignalSet, trap::TrapContext};
 
 pub struct ThreadInner {
     /// 陷入上下文

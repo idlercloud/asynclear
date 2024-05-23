@@ -1,13 +1,13 @@
 use defines::{
     error::{errno, KResult},
-    signal::{KSignalAction, KSignalSet, Signal, SignalActionFlags, SIGSET_SIZE_BYTES},
+    signal::{KSignalAction, SignalActionFlags, SIGSET_SIZE_BYTES},
 };
 
 use crate::{
     hart::local_hart,
     memory::UserCheck,
     process::exit_process,
-    signal::{SignalContext, SigprocmaskHow},
+    signal::{KSignalSet, SigProcMaskHow, Signal, SignalContext},
 };
 
 /// 设置当前**进程**在收到特定信号时的行为
@@ -25,7 +25,7 @@ pub fn sys_rt_sigaction(
     act: UserCheck<KSignalAction>,
     old_act: UserCheck<KSignalAction>,
 ) -> KResult {
-    let Ok(signal) = Signal::try_from(signum as u8) else {
+    let Some(signal) = Signal::from_user(signum as u8) else {
         warn!("use unsupported signal {signum}");
         return Err(errno::EINVAL);
     };
@@ -86,9 +86,7 @@ pub fn sys_rt_sigprocmask(
         });
     }
 
-    let Ok(how) = SigprocmaskHow::try_from(how) else {
-        return Err(errno::EINVAL);
-    };
+    let how = SigProcMaskHow::from_user(how).ok_or(errno::EINVAL)?;
 
     if !set.is_null() {
         debug!("write signal mask with how = {how:?}");
@@ -96,9 +94,9 @@ pub fn sys_rt_sigprocmask(
         local_hart()
             .curr_thread()
             .lock_inner_with(|inner| match how {
-                SigprocmaskHow::SIG_BLOCK => inner.signal_mask.insert(set_ptr),
-                SigprocmaskHow::SIG_UNBLOCK => inner.signal_mask.remove(set_ptr),
-                SigprocmaskHow::SIG_SETMASK => inner.signal_mask = set_ptr,
+                SigProcMaskHow::Block => inner.signal_mask.insert(set_ptr),
+                SigProcMaskHow::Unblock => inner.signal_mask.remove(set_ptr),
+                SigProcMaskHow::SetMask => inner.signal_mask = set_ptr,
             });
     }
 

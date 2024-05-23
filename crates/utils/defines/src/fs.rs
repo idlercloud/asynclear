@@ -229,3 +229,18 @@ pub struct IoVec {
     pub iov_base: *mut u8,
     pub iov_len: usize,
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct PollFd {
+    /// 如果为负数则忽略 `events` 字段，且 `revents` 返回 0
+    pub fd: i32,
+    /// 输入参数，一个位掩码，表示感兴趣的事件。
+    ///
+    /// 为 0 的情况下，`revents` 的返回值是 `POLLHUP`、`POLLERR` 和 `POLLNVAL` 之一
+    pub events: i16,
+    /// 输出参数，表示发生的事件
+    ///
+    /// 可以包括 `events` 中指定的任何位，或者值 `POLLHUP`、`POLLERR` 或 `POLLNVAL` 之一。
+    pub revents: i16,
+}

@@ -4,10 +4,7 @@ mod kernel_trap;
 use core::ops::ControlFlow;
 
 pub use context::TrapContext;
-use defines::{
-    error::errno,
-    signal::{KSignalSet, Signal, SignalActionFlags},
-};
+use defines::{error::errno, signal::SignalActionFlags};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
@@ -21,7 +18,9 @@ use crate::{
     hart::local_hart,
     memory::UserCheck,
     process::{self, exit_process},
-    signal::{DefaultHandler, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
+    signal::{
+        DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN,
+    },
     syscall, time,
 };
 
@@ -170,7 +169,7 @@ pub fn check_signal() -> bool {
         let thread = local_hart().curr_thread();
         let mut inner = thread.lock_inner();
         let pendings = inner.pending_signal.intersection(!inner.signal_mask);
-        let Ok(first_pending) = Signal::try_from(pendings.bits().trailing_zeros() as u8) else {
+        let Some(first_pending) = pendings.first_pending() else {
             return false;
         };
         inner.pending_signal.remove(KSignalSet::from(first_pending));
@@ -183,13 +182,13 @@ pub fn check_signal() -> bool {
         .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone());
     trace!(
         "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
-        action.handler(),
-        action.mask(),
-        action.flags(),
-        action.restorer()
+        action.handler,
+        action.kmask(),
+        action.flags,
+        action.restorer
     );
 
-    let handler = match action.handler() {
+    let handler = match action.handler {
         SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
         SIG_DFL => match DefaultHandler::new(first_pending) {
             DefaultHandler::Terminate | DefaultHandler::CoreDump => {
@@ -215,15 +214,15 @@ pub fn check_signal() -> bool {
     let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
         let old_mask = inner.signal_mask;
         let old_trap_context = inner.trap_context.clone();
-        inner.signal_mask.insert(action.mask());
-        if !action.flags().contains(SignalActionFlags::SA_NODEFER) {
+        inner.signal_mask.insert(action.kmask());
+        if !action.flags.contains(SignalActionFlags::SA_NODEFER) {
             inner.signal_mask.set(KSignalSet::from(first_pending), true);
         }
         let trap_context = &mut inner.trap_context;
         trap_context.sepc = handler;
         *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
-        *trap_context.ra_mut() = action.restorer();
-        *trap_context.a0_mut() = first_pending as usize + 1;
+        *trap_context.ra_mut() = action.restorer;
+        *trap_context.a0_mut() = first_pending.to_user() as usize;
 
         (old_mask, old_trap_context)
     });
