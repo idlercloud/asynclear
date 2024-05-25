@@ -203,6 +203,7 @@ sudo make install
 - [x] 栈回溯（基于 span）
 - [x] Logging（日志事件、span 上下文）
 - [x] Profiling（通过 <https://ui.perfetto.dev> 可视化）
+- [ ] 探索 QEMU 的调试比如，比如暂停运行、中途连接调试器？
 
 ### 比较独立的工作
 

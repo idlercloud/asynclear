@@ -15,6 +15,7 @@ buddy_system_allocator = { path = "deps/buddy_system_allocator" }
 atomic = "0.6"
 bytemuck = { version = "1.15", features = ["derive"] }
 extend = "1.2"
+fastrand = { version = "2.1", default-features = false }
 pin-project = "1.1"
 bitflags = "2.5"
 tap = "1.0"
@@ -37,8 +38,6 @@ heapless = { version = "0.8", features = ["mpmc_large"] }
 scopeguard = { version = "1.2", default-features = false }
 triomphe = { version = "0.1", default-features = false, features = ["unsize"] }
 unsize = "1.1"
-num_enum = { version = "0.7", default-features = false }
-delegate = "0.12"
 
 [profile.dev]
 opt-level = 1

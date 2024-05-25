@@ -7,7 +7,6 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num_enum.workspace = true
 bitflags.workspace = true
 common = { path = "../common" }
 

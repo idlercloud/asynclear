@@ -5,8 +5,9 @@ authors = ["cxz888 <idlercloud@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-spin.workspace = true
 buddy_system_allocator.workspace = true
+fastrand = { workspace = true, default-features = false }
+spin.workspace = true
 defines = { path = "../crates/utils/defines" }
 
 [lints]
