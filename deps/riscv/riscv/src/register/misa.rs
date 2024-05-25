@@ -11,9 +11,9 @@ pub struct Misa {
 /// Base integer ISA width
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum XLEN {
-    XLEN32,
-    XLEN64,
-    XLEN128,
+    XLEN32 = 1,
+    XLEN64 = 2,
+    XLEN128 = 3,
 }
 
 impl XLEN {
@@ -46,8 +46,8 @@ impl Misa {
     ///
     /// # Example
     ///
-    /// ``` no_run
-    /// let misa = unsafe { riscv::register::misa::read() };
+    /// ```no_run
+    /// let misa = unsafe { riscv::register::misa::read() }.unwrap();
     /// assert!(misa.has_extension('A')); // panics if atomic extension is not implemented
     /// ```
     #[inline]

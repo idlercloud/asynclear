@@ -1,12 +1,13 @@
 [package]
 name = "riscv"
-version = "0.10.1"
+version = "0.11.1"
 edition = "2021"
-rust-version = "1.59"
+rust-version = "1.60"
 repository = "https://github.com/rust-embedded/riscv"
 authors = ["The RISC-V Team <risc-v@teams.rust-embedded.org>"]
 categories = ["embedded", "hardware-support", "no-std"]
 description = "Low level access to RISC-V processors"
+documentation = "https://docs.rs/riscv"
 keywords = ["riscv", "register", "peripheral"]
 license = "ISC"
 
@@ -19,8 +20,9 @@ targets = [
 ]
 
 [features]
+s-mode = []
 critical-section-single-hart = ["critical-section/restore-state-bool"]
 
 [dependencies]
 critical-section = "1.1.2"
-embedded-hal = "=1.0.0-rc.1"
+embedded-hal = "1.0.0"

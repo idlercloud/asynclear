@@ -48,7 +48,7 @@ instruction!(
     ///
     /// Provides a hint to the implementation that the current hart can be stalled until an interrupt might need servicing.
     /// The WFI instruction is just a hint, and a legal implementation is to implement WFI as a NOP.
-    , unsafe wfi, "wfi");
+    , wfi, "wfi");
 instruction!(
     /// `SFENCE.VMA` instruction wrapper (all address spaces and page table levels)
     ///
@@ -57,7 +57,7 @@ instruction!(
     /// are ordinarily not ordered with respect to loads and stores in the instruction stream.
     /// Executing an `SFENCE.VMA` instruction guarantees that any stores in the instruction stream prior to the
     /// `SFENCE.VMA` are ordered before all implicit references subsequent to the `SFENCE.VMA`.
-    , unsafe sfence_vma_all, "sfence.vma");
+    , sfence_vma_all, "sfence.vma");
 instruction!(
     /// `FENCE` instruction wrapper
     ///
@@ -71,7 +71,7 @@ instruction!(
     /// The FENCE instruction also orders memory reads and writes made by the hart as observed by
     /// memory reads and writes made by an external device. However, FENCE does not order observations
     /// of events made by an external device using any other signaling mechanism.
-    , unsafe fence, "fence");
+    , fence, "fence");
 instruction!(
     /// `FENCE.I` instruction wrapper
     ///
@@ -89,7 +89,7 @@ instruction!(
     /// The unused fields in the FENCE.I instruction, imm\[11:0\], rs1, and rd, are reserved for
     /// finer-grain fences in future extensions. For forward compatibility, base
     /// implementations shall ignore these fields, and standard software shall zero these fields.
-    , unsafe fence_i, "fence.i");
+    , fence_i, "fence.i");
 
 /// `SFENCE.VMA` instruction wrapper
 ///
@@ -104,6 +104,28 @@ pub unsafe fn sfence_vma(asid: usize, addr: usize) {
     match () {
         #[cfg(riscv)]
         () => core::arch::asm!("sfence.vma {0}, {1}", in(reg) addr, in(reg) asid),
+
+        #[cfg(not(riscv))]
+        () => unimplemented!(),
+    }
+}
+
+/// `ECALL` instruction wrapper
+///
+/// Generates an exception for a service request to the execution environment.
+/// When executed in U-mode, S-mode, or M-mode, it generates an environment-call-from-U-mode
+/// exception, environment-call-from-S-mode exception, or environment-call-from-M-mode exception,
+/// respectively, and performs no other operation.
+///
+/// # Note
+///
+/// The ECALL instruction will **NOT** save and restore the stack pointer, as it triggers an exception.
+/// The stack pointer must be saved and restored accordingly by the exception handler.
+#[inline]
+pub unsafe fn ecall() {
+    match () {
+        #[cfg(riscv)]
+        () => core::arch::asm!("ecall", options(nostack)),
 
         #[cfg(not(riscv))]
         () => unimplemented!(),

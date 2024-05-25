@@ -486,9 +486,7 @@ pub fn flush_tlb(vaddr: Option<VirtAddr>) {
             riscv::asm::sfence_vma(0, vaddr.0);
         }
     } else {
-        unsafe {
-            riscv::asm::sfence_vma_all();
-        }
+        riscv::asm::sfence_vma_all();
     }
 }
 

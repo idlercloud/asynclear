@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Add `Mcause::from(usize)` for use in unit tests
+- Add `Mstatus::from(usize)` for use in unit tests
+- Add `Mstatus.bits()`
+- Add `Eq` and `PartialEq` for `pmpcfgx::{Range, Permission}`
+- Add `Mstatus::update_*` helpers to manipulate Mstatus values without touching
+  the CSR
+- Export `riscv::register::macros` module macros for external use
+- Add `riscv::register::mcountinhibit` module for `mcountinhibit` CSR
+
+### Fixed
+
+- Fixed `sip::set_ssoft` and `sip::clear_ssoft` using wrong address
+- Fixed assignment in `mstatus` unit tests.
+
+## [v0.11.1] - 2024-02-15
+
+### Changed
+
+- Made `asm::wfi`, `fence`, `fence_i` and `sfence` safe (ie, removed `unsafe` from their definitions)
+- Made `cfg` variable selection more robust for custom targets
+
+## [v0.11.0] - 2024-01-14
+
+### Added
+
+- Add `asm::ecall()`, a wrapper for implementing an `ecall` instruction
+- Add `nested` function for nested ISRs in `interrupt::machine` and `interrupt::supervisor`
+- `s-mode` feature for reexporting `interrupt::machine` or `interrupt::supervisor` to `interrupt`
+- Support for supervisor-level interrupts in `interrupt::supervisor`
 - Add CI workflow to check that CHANGELOG.md file has been modified in PRs
 - Add `read_csr_as_rv32`, `set_rv32`, and `clear_rv32` macros
 - Add `mstatus::uxl` and `mstatus::sxl`
@@ -20,8 +49,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Transitioning to cargo workspace
-- Update `embedded-hal` dependency to v1.0 (bumps MSRV to 1.60)
+- Cargo workspace for riscv and riscv-rt
+- Update `embedded-hal` dependency to v1.0.0 (bumps MSRV to 1.60)
 - `misa::MXL` renamed to `misa::XLEN`
 - Removed `bit_field` dependency
 - CI actions updated. They now use `checkout@v3` and `dtolnay/rust-toolchain`.
