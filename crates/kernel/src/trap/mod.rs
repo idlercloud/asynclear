@@ -21,7 +21,9 @@ use crate::{
     signal::{
         DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN,
     },
-    syscall, time,
+    syscall,
+    thread::Thread,
+    time,
 };
 
 core::arch::global_asm!(include_str!("trap.S"));
@@ -153,7 +155,7 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     trace!("enter user mode");
     set_user_trap_entry();
 
-    check_signal();
+    check_signal(&local_hart().curr_thread());
 
     extern "C" {
         fn __return_to_user(cx: *mut TrapContext);
@@ -168,9 +170,8 @@ pub fn trap_return(trap_context: *mut TrapContext) {
 }
 
 /// 如果进程因为信号被终止了，则返回 true
-pub fn check_signal() -> bool {
+pub fn check_signal(thread: &Thread) -> bool {
     let first_pending = {
-        let thread = local_hart().curr_thread();
         let mut inner = thread.lock_inner();
         let pendings = inner.pending_signal.intersection(!inner.signal_mask);
         let Some(first_pending) = pendings.first_pending() else {
@@ -181,8 +182,8 @@ pub fn check_signal() -> bool {
     };
 
     debug!("handle signal {first_pending:?}");
-    let action = local_hart()
-        .curr_process()
+    let action = thread
+        .process
         .lock_inner_with(|inner| inner.signal_handlers.action(first_pending).clone());
     trace!(
         "handler: {:#x}, mask: {:?}, flags: {:?}, restorer: {:#x}",
@@ -197,7 +198,7 @@ pub fn check_signal() -> bool {
         SIG_DFL => match DefaultHandler::new(first_pending) {
             DefaultHandler::Terminate | DefaultHandler::CoreDump => {
                 exit_process(
-                    &local_hart().curr_process(),
+                    &thread.process,
                     (first_pending as i8).wrapping_add_unsigned(128),
                 );
                 // TODO:[low] 要处理 CoreDump
@@ -212,8 +213,6 @@ pub fn check_signal() -> bool {
         SIG_IGN => return false,
         handler => handler,
     };
-
-    let thread = local_hart().curr_thread();
 
     let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
         let old_mask = inner.signal_mask;
@@ -242,9 +241,8 @@ pub fn check_signal() -> bool {
         user_ptr.write(signal_context);
         false
     } else {
-        // TODO:[blocked] 这里其实可以试着补救
         exit_process(
-            &local_hart().curr_process(),
+            &thread.process,
             (first_pending as i8).wrapping_add_unsigned(128),
         );
         true
