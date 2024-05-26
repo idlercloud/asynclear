@@ -23,7 +23,6 @@ pub extern "C" fn kernel_trap_handler() {
     match scause::read().cause() {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             // TODO: 想办法通知线程让出 hart
-            trace!("timer interrupt");
             time::check_timer();
             riscv_time::set_next_trigger();
         }
