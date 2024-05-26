@@ -81,8 +81,8 @@ pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {
     syscall3(READ, [fd, buffer.as_mut_ptr() as usize, buffer.len()])
 }
 
-pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
-    syscall3(WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
+pub fn sys_write(fd: usize, buffer: *const u8, len: usize) -> isize {
+    syscall3(WRITE, [fd, buffer as usize, len])
 }
 
 // pub fn sys_linkat(
@@ -134,8 +134,8 @@ pub fn sys_clone(flags: usize) -> isize {
     syscall3(CLONE, [flags, 0, 0])
 }
 
-pub fn sys_execve(path: &CStr, args: &[*const u8]) -> isize {
-    syscall3(EXECVE, [path.as_ptr() as usize, args.as_ptr() as usize, 0])
+pub unsafe fn sys_execve(path: *const u8, args: *const *const u8) -> isize {
+    syscall3(EXECVE, [path as usize, args as usize, 0])
 }
 
 pub fn sys_waitpid(pid: isize, xstatus: *mut i32) -> isize {
@@ -196,7 +196,7 @@ pub fn sys_gettid() -> isize {
 }
 
 /// 返回系统信息，返回值为 0
-pub fn sys_uname(utsname: *mut UtsName) -> isize {
+pub unsafe fn sys_uname(utsname: *mut UtsName) -> isize {
     syscall3(UNAME, [utsname as _, 0, 0])
 }
 

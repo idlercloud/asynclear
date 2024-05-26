@@ -163,7 +163,7 @@ pub fn read(fd: usize, buf: &mut [u8]) -> isize {
 }
 
 pub fn write(fd: usize, buf: &[u8]) -> isize {
-    sys_write(fd, buf)
+    sys_write(fd, buf.as_ptr(), buf.len())
 }
 
 pub fn write_all(fd: usize, buf: &[u8]) -> isize {
@@ -215,7 +215,7 @@ pub fn fork() -> isize {
 }
 
 pub fn exec(path: &CStr, args: &[*const u8]) -> isize {
-    sys_execve(path, args)
+    unsafe { sys_execve(path.as_ptr().cast(), args.as_ptr().cast()) }
 }
 
 pub fn set_priority(prio: isize) -> isize {

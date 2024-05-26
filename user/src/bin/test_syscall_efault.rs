@@ -1,28 +1,23 @@
 #![no_std]
 #![no_main]
-
-use core::ffi::CStr;
+#![feature(strict_provenance)]
 
 use defines::error::errno;
-use user::{exec, sys_uname, test_main, write, STDOUT};
+use user::{sys_execve, sys_uname, sys_write, test_main, STDOUT};
 
 #[no_mangle]
 pub fn main() -> i32 {
     test_main("test_syscall_efault", || {
-        let invalid = unsafe {
-            let invalid = core::slice::from_raw_parts(core::ptr::NonNull::dangling().as_ptr(), 16);
-            CStr::from_bytes_with_nul_unchecked(invalid)
-        };
         // 测试 `check_cstr()`
-        let ret = exec(invalid, &[invalid.as_ptr().cast()]);
+        let ret = unsafe { sys_execve(core::ptr::dangling(), core::ptr::dangling()) };
         assert_eq!(ret, errno::EFAULT.as_isize());
 
         // 测试 `check_slice()`
-        let ret = write(STDOUT, invalid.to_bytes());
+        let ret = sys_write(STDOUT, core::ptr::dangling(), 4);
         assert_eq!(ret, errno::EFAULT.as_isize());
 
         // 测试 `check_ptr_mut()`
-        let ret = sys_uname(0x40 as _);
+        let ret = unsafe { sys_uname(core::ptr::dangling_mut()) };
         assert_eq!(ret, errno::EFAULT.as_isize());
     });
     0
