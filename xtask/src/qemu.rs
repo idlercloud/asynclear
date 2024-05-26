@@ -17,6 +17,8 @@ pub struct QemuArgs {
     /// Hart 数量（SMP 代表 Symmetrical Multiple Processor）.
     #[clap(long, default_value_t = 2)]
     smp: u8,
+    #[clap(long)]
+    skip_build: bool,
     /// 如果开启，QEMU 会阻塞并等待 GDB 连接
     #[clap(long)]
     debug: bool,
@@ -25,8 +27,10 @@ pub struct QemuArgs {
 impl QemuArgs {
     pub fn run(self) {
         // 构建内核和用户应用
-        self.build.build();
-        tool::prepare_os();
+        if !self.skip_build {
+            self.build.build();
+            tool::prepare_os();
+        }
 
         println!("Running qemu...");
 

@@ -21,17 +21,26 @@ pub struct KtestArgs {
     /// Hart 数量（SMP 代表 Symmetrical Multiple Processor）.
     #[clap(long, default_value_t = 2)]
     smp: u8,
+    #[clap(long)]
+    skip_build: bool,
+    /// 如果开启，QEMU 会阻塞并等待 GDB 连接
+    #[clap(long)]
+    debug: bool,
 }
 
 impl KtestArgs {
     pub fn run_test(self) {
-        self.build.build();
-        tool::prepare_os();
+        if !self.skip_build {
+            self.build.build();
+            tool::prepare_os();
+        }
 
         println!("Running qemu...");
 
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
+            .optional_arg(self.debug.then_some("-s"))
+            .optional_arg(self.debug.then_some("-S"))
             .spawn();
         let stdin = child.stdin.as_mut().unwrap();
         let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
