@@ -250,12 +250,13 @@ pub fn check_signal() -> bool {
 }
 
 pub fn init() {
+    kernel_trap::set_kernel_trap_entry();
     unsafe {
+        sie::set_sext();
         sie::set_stimer();
-        riscv_time::set_next_trigger();
-        kernel_trap::set_kernel_trap_entry();
         sstatus::set_sie();
     }
+    riscv_time::set_next_trigger();
 }
 
 fn set_user_trap_entry() {
@@ -273,6 +274,10 @@ fn interrupt_handler() {
     let hart_id = local_hart().hart_id();
     let context_id = hart_id * 2;
     let interrupt_id = plic.claim(context_id);
+    // 为 0 应该说明是多个核争抢同一个中断，然后没抢到？
+    if interrupt_id == 0 {
+        return;
+    }
     let Some(interrupt_source) = InterruptSource::from_id(interrupt_id) else {
         panic!("Unknown interrupt {interrupt_id}");
     };
