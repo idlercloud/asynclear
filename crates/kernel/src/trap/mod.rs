@@ -30,13 +30,16 @@ core::arch::global_asm!(include_str!("trap.S"));
 pub async fn user_trap_handler() -> ControlFlow<(), ()> {
     kernel_trap::set_kernel_trap_entry();
 
+    // NOTE: `scause` 和 `stval` 一定要在开中断前读，因为它们会被中断覆盖
     let scause = scause::read();
+    let stval = stval::read();
+
+    unsafe {
+        sstatus::set_sie();
+    }
+
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
-            // syscall 过程中可以发生内核中断
-            unsafe {
-                sstatus::set_sie();
-            }
             let (syscall_id, syscall_args) = {
                 local_hart().curr_thread().lock_inner_with(|inner| {
                     // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
@@ -79,11 +82,10 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
         ) => {
             let thread = local_hart().curr_thread();
 
-            let exception_addr = stval::read();
             let ok = thread.process.lock_inner_with(|inner| {
                 inner
                     .memory_space
-                    .handle_memory_exception(exception_addr, e == Exception::StoreFault)
+                    .handle_memory_exception(stval, e == Exception::StoreFault)
             });
 
             if ok {
@@ -95,7 +97,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                     error!(
                         "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
                         scause.cause(),
-                        exception_addr,
+                        stval,
                         inner.trap_context.sepc,
                     );
                 };
@@ -132,7 +134,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             panic!(
                 "Unsupported trap {:?}, stval = {:#x}!",
                 scause.cause(),
-                stval::read()
+                stval,
             );
         }
     }

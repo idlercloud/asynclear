@@ -34,8 +34,4 @@ pub fn init() {
 
     Lazy::force(&UART0);
     Lazy::force(&BLOCK_DEVICE);
-
-    unsafe {
-        riscv::register::sie::set_sext();
-    }
 }
