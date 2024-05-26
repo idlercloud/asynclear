@@ -1,10 +1,12 @@
 use std::{
     fs::{self, File},
     io::{self, Seek, SeekFrom, Write},
+    iter,
     path::PathBuf,
 };
 
 use clap::Parser;
+use fastrand::Rng;
 use fatfs::{Dir, FileSystem, FsOptions};
 use tap::Tap;
 
@@ -83,7 +85,7 @@ impl FatProbeArgs {
                 dir = dir.open_dir(component).unwrap();
             }
             let last_component = components.last().unwrap();
-            if let Ok(dir) = dir.open_dir(&last_component) {
+            if let Ok(dir) = dir.open_dir(last_component) {
                 for entry in dir.iter() {
                     let entry = entry.unwrap();
                     let name = entry.file_name();
@@ -91,7 +93,7 @@ impl FatProbeArgs {
                         println!("{name}");
                     }
                 }
-            } else if let Ok(mut file) = dir.open_file(&last_component) {
+            } else if let Ok(mut file) = dir.open_file(last_component) {
                 let mut target = File::create(format!("res/{last_component}")).unwrap();
                 io::copy(&mut file, &mut target).unwrap();
             }
@@ -152,16 +154,13 @@ pub fn pack() {
         file.write_all(&elf).unwrap();
     };
     for elf_name in USER_BINS.iter() {
+        let src_path = format!("user/target/{TARGET_ARCH}/release/{elf_name}");
         if elf_name.starts_with("test_") {
-            pack_into(
-                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-                &format!("ktest/{elf_name}"),
-            );
+            pack_into(&src_path, &format!("ktest/{elf_name}"));
+        } else if elf_name.starts_with("bench_") || elf_name == "_empty" {
+            pack_into(&src_path, &format!("kbench/{elf_name}"));
         } else {
-            pack_into(
-                &format!("user/target/{TARGET_ARCH}/release/{elf_name}"),
-                elf_name,
-            );
+            pack_into(&src_path, elf_name);
         }
     }
     for ptest_name in PTEST_BINS.iter() {
@@ -170,9 +169,21 @@ pub fn pack() {
             &format!("ptest/{ptest_name}"),
         );
     }
-    if USER_BINS.len() > 0 {
+    if PTEST_BINS.len() > 0 {
         pack_into("res/preliminary/text.txt", "ptest/text.txt");
         pack_into("res/preliminary/mnt/test_mount", "ptest/mnt/test_mount");
+    }
+    {
+        let mut pg = root_dir
+            .open_dir("kbench")
+            .unwrap()
+            .create_file("_playground")
+            .unwrap();
+        let mut rng = Rng::with_seed(19260817);
+        let buf = iter::repeat_with(|| rng.u8(0..=255))
+            .take(1024 * 1234)
+            .collect::<Vec<u8>>();
+        pg.write_all(&buf).unwrap();
     }
 }
 
