@@ -416,6 +416,12 @@ impl MemorySpace {
         self.page_table.activate();
     }
 
+    pub unsafe fn activate_no_tlb(&self) {
+        unsafe {
+            self.page_table.activate_no_tlb();
+        }
+    }
+
     pub fn recycle_user_pages(&mut self) {
         self.user_areas.clear();
         self.page_table.clear();

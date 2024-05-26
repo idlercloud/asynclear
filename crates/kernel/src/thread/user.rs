@@ -14,6 +14,7 @@ use crate::{
     executor,
     fs::VFS,
     hart::local_hart,
+    memory::KERNEL_SPACE,
     process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
     trap, SHUTDOWN,
@@ -38,6 +39,7 @@ fn user_thread_loop() -> UserThreadFuture {
             let trap_context = local_hart()
                 .curr_thread()
                 .lock_inner_with(|inner| &mut inner.trap_context as _);
+            trace!("enter user mode");
             trap::trap_return(trap_context);
 
             trace!("enter kernel mode");
@@ -156,7 +158,10 @@ impl Future for UserThreadWrapperFuture {
             exit_thread(project.thread);
         }
 
-        // 该进程退出运行态。不过页表不会切换
+        // NOTE: 一定要切换页表。否则进程页表被回收立刻导致内核异常
+        unsafe {
+            KERNEL_SPACE.activate_no_tlb();
+        }
         // 进程状态的切换由 `user_thread_loop()` 里的操作完成
         trace!("User task deactivate");
         local_hart().replace_thread(None);

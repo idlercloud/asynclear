@@ -161,6 +161,10 @@ impl PageTable {
             super::flush_tlb(None);
         }
     }
+
+    pub unsafe fn activate_no_tlb(&self) {
+        satp::write(self.token());
+    }
 }
 
 #[extend::ext(name = AsPtes)]
