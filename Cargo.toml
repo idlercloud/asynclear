@@ -47,7 +47,7 @@ codegen-units = 1
 lto = "fat"
 
 [workspace.lints.clippy]
-all = "warn"
+all = { level = "warn", priority = -1 }
 await_holding_lock = "warn"
 char_lit_as_u8 = "warn"
 checked_conversions = "warn"
@@ -123,9 +123,9 @@ cast_ptr_alignment = "deny"
 not_unsafe_ptr_arg_deref = "deny"
 
 [workspace.lints.rust]
-future_incompatible = "warn"
-nonstandard_style = "warn"
-rust_2018_idioms = "warn"
+future_incompatible = { level = "warn", priority = -1 }
+nonstandard_style = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
 unsafe_op_in_unsafe_fn = "warn"
 
 unreachable_patterns = "deny"
