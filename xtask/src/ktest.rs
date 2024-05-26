@@ -110,18 +110,12 @@ impl KtestArgs {
             }
 
             for part in parts {
-                if part.is_ptest {
-                    if ptest_checker(part.name, &output[part.range.clone()]) {
-                        passed.push(part);
-                    } else {
-                        failed.push(part);
-                    }
+                if (part.is_ptest && ptest_checker(part.name, &output[part.range.clone()]))
+                    || (!part.is_ptest && ktest_checker(part.name, &output[part.range.clone()]))
+                {
+                    passed.push(part);
                 } else {
-                    if ktest_checker(part.name, &output[part.range.clone()]) {
-                        passed.push(part);
-                    } else {
-                        failed.push(part);
-                    }
+                    failed.push(part);
                 }
             }
 
@@ -175,24 +169,21 @@ fn ptest_checker(name: &str, content: &[String]) -> bool {
     {
         return false;
     }
-    match name {
-        "test_brk" => {
-            static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"heap pos: (\d+)").unwrap());
-            let content = content.join("\n");
-            let heaps = RE
-                .captures_iter(&content)
-                .map(|c| c[1].parse::<usize>().unwrap())
-                .collect::<Vec<_>>();
-            if heaps.len() != 3 {
-                return false;
-            }
-            if heaps[0] + 64 != heaps[1] || heaps[1] + 64 != heaps[2] {
-                return false;
-            }
+    if name == "test_brk" {
+        static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"heap pos: (\d+)").unwrap());
+        let content = content.join("\n");
+        let heaps = RE
+            .captures_iter(&content)
+            .map(|c| c[1].parse::<usize>().unwrap())
+            .collect::<Vec<_>>();
+        if heaps.len() != 3 {
+            return false;
         }
-        // TODO: 写其它测试的 checker
-        _ => {}
+        if heaps[0] + 64 != heaps[1] || heaps[1] + 64 != heaps[2] {
+            return false;
+        }
     }
+    // TODO: 写其它测试的 checker
     true
 }
 
@@ -204,10 +195,9 @@ fn ktest_checker(name: &str, content: &[String]) -> bool {
     if (contain_end && should_fail) || (!contain_end && !should_fail) {
         return false;
     }
-    match name {
-        "test_echo" => return content[1] == "echo_example",
-        // TODO: 写其它测试的 checker
-        _ => {}
+    if name == "test_echo" {
+        return content[1] == "echo_example";
     }
+    // TODO: 写其它测试的 checker
     true
 }

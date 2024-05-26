@@ -134,6 +134,9 @@ pub fn sys_clone(flags: usize) -> isize {
     syscall3(CLONE, [flags, 0, 0])
 }
 
+/// # Safety
+///
+/// 需保证 alias 及类型安全
 pub unsafe fn sys_execve(path: *const u8, args: *const *const u8) -> isize {
     syscall3(EXECVE, [path as usize, args as usize, 0])
 }
@@ -196,6 +199,10 @@ pub fn sys_gettid() -> isize {
 }
 
 /// 返回系统信息，返回值为 0
+///
+/// # Safety
+///
+/// 需保证 alias 及类型安全
 pub unsafe fn sys_uname(utsname: *mut UtsName) -> isize {
     syscall3(UNAME, [utsname as _, 0, 0])
 }
