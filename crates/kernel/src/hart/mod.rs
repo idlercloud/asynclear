@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 use core::{
     arch::asm,
-    cell::{Ref, RefCell, SyncUnsafeCell},
-    sync::atomic::{AtomicBool, Ordering},
+    cell::{Cell, Ref, RefCell, SyncUnsafeCell},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 use common::config::{HART_START_ADDR, MAX_HART_NUM};
@@ -40,6 +40,7 @@ pub struct Hart {
     pub span_stack: RefCell<Vec<SpanId>>,
     /// 用于读磁盘的缓冲区，避免在栈上反复开辟空间
     pub block_buffer: RefCell<[u8; BLOCK_SIZE]>,
+    pub panicked: Cell<bool>,
 }
 
 impl Hart {
@@ -49,6 +50,7 @@ impl Hart {
             thread: RefCell::new(None),
             span_stack: RefCell::new(Vec::new()),
             block_buffer: RefCell::new([0; BLOCK_SIZE]),
+            panicked: Cell::new(false),
         }
     }
 
@@ -73,14 +75,15 @@ impl Hart {
     }
 }
 
+pub static BOOT_HART: AtomicUsize = AtomicUsize::new(usize::MAX);
+
 #[no_mangle]
 pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
-    static INIF_HART: AtomicBool = AtomicBool::new(true);
     static INIT_FINISHED: AtomicBool = AtomicBool::new(false);
 
     // 主核启动
-    if INIF_HART
-        .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
+    if BOOT_HART
+        .compare_exchange(usize::MAX, hart_id, Ordering::Acquire, Ordering::Relaxed)
         .is_ok()
     {
         clear_bss();
@@ -121,7 +124,6 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 
     let _enter = info_span!("hart", id = hart_id).entered();
 
-    // 允许在内核态下访问用户数据
     crate::trap::init();
 
     crate::kernel_loop();

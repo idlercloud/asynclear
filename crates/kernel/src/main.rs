@@ -23,6 +23,11 @@ extern crate alloc;
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
+use crate::{
+    hart::{local_hart, BOOT_HART},
+    uart_console::println,
+};
+
 mod drivers;
 mod executor;
 mod fs;
@@ -48,6 +53,13 @@ pub fn kernel_loop() -> ! {
     let _guard = riscv_guard::NoIrqGuard::new();
     #[cfg(feature = "profiling")]
     tracer::report_profiling();
+    let hart_id = local_hart().hart_id();
+    if hart_id != BOOT_HART.load(Ordering::SeqCst) {
+        println!("hart {hart_id} wait boot hart to shutdown");
+        loop {
+            core::hint::spin_loop();
+        }
+    }
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()
 }

@@ -12,7 +12,10 @@ use slab::Slab;
 #[cfg(feature = "profiling")]
 use {alloc::vec::Vec, profiling::ProfilingEvent};
 
-use crate::{hart::local_hart, uart_console::STDOUT};
+use crate::{
+    hart::local_hart,
+    uart_console::{eprint, eprintln, STDOUT},
+};
 
 static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImpl {
     slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
@@ -28,16 +31,15 @@ pub fn init() {
 pub fn print_span_stack() {
     let span_stack = local_hart().span_stack.borrow();
     let slab = KERNEL_TRACER_IMPL.slab.lock();
-    let mut stdout = STDOUT.lock();
-    writeln!(stdout, "span stack:").unwrap();
+    eprintln!("span stack:");
     for id in span_stack.iter().rev() {
         let id = span_id_to_slab_index(id);
         let span_attr = slab.get(id).unwrap();
-        write!(stdout, "    {}: {}", span_attr.level(), span_attr.name()).unwrap();
+        eprint!("    {}: {}", span_attr.level(), span_attr.name());
         if let Some(kvs) = span_attr.kvs() {
-            write!(stdout, "{{{kvs}}}").unwrap();
+            eprint!("{{{kvs}}}");
         }
-        writeln!(stdout).unwrap();
+        eprintln!();
     }
 }
 
