@@ -6,6 +6,8 @@ use klocks::{Lazy, SpinNoIrqMutex};
 use tty::Tty;
 use uart_16550::MmioSerialPort;
 
+// FIXME: 关中断锁只对一个 hart 生效，因此仍然可能导致中断处理有不可预测的延迟乃至死锁
+
 pub static UART0: Lazy<Uart> = Lazy::new(|| {
     let mut port = unsafe { MmioSerialPort::new(PA_TO_VA + QEMU_UART_ADDR) };
     port.init();
@@ -33,12 +35,9 @@ impl Uart {
     }
 
     pub fn handle_irq(&self) {
-        trace!("uart interrupt");
         let ch = self.port.lock().receive();
         let mut tty = TTY.lock();
-        if tty.queue.push_back(ch).is_err() {
-            trace!("uart input discard: {ch}");
-        }
+        let _ = tty.queue.push_back(ch);
         if let Some(waker) = tty.waker.take() {
             waker.wake();
         }
