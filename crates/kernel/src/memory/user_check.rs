@@ -1,4 +1,4 @@
-use core::{arch, mem, ops::Deref, ptr};
+use core::{arch, mem, num::NonZeroUsize, ops::Deref, ptr::NonNull};
 
 use common::config::{LOW_ADDRESS_END, MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::error::{errno, KResult};
@@ -13,37 +13,36 @@ use uninit::out_ref::Out;
 use crate::hart::local_hart;
 
 pub struct UserCheck<T: ?Sized> {
-    ptr: *mut T,
+    ptr: NonNull<T>,
 }
 
 unsafe impl<T: ?Sized> Send for UserCheck<T> {}
 
 impl<T> UserCheck<T> {
-    pub fn new(ptr: *mut T) -> Self {
-        Self { ptr }
+    pub fn new(ptr: *mut T) -> Option<Self> {
+        Some(Self {
+            ptr: NonNull::new(ptr)?,
+        })
     }
 
-    pub fn new_slice(ptr: *mut T, len: usize) -> UserCheck<[T]> {
-        UserCheck {
-            ptr: ptr::slice_from_raw_parts_mut(ptr, len),
-        }
+    pub fn new_slice(ptr: *mut T, len: usize) -> Option<UserCheck<[T]>> {
+        Some(UserCheck {
+            ptr: NonNull::slice_from_raw_parts(NonNull::new(ptr)?, len),
+        })
     }
 
-    pub fn is_null(&self) -> bool {
-        self.ptr.is_null()
-    }
-
-    pub fn add(self, count: usize) -> Self {
-        Self {
-            ptr: (self.ptr as usize + mem::size_of::<T>() * count) as _,
-        }
+    pub fn add(self, count: usize) -> Option<Self> {
+        let offset = mem::size_of::<T>() * count;
+        Some(Self {
+            ptr: self.ptr.with_addr(self.ptr.addr().checked_add(offset)?),
+        })
     }
 
     pub fn check_ptr(&self) -> KResult<UserRead<T>> {
-        if self.ptr as usize + mem::size_of::<T>() > LOW_ADDRESS_END {
+        if self.ptr.addr().get() + mem::size_of::<T>() > LOW_ADDRESS_END {
             return Err(errno::EFAULT);
         }
-        let _access_user_guard = check_read_impl(self.ptr, 1)?;
+        let _access_user_guard = check_read_impl(self.ptr.as_ptr(), 1)?;
         Ok(UserRead {
             ptr: self.ptr,
             _access_user_guard,
@@ -51,7 +50,7 @@ impl<T> UserCheck<T> {
     }
 
     pub unsafe fn check_ptr_mut(&self) -> KResult<UserWrite<T>> {
-        let _access_user_guard = check_write_impl(self.ptr, 1)?;
+        let _access_user_guard = check_write_impl(self.ptr.as_ptr(), 1)?;
         Ok(UserWrite {
             ptr: self.ptr,
             _access_user_guard,
@@ -60,7 +59,7 @@ impl<T> UserCheck<T> {
 }
 
 impl<T: ?Sized> UserCheck<T> {
-    pub fn addr(&self) -> usize {
+    pub fn addr(&self) -> NonZeroUsize {
         self.ptr.addr()
     }
 }
@@ -90,11 +89,12 @@ impl<T> UserCheck<[T]> {
 impl UserCheck<u8> {
     /// 非 utf8 会返回 EINVAL
     pub fn check_cstr(&self) -> KResult<UserRead<str>> {
-        if self.ptr as usize >= LOW_ADDRESS_END {
+        let start = self.ptr.addr().get();
+        if self.ptr.addr().get() >= LOW_ADDRESS_END {
             return Err(errno::EFAULT);
         }
 
-        let mut va = self.ptr as usize;
+        let mut va = start;
         let mut end;
 
         let _access_user_guard = AccessUserGuard::new();
@@ -120,20 +120,20 @@ impl UserCheck<u8> {
                     return Err(errno::EFAULT);
                 }
 
-                if end - self.ptr as usize > MAX_PATHNAME_LEN {
+                if end - start > MAX_PATHNAME_LEN {
                     warn!("user cstr too long, from {:p}", self.ptr);
                     return Err(errno::ENAMETOOLONG);
                 }
             }
         }
 
-        let bytes = unsafe { core::slice::from_raw_parts(self.ptr, end - self.ptr as usize) };
+        let bytes = unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), end - start) };
         let ret = core::str::from_utf8(bytes).map_err(|_error| {
-            warn!("Not utf8 in {:#x}..{:#x}", self.ptr as usize, end);
+            warn!("Not utf8 in {:#x}..{:#x}", start, end);
             errno::EINVAL
         })?;
         Ok(UserRead {
-            ptr: ret as _,
+            ptr: NonNull::from(ret),
             _access_user_guard,
         })
     }
@@ -155,7 +155,7 @@ impl UserCheck<u8> {
 ///
 /// 其来源是用户的指针，没有任何方式约束，只能假设它指向的内容是合适地初始化的
 pub struct UserRead<T: ?Sized> {
-    ptr: *const T,
+    ptr: NonNull<T>,
     _access_user_guard: AccessUserGuard,
 }
 
@@ -178,7 +178,7 @@ impl<T> UserRead<[T]> {
         if index >= self.len() {
             return None;
         }
-        let ptr = unsafe { self.ptr.as_ptr().add(index) };
+        let ptr = unsafe { self.ptr.as_non_null_ptr().add(index) };
         Some(if ptr.is_aligned() {
             unsafe { ptr.read() }
         } else {
@@ -194,7 +194,7 @@ impl<T> Deref for UserRead<[T]> {
         const {
             assert!(mem::align_of::<T>() == 1);
         }
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
@@ -202,18 +202,12 @@ impl Deref for UserRead<str> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
-// impl UserRead<str> {
-// pub fn is_empty(&self) -> bool {
-// self.ptr.len() == 0
-// }
-// }
-
 pub struct UserWrite<T: ?Sized> {
-    ptr: *mut T,
+    ptr: NonNull<T>,
     _access_user_guard: AccessUserGuard,
 }
 
@@ -232,7 +226,7 @@ impl<T> UserWrite<[T]> {
         const {
             assert!(mem::align_of::<T>() == 1);
         }
-        unsafe { Out::from_raw(self.ptr) }
+        unsafe { Out::from_raw(self.ptr.as_ptr()) }
     }
 }
 

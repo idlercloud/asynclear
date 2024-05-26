@@ -14,16 +14,16 @@ use crate::{
 ///
 /// 参数：
 /// - `signum` 指定信号，可以是除了 `SIGKILL` 和 `SIGSTOP` 之外的任意有效信号。见 [`Signal`]
-/// - `act` 如果非 NULL，则安装 `act` 指向的新操作
+/// - `new_act` 如果非 NULL，则安装 `new_act` 指向的新操作
 /// - `old_act` 如果非 NULL，则将旧操作写入 `old_act` 中
 ///
 /// 错误：
-/// - `EFAULT` 如果 `act` 或者 `old_act` 指向非法地址
+/// - `EFAULT` 如果 `new_act` 或者 `old_act` 指向非法地址
 /// - `EINVAL` 如果 signum 不是除了 `SIGKILL` 和 `SIGSTOP` 之外的有效信号
 pub fn sys_rt_sigaction(
     signum: usize,
-    act: UserCheck<KSignalAction>,
-    old_act: UserCheck<KSignalAction>,
+    new_act: Option<UserCheck<KSignalAction>>,
+    old_act: Option<UserCheck<KSignalAction>>,
 ) -> KResult {
     let Some(signal) = Signal::from_user(signum as u8) else {
         warn!("use unsupported signal {signum}");
@@ -33,7 +33,7 @@ pub fn sys_rt_sigaction(
     if signal == Signal::SIGKILL || signal == Signal::SIGSTOP {
         return Err(errno::EINVAL);
     }
-    if !old_act.is_null() {
+    if let Some(old_act) = old_act {
         let old_act_ptr = unsafe { old_act.check_ptr_mut()? };
 
         local_hart().curr_process().lock_inner_with(|inner| {
@@ -41,8 +41,8 @@ pub fn sys_rt_sigaction(
         });
     }
 
-    if !act.is_null() {
-        let act = act.check_ptr()?.read();
+    if let Some(new_act) = new_act {
+        let act = new_act.check_ptr()?.read();
         if !act.flags.contains(SignalActionFlags::SA_RESTORER) {
             // `SA_RESTORER` 表示传入的 `restore` 字段是有用的
             // 一般而言这个字段由 libc 填写，用于 signal handler 执行结束之后调用 `sys_sigreturn`
@@ -66,19 +66,19 @@ pub fn sys_rt_sigaction(
 /// - `old_set` 如果非 NULL，则将旧的信号掩码写入 `old_act` 中
 ///
 /// 错误：
-/// - `EFAULT` 如果 `set` 或 `old_set` 指向非法地址
+/// - `EFAULT` 如果 `new_set` 或 `old_set` 指向非法地址
 /// - `EINVAL` 如果 `how` 参数非法或者内核不支持 `set_size`
 pub fn sys_rt_sigprocmask(
     how: usize,
-    new_set: UserCheck<u64>,
-    old_set: UserCheck<u64>,
+    new_set: Option<UserCheck<u64>>,
+    old_set: Option<UserCheck<u64>>,
     set_size: usize,
 ) -> KResult {
     if set_size > SIGSET_SIZE_BYTES {
         return Err(errno::EINVAL);
     }
 
-    if !old_set.is_null() {
+    if let Some(old_set) = old_set {
         let old_set_ptr = unsafe { old_set.check_ptr_mut()? };
 
         local_hart().curr_thread().lock_inner_with(|inner| {
@@ -88,7 +88,7 @@ pub fn sys_rt_sigprocmask(
 
     let how = SigProcMaskHow::from_user(how).ok_or(errno::EINVAL)?;
 
-    if !new_set.is_null() {
+    if let Some(new_set) = new_set {
         debug!("write signal mask with how = {how:?}");
         let new_set = KSignalSet::from_user(new_set.check_ptr()?.read());
         local_hart()
@@ -107,7 +107,10 @@ pub fn sys_rt_sigreturn() -> KResult {
     debug!("sigreturn called");
     let thread = local_hart().curr_thread();
     let sp = thread.lock_inner_with(|inner| inner.trap_context.sp());
-    let Ok(old_ctx) = UserCheck::new(sp as *mut SignalContext).check_ptr() else {
+    let Ok(old_ctx) = UserCheck::new(sp as *mut SignalContext)
+        .ok_or(errno::EINVAL)?
+        .check_ptr()
+    else {
         // TODO:[blocked] 这里其实可以试着补救
         exit_process(&thread.process, -10);
         return Err(errno::BREAK);

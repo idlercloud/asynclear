@@ -236,7 +236,11 @@ pub fn check_signal(thread: &Thread) -> bool {
     };
 
     let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
-    let user_ptr = unsafe { UserCheck::new(sp as *mut SignalContext).check_ptr_mut() };
+    let user_ptr = (|| unsafe {
+        UserCheck::new(sp as *mut SignalContext)
+            .ok_or(errno::EINVAL)?
+            .check_ptr_mut()
+    })();
     if let Ok(user_ptr) = user_ptr {
         user_ptr.write(signal_context);
         false

@@ -134,7 +134,7 @@ pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     let mut iov_index = 0;
     while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
-        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len);
+        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
         let nread = file.read(buf).await?;
         if nread == 0 {
             break;
@@ -166,7 +166,7 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
     while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
-        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len);
+        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
         let nwrite = file.write(buf).await?;
         if nwrite == 0 {
             break;
@@ -188,7 +188,7 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
 ///     - 状态标志影响后续的 I/O 方式，而且可以动态修改
 /// - `mode` 是用于指定创建新文件时，该文件的 mode。目前应该不会用到
 ///     - 它只会影响未来访问该文件的模式，但这一次打开该文件可以是随意的
-pub async fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32) -> KResult {
+pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32) -> KResult {
     let path = path.check_cstr()?;
 
     let Some(flags) = OpenFlags::from_bits(flags) else {
@@ -535,7 +535,7 @@ pub fn sys_mount(
     target: UserCheck<u8>,
     fs_type: UserCheck<u8>,
     flags: u32,
-    data: UserCheck<u8>,
+    data: Option<UserCheck<u8>>,
 ) -> KResult {
     let source = source.check_cstr()?;
     let target = target.check_cstr()?;
@@ -543,7 +543,7 @@ pub fn sys_mount(
     let Some(flags) = MountFlags::from_bits(flags) else {
         todo!("[low] unsupported MountFlags: {flags:#b}");
     };
-    if !data.is_null() {
+    if let Some(data) = data {
         let _data = data.check_cstr()?;
     }
 
@@ -574,7 +574,7 @@ pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
 /// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
 /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
 pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
-    let ret = buf.addr() as isize;
+    let ret = buf.addr().get() as isize;
     let cwd = local_hart()
         .curr_process()
         .lock_inner_with(|inner| Arc::clone(&inner.cwd));
@@ -618,6 +618,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
 }
 
 /// 等待一组文件描述符上的事件
+#[allow(unused)]
 pub fn sys_ppoll(
     fds: UserCheck<[PollFd]>,
     timeout: UserCheck<TimeSpec>,

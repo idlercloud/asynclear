@@ -150,7 +150,7 @@ pub fn sys_clone(
 pub fn sys_execve(
     pathname: UserCheck<u8>,
     argv: UserCheck<usize>,
-    envp: UserCheck<usize>,
+    envp: Option<UserCheck<usize>>,
 ) -> KResult {
     let pathname = pathname.check_cstr()?;
     debug!("pathname: {}", &*pathname);
@@ -163,17 +163,19 @@ pub fn sys_execve(
             if arg_str_ptr == 0 {
                 break;
             }
-            let arg_str = UserCheck::new(arg_str_ptr as *mut u8).check_cstr()?;
+            let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
+                .ok_or(errno::EINVAL)?
+                .check_cstr()?;
             v.push(CompactString::from(&*arg_str));
-            ptr_vec = ptr_vec.add(1);
+            ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
         }
         Ok(v)
     };
     let args = collect_cstrs(argv)?;
-    let envs = if envp.is_null() {
-        Vec::new()
-    } else {
+    let envs = if let Some(envp) = envp {
         collect_cstrs(envp)?
+    } else {
+        Vec::new()
     };
 
     // 执行新进程
@@ -198,13 +200,12 @@ pub fn sys_execve(
 ///     - `pid` == 0，则等待一个 pgid 与调用进程**调用时**的 pgid
 ///       相同的子进程，目前不支持
 ///     - `pid` > 0，则等待指定 `pid` 的子进程
-/// - `wstatus: *mut i32` 指向一个
-///   int，若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
+/// - `wstatus` 若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
 /// - `options` 控制等待方式，详细查看 [`WaitFlags`]，目前只支持 `WNOHANG`
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
 pub async fn sys_wait4(
     pid: isize,
-    wstatus: UserCheck<i32>,
+    wstatus: Option<UserCheck<i32>>,
     options: usize,
     rusage: usize,
 ) -> KResult {
@@ -248,7 +249,7 @@ pub async fn sys_wait4(
                 drop(inner);
                 let found_pid = child.pid();
                 let exit_code = child.exit_code().expect("Thread should be zombie");
-                if !wstatus.is_null() {
+                if let Some(wstatus) = wstatus {
                     let wstatus = unsafe { wstatus.check_ptr_mut()? };
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
                     wstatus.write((exit_code as u8 as i32) << 8);

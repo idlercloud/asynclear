@@ -95,7 +95,7 @@ impl KSignalSet {
         KSignalSet::from_bits_truncate(bits >> 1)
     }
 
-    pub const fn to_user(&self) -> u64 {
+    pub const fn to_user(self) -> u64 {
         self.bits() << 1
     }
 

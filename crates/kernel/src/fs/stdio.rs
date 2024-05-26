@@ -6,7 +6,7 @@ use core::{
 
 use compact_str::CompactString;
 use defines::{
-    error::KResult,
+    error::{errno, KResult},
     ioctl::{
         Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
@@ -40,37 +40,58 @@ pub fn tty_ioctl(cmd: usize, value: usize) -> KResult {
     match cmd {
         TCGETS | TCGETA => {
             debug!("Get termios");
-            let termios_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
+            let termios_ptr = unsafe {
+                UserCheck::new(value as _)
+                    .ok_or(errno::EINVAL)?
+                    .check_ptr_mut()?
+            };
             termios_ptr.write(TTY_INODE.inner.lock().termios);
             Ok(0)
         }
         TCSETS | TCSETSW | TCSETSF => {
             debug!("Set termios");
-            let termios = UserCheck::<Termios>::new(value as _).check_ptr()?.read();
+            let termios = UserCheck::<Termios>::new(value as _)
+                .ok_or(errno::EINVAL)?
+                .check_ptr()?
+                .read();
             TTY_INODE.inner.lock().termios = termios;
             Ok(0)
         }
         TIOCGPGRP => {
             debug!("Get foreground pgid");
-            let fg_pgid_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
+            let fg_pgid_ptr = unsafe {
+                UserCheck::new(value as _)
+                    .ok_or(errno::EINVAL)?
+                    .check_ptr_mut()?
+            };
             fg_pgid_ptr.write(TTY_INODE.inner.lock().fg_pgid);
             Ok(0)
         }
         TIOCSPGRP => {
             debug!("Set foreground pgid");
-            let fg_pgid = UserCheck::<usize>::new(value as _).check_ptr()?.read();
+            let fg_pgid = UserCheck::<usize>::new(value as _)
+                .ok_or(errno::EINVAL)?
+                .check_ptr()?
+                .read();
             TTY_INODE.inner.lock().fg_pgid = fg_pgid;
             Ok(0)
         }
         TIOCGWINSZ => {
             debug!("Get window size");
-            let win_size_ptr = unsafe { UserCheck::new(value as _).check_ptr_mut()? };
+            let win_size_ptr = unsafe {
+                UserCheck::new(value as _)
+                    .ok_or(errno::EINVAL)?
+                    .check_ptr_mut()?
+            };
             win_size_ptr.write(TTY_INODE.inner.lock().win_size);
             Ok(0)
         }
         TIOCSWINSZ => {
             debug!("Set window size");
-            let win_size = UserCheck::<WinSize>::new(value as _).check_ptr()?.read();
+            let win_size = UserCheck::<WinSize>::new(value as _)
+                .ok_or(errno::EINVAL)?
+                .check_ptr()?
+                .read();
             TTY_INODE.inner.lock().win_size = win_size;
             Ok(0)
         }
