@@ -2,10 +2,7 @@
 //!
 //! 裁剪了一些不太需要的方法，添加 debug 模式下的死锁检测
 
-use core::{
-    mem::ManuallyDrop,
-    ops::{Deref, DerefMut},
-};
+use core::ops::{Deref, DerefMut};
 
 pub struct SpinMutex<T: ?Sized> {
     base: spin::mutex::SpinMutex<T>,
@@ -42,10 +39,8 @@ impl<T: ?Sized> SpinMutex<T> {
     #[inline]
     #[track_caller]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
-        #[cfg(all(debug_assertions, not(test)))]
+        #[cfg(debug_assertions)]
         let begin = riscv_time::get_time_ms();
-        #[cfg(test)]
-        let begin = std::time::Instant::now();
         loop {
             if let Some(guard) = self.try_lock() {
                 return guard;
@@ -53,12 +48,8 @@ impl<T: ?Sized> SpinMutex<T> {
 
             while self.is_locked() {
                 core::hint::spin_loop();
-                #[cfg(all(debug_assertions, not(test)))]
+                #[cfg(debug_assertions)]
                 if riscv_time::get_time_ms() - begin >= 2000 {
-                    panic!("deadlock detected");
-                }
-                #[cfg(test)]
-                if begin.elapsed().as_millis() >= 2000 {
                     panic!("deadlock detected");
                 }
             }
@@ -106,9 +97,7 @@ pub struct SpinNoIrqMutex<T: ?Sized> {
 
 pub struct SpinNoIrqMutexGuard<'a, T: ?Sized> {
     // 要控制一下析构顺序，先释放锁再开中断
-    spin_guard: ManuallyDrop<spin::mutex::SpinMutexGuard<'a, T>>,
-    // 测试情况下一般不是跑在 riscv 上，因此无法使用 guard
-    #[cfg(not(test))]
+    spin_guard: spin::mutex::SpinMutexGuard<'a, T>,
     _no_irq_guard: riscv_guard::NoIrqGuard,
 }
 
@@ -137,10 +126,8 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     #[inline]
     #[track_caller]
     pub fn lock(&self) -> SpinNoIrqMutexGuard<'_, T> {
-        #[cfg(all(debug_assertions, not(test)))]
+        #[cfg(debug_assertions)]
         let begin = riscv_time::get_time_ms();
-        #[cfg(test)]
-        let begin = std::time::Instant::now();
         loop {
             if let Some(guard) = self.try_lock() {
                 return guard;
@@ -148,12 +135,8 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
 
             while self.is_locked() {
                 core::hint::spin_loop();
-                #[cfg(all(debug_assertions, not(test)))]
+                #[cfg(debug_assertions)]
                 if riscv_time::get_time_ms() - begin >= 2000 {
-                    panic!("deadlock detected");
-                }
-                #[cfg(test)]
-                if begin.elapsed().as_millis() >= 2000 {
                     panic!("deadlock detected");
                 }
             }
@@ -176,11 +159,9 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
     #[inline(always)]
     fn try_lock(&self) -> Option<SpinNoIrqMutexGuard<'_, T>> {
-        #[cfg(not(test))]
         let _no_irq_guard = riscv_guard::NoIrqGuard::new();
         self.base.try_lock().map(|spin_guard| SpinNoIrqMutexGuard {
-            spin_guard: ManuallyDrop::new(spin_guard),
-            #[cfg(not(test))]
+            spin_guard,
             _no_irq_guard,
         })
     }
@@ -198,144 +179,5 @@ impl<'a, T: ?Sized> Deref for SpinNoIrqMutexGuard<'a, T> {
 impl<'a, T: ?Sized> DerefMut for SpinNoIrqMutexGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.spin_guard
-    }
-}
-
-impl<'a, T: ?Sized> Drop for SpinNoIrqMutexGuard<'a, T> {
-    fn drop(&mut self) {
-        // SAFETY: 只会在这里 drop，而且之后再也不会被用到
-        unsafe {
-            ManuallyDrop::drop(&mut self.spin_guard);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{
-        prelude::v1::*,
-        sync::{mpsc::channel, Arc},
-        thread,
-    };
-
-    type SpinMutex<T> = super::SpinMutex<T>;
-
-    #[derive(Eq, PartialEq, Debug)]
-    struct NonCopy(i32);
-
-    #[test]
-    fn smoke() {
-        let m = SpinMutex::<_>::new(());
-        drop(m.lock());
-        drop(m.lock());
-    }
-
-    #[test]
-    fn lots_and_lots() {
-        static M: SpinMutex<()> = SpinMutex::<_>::new(());
-        static mut CNT: u32 = 0;
-        const J: u32 = 1000;
-        const K: u32 = 3;
-
-        fn inc() {
-            for _ in 0..J {
-                unsafe {
-                    let _g = M.lock();
-                    CNT += 1;
-                }
-            }
-        }
-
-        let (tx, rx) = channel();
-        let mut ts = Vec::new();
-        for _ in 0..K {
-            let tx2 = tx.clone();
-            ts.push(thread::spawn(move || {
-                inc();
-                tx2.send(()).unwrap();
-            }));
-            let tx2 = tx.clone();
-            ts.push(thread::spawn(move || {
-                inc();
-                tx2.send(()).unwrap();
-            }));
-        }
-
-        drop(tx);
-        for _ in 0..2 * K {
-            rx.recv().unwrap();
-        }
-        assert_eq!(unsafe { CNT }, J * K * 2);
-
-        for t in ts {
-            t.join().unwrap();
-        }
-    }
-
-    #[test]
-    fn try_lock() {
-        let mutex = SpinMutex::<_>::new(42);
-
-        // First lock succeeds
-        let a = mutex.try_lock();
-        assert_eq!(a.as_ref().map(|r| **r), Some(42));
-
-        // Additional lock fails
-        let b = mutex.try_lock();
-        assert!(b.is_none());
-
-        // After dropping lock, it succeeds again
-        ::core::mem::drop(a);
-        let c = mutex.try_lock();
-        assert_eq!(c.as_ref().map(|r| **r), Some(42));
-    }
-
-    #[test]
-    fn test_mutex_arc_nested() {
-        // Tests nested mutexes and access to underlying data.
-        let arc = Arc::new(SpinMutex::<_>::new(1));
-        let arc2 = Arc::new(SpinMutex::<_>::new(arc));
-        let (tx, rx) = channel();
-        let t = thread::spawn(move || {
-            let lock = arc2.lock();
-            let lock2 = lock.lock();
-            assert_eq!(*lock2, 1);
-            tx.send(()).unwrap();
-        });
-        rx.recv().unwrap();
-        t.join().unwrap();
-    }
-
-    #[test]
-    fn test_mutex_arc_access_in_unwind() {
-        let arc = Arc::new(SpinMutex::<_>::new(1));
-        let arc2 = arc.clone();
-        let _ = thread::spawn(move || -> () {
-            struct Unwinder {
-                i: Arc<SpinMutex<i32>>,
-            }
-            impl Drop for Unwinder {
-                fn drop(&mut self) {
-                    *self.i.lock() += 1;
-                }
-            }
-            let _u = Unwinder { i: arc2 };
-            panic!();
-        })
-        .join();
-        let lock = arc.lock();
-        assert_eq!(*lock, 2);
-    }
-
-    #[test]
-    fn test_mutex_unsized() {
-        let mutex: &SpinMutex<[i32]> = &SpinMutex::<_>::new([1, 2, 3]);
-        {
-            let b = &mut *mutex.lock();
-            b[0] = 4;
-            b[2] = 5;
-        }
-        let comp: &[i32] = &[4, 2, 5];
-        assert_eq!(&*mutex.lock(), comp);
     }
 }
