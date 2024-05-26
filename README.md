@@ -179,9 +179,16 @@ sudo make install
 
 ### 调试方法
 
-如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中，需要在 `.vscode/launch.json` 中配置它的路径。
+推荐使用命令行 gdb，更加靠谱。vscode 调试似乎会有一些奇怪的问题。
 
-1. 运行 `cargo qemu` 时，多加一个参数 `--debug`
+命令行调试过程如下：
+
+1. 运行 `cargo qemu` 或 `cargo ktest` 时，多加一个参数 `--debug`
+2. 另外开启一个终端并切换到 asynclear 目录，执行 `riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'`
+
+vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中，需要在 `.vscode/launch.json` 中配置它的路径。过程如下：
+
+1. 运行 `cargo qemu` 或 `cargo ktest` 时，多加一个参数 `--debug`
 2. vscode 中按 F5，也就是启动调试
 3. 可以通过图形界面控制运行，也可以在下方的调试控制台里通过 `-exec <gdb command>` 来手动输入 gdb 指令
 
