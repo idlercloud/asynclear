@@ -5,7 +5,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use common::config::{HART_NUM, HART_START_ADDR};
+use common::config::{HART_START_ADDR, MAX_HART_NUM};
 use crossbeam_utils::CachePadded;
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
@@ -22,8 +22,8 @@ core::arch::global_asm!(include_str!("entry.S"));
 
 // `CachePadded` 可以保证 per-cpu 的结构位于不同的 cache line 中
 // 因此避免 false sharing
-static HARTS: [SyncUnsafeCell<CachePadded<Hart>>; HART_NUM] =
-    [const { SyncUnsafeCell::new(CachePadded::new(Hart::new())) }; HART_NUM];
+static HARTS: [SyncUnsafeCell<CachePadded<Hart>>; MAX_HART_NUM] =
+    [const { SyncUnsafeCell::new(CachePadded::new(Hart::new())) }; MAX_HART_NUM];
 
 /// # SAFETY
 /// Hart 结构实际上只会被对应的 hart 访问
@@ -102,7 +102,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
         // 将下面的代码取消注释即可启动多核
-        for i in 0..HART_NUM {
+        for i in 0..MAX_HART_NUM {
             if i == hart_id {
                 continue;
             }

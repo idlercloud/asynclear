@@ -53,7 +53,7 @@ pub const QEMU_PLIC_ADDR: usize = 0xc00_0000;
 pub const QEMU_VIRTIO0: usize = 0x1000_1000;
 
 /// 内核线程的数量（核心数）
-pub const HART_NUM: usize = 8;
+pub const MAX_HART_NUM: usize = 8;
 /// Hart 启动时的地址
 pub const HART_START_ADDR: usize = 0x8020_0000;
 

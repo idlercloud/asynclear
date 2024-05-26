@@ -24,7 +24,7 @@ impl InterruptSource {
 
 pub fn init() {
     let plic = unsafe { &(*Plic::mmio()) };
-    for context in 0..(config::HART_NUM * 2) {
+    for context in 0..(config::MAX_HART_NUM * 2) {
         plic.set_threshold(context, 0);
         plic.enable(InterruptSource::Uart0 as usize, context);
         // plic.enable(InterruptSource::VirtIO as usize, context);
