@@ -19,14 +19,15 @@ pub fn set_kernel_trap_entry() {
 /// Kernel trap handler
 #[no_mangle]
 pub extern "C" fn kernel_trap_handler() {
-    let _enter = debug_span!("kirq").entered();
     match scause::read().cause() {
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            let _enter = debug_span!("timer_irq").entered();
             // TODO: 想办法通知线程让出 hart
             time::check_timer();
             riscv_time::set_next_trigger();
         }
         Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            let _enter = debug_span!("external_irq").entered();
             super::interrupt_handler();
         }
         other => {

@@ -119,14 +119,16 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             ControlFlow::Break(())
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            trace!("timer interrupt");
+            {
+                let _enter = debug_span!("timer_irq").entered();
+                time::check_timer();
             riscv_time::set_next_trigger();
-            time::check_timer();
+            }
             executor::yield_now().await;
             ControlFlow::Continue(())
         }
         Trap::Interrupt(Interrupt::SupervisorExternal) => {
-            debug!("external interrupt");
+            let _enter = debug_span!("external_irq").entered();
             interrupt_handler();
             ControlFlow::Continue(())
         }
