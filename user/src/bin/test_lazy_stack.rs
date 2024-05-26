@@ -19,7 +19,7 @@ fn recursive(depth: usize, upper_bound: usize) -> usize {
 
 #[no_mangle]
 pub fn main() -> i32 {
-    test_main("test_pid", || {
+    test_main("test_lazy_stack", || {
         let ret = recursive(1, 512);
         println!("{}", ret);
     });

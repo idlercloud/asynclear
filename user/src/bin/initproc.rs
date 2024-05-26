@@ -9,7 +9,7 @@ use user::{exec, fork, wait};
 #[no_mangle]
 fn main() -> i32 {
     if fork() == 0 {
-        exec("shell\0", &["shell\0".as_ptr(), core::ptr::null()]);
+        exec(c"shell", &[c"shell".as_ptr().cast(), core::ptr::null()]);
     } else {
         loop {
             let mut exit_code: i32 = 0;

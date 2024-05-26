@@ -23,7 +23,7 @@ fn main() -> i32 {
             }
         }
         assert_eq!(s[cur], 667897727);
-        println!("{}^{} ≡ {} (mod {})", p, iter, s[cur], m);
+        println!("{}^{} % {} = {}", p, iter, m, s[cur]);
     });
     0
 }

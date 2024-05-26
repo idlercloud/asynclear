@@ -12,6 +12,7 @@ const DL: u8 = 0x7fu8;
 const BS: u8 = 0x08u8;
 
 use alloc::{string::String, vec::Vec};
+use core::ffi::CStr;
 
 use user::{chdir, console::getchar, exec, exit, flush, fork, waitpid};
 
@@ -57,9 +58,17 @@ fn handle_line_end(line: &mut String) {
             let mut args_addr: Vec<*const u8> = args.iter().map(|arg| arg.as_ptr()).collect();
             args_addr.push(core::ptr::null());
             let pid = fork();
+            if pid < 0 {
+                println!("Error when forking");
+                return;
+            }
+
             if pid == 0 {
-                // child process
-                if exec(args[0].as_str(), args_addr.as_slice()) < 0 {
+                let ret = exec(
+                    CStr::from_bytes_with_nul(args[0].as_bytes()).unwrap(),
+                    args_addr.as_slice(),
+                );
+                if ret < 0 {
                     println!("Error when executing!");
                     exit(-4);
                 }
@@ -71,9 +80,8 @@ fn handle_line_end(line: &mut String) {
                 println!("Shell: Process {} exited with code {}", pid, exit_code);
             }
         }
-
-        line.clear();
     }
+    line.clear();
     print!(">> ");
     flush();
 }
@@ -127,7 +135,7 @@ fn handle_builtin_cd(args: &mut [String]) {
         return;
     }
     args[1].push('\0');
-    if chdir(&args[1]) < 0 {
+    if chdir(CStr::from_bytes_with_nul(args[1].as_bytes()).unwrap()) < 0 {
         println!("Error when change dir to {}", args[1]);
     }
 }

@@ -14,12 +14,17 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::{
     alloc::{GlobalAlloc, Layout},
-    arch::asm,
+    ffi::CStr,
     ptr::NonNull,
+    time::Duration,
 };
 
 use buddy_system_allocator::Heap;
-use defines::signal::{KSignalAction, Signal, SignalActionFlags};
+use defines::{
+    fs::{OpenFlags, AT_FDCWD},
+    misc::TimeSpec,
+    signal::SIGCHLD,
+};
 use spin::mutex::Mutex;
 
 pub use self::{
@@ -138,23 +143,20 @@ fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }
 
-// const AT_FDCWD: isize = -100;
+pub fn open(path: &CStr, flags: OpenFlags) -> isize {
+    sys_openat(AT_FDCWD, path, flags.bits(), 0)
+}
 
-// pub fn open(path: &str, flags: OpenFlags) -> isize {
-//     sys_openat(
-//         AT_FDCWD as usize,
-//         path,
-//         flags.bits(),
-//         OpenFlags::RDWR.bits(),
-//     )
-// }
+pub fn close(fd: usize) -> isize {
+    if fd == STDOUT {
+        console::flush();
+    }
+    sys_close(fd)
+}
 
-// pub fn close(fd: usize) -> isize {
-//     if fd == STDOUT {
-//         console::flush();
-//     }
-//     sys_close(fd)
-// }
+pub fn lseek(fd: usize, offset: i64, whence: usize) -> isize {
+    sys_lseek(fd, offset, whence)
+}
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
@@ -162,6 +164,21 @@ pub fn read(fd: usize, buf: &mut [u8]) -> isize {
 
 pub fn write(fd: usize, buf: &[u8]) -> isize {
     sys_write(fd, buf)
+}
+
+pub fn write_all(fd: usize, buf: &[u8]) -> isize {
+    let mut n_write = 0;
+    while n_write < buf.len() {
+        let ret = write(fd, buf);
+        if ret < 0 {
+            return ret;
+        }
+        if ret == 0 {
+            break;
+        }
+        n_write = n_write.wrapping_add_signed(ret);
+    }
+    n_write as isize
 }
 
 // pub fn link(old_path: &str, new_path: &str) -> isize {
@@ -194,10 +211,10 @@ pub fn getppid() -> isize {
 }
 
 pub fn fork() -> isize {
-    sys_clone4(Signal::SIGCHLD as usize + 1)
+    sys_clone(SIGCHLD as usize)
 }
 
-pub fn exec(path: &str, args: &[*const u8]) -> isize {
+pub fn exec(path: &CStr, args: &[*const u8]) -> isize {
     sys_execve(path, args)
 }
 
@@ -237,15 +254,11 @@ pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
     }
 }
 
-pub fn mmap(start: usize, len: usize, prot: usize) -> isize {
-    sys_mmap(start, len, prot)
-}
-
 pub fn munmap(start: usize, len: usize) -> isize {
     sys_munmap(start, len)
 }
 
-pub fn chdir(path: &str) -> isize {
+pub fn chdir(path: &CStr) -> isize {
     sys_chdir(path)
 }
 
@@ -257,38 +270,31 @@ pub fn chdir(path: &str) -> isize {
 //     sys_pipe(pipe_fd)
 // }
 
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignalAction) -> isize {
-    if act.is_null() {
-        sys_rt_sigaction(signum, act, old_act)
-    } else {
-        let mut act = unsafe { (*act).clone() };
-        act.flags |= SignalActionFlags::SA_RESTORER;
-        act.restorer = signal_restorer as usize;
-        sys_rt_sigaction(signum, &act as _, old_act)
-    }
-}
-
-/// 用于 `KSignalAction` 的 restorer 字段。
-///
-/// 它会在信号处理完毕后被调用，用于让内核恢复信号处理前的上下文
-#[naked]
-unsafe extern "C" fn signal_restorer() {
-    unsafe {
-        asm!(
-            "li a7, 139", // RT_SIGRETURN
-            "ecall",
-            options(noreturn)
-        )
-    }
-}
-
 pub fn gettid() -> isize {
     sys_gettid()
+}
+
+pub fn gettime() -> TimeSpec {
+    let mut ts = TimeSpec::default();
+    if sys_clock_gettime(0, &mut ts as _) < 0 {
+        println!("gettime failed");
+    }
+    ts
 }
 
 pub fn test_main(name: &str, f: impl FnOnce()) {
     println!("----{} begins----", name);
     f();
     println!("----{} ends  ----", name);
+}
+
+pub fn bench_main(name: &str, mut f: impl FnMut(), time: usize) {
+    println!("===={} begins====", name);
+    let begin = Duration::try_from(gettime()).unwrap();
+    for _ in 0..time {
+        f();
+    }
+    let end = Duration::try_from(gettime()).unwrap();
+    let elasped = end - begin;
+    println!("===={} ends {}ms ====", name, elasped.as_millis());
 }
