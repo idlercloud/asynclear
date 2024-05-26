@@ -1,17 +1,14 @@
 use std::{
     error::Error,
-    io::{BufRead, BufReader, Lines, Write},
-    iter,
-    process::{ChildStdin, ChildStdout},
+    io::{BufRead, BufReader, Write},
+    ops::Range,
+    sync::LazyLock,
 };
 
 use clap::Parser;
+use regex::Regex;
 
-use crate::{
-    build::{BuildArgs, USER_BINS},
-    qemu::QemuArgs,
-    tool,
-};
+use crate::{build::BuildArgs, qemu::QemuArgs, tool};
 
 /// 运行内核集成测试
 #[derive(Parser)]
@@ -52,30 +49,97 @@ impl KtestArgs {
                     break;
                 }
             }
+            writeln!(stdin, "testrunner")?;
+
+            let mut output = Vec::new();
+
+            loop {
+                let line = lines.next().unwrap().unwrap();
+                if line.contains("==ALL TESTS OK==") {
+                    break;
+                }
+                println!("{line}");
+                output.push(line);
+            }
+            writeln!(stdin, "exit")?;
+
             let mut passed = Vec::new();
             let mut failed = Vec::new();
 
-            for test_name in USER_BINS.iter() {
-                if !test_name.starts_with("test_") {
-                    continue;
-                }
-                let ok = handle_ktest(&mut lines, test_name, stdin)?;
-                if ok {
-                    passed.push(test_name);
-                } else {
-                    failed.push(test_name);
+            let ptest_re = Regex::new("========== START (test_.+) ==========").unwrap();
+            let ktest_re = Regex::new("----(test_.+) begins----").unwrap();
+
+            let mut parts = Vec::new();
+            #[derive(Clone, Debug)]
+            struct OutputPart<'a> {
+                name: &'a str,
+                is_ptest: bool,
+                range: Range<usize>,
+            }
+            let mut curr_part = OutputPart {
+                name: "",
+                is_ptest: true,
+                range: 0..0,
+            };
+            let mut in_part = false;
+
+            for (i, line) in output.iter().enumerate() {
+                if let Some(caps) = ptest_re.captures(line) {
+                    if in_part {
+                        parts.push(curr_part.clone());
+                        curr_part.is_ptest = true;
+                    }
+                    curr_part.name = caps.get(1).unwrap().as_str();
+                    curr_part.range = i..i + 1;
+                    in_part = true;
+                } else if let Some(caps) = ktest_re.captures(line) {
+                    if in_part {
+                        parts.push(curr_part.clone());
+                        curr_part.is_ptest = false;
+                    }
+                    curr_part.name = caps.get(1).unwrap().as_str();
+                    curr_part.range = i..i + 1;
+                    in_part = true;
+                } else if in_part {
+                    curr_part.range.end = i + 1;
                 }
             }
 
-            writeln!(stdin, "exit")?;
+            if in_part {
+                parts.push(curr_part);
+            }
+
+            for part in parts {
+                if part.is_ptest {
+                    if ptest_checker(part.name, &output[part.range.clone()]) {
+                        passed.push(part);
+                    } else {
+                        failed.push(part);
+                    }
+                } else {
+                    if ktest_checker(part.name, &output[part.range.clone()]) {
+                        passed.push(part);
+                    } else {
+                        failed.push(part);
+                    }
+                }
+            }
 
             println!("Passed tests:");
-            for name in passed {
-                println!("    {name}");
+            for part in passed {
+                if part.is_ptest {
+                    println!("    ptest {}", part.name);
+                } else {
+                    println!("    ktest {}", part.name);
+                }
             }
             println!("Failed tests:");
-            for name in failed {
-                println!("    {name}");
+            for part in failed {
+                if part.is_ptest {
+                    println!("    ptest {}", part.name);
+                } else {
+                    println!("    ktest {}", part.name);
+                }
             }
             Ok(())
         }()
@@ -97,53 +161,53 @@ impl KtestArgs {
     }
 }
 
-fn handle_ktest(
-    lines: &mut Lines<BufReader<&mut ChildStdout>>,
-    test_name: &str,
-    stdin: &mut ChildStdin,
-) -> Result<bool, Box<dyn Error>> {
-    let mut get_test_output = || -> String {
-        // 清除多余的输出
-        let mut output = String::new();
-
-        let mut need_clean = true;
-        loop {
-            let line = lines.next().unwrap().unwrap();
-            println!("{line}");
-            output.push_str(&line);
-            output.push('\n');
-            if line.contains("ends  ----") {
-                break;
-            }
-            if line.contains("exited with code") {
-                need_clean = false;
-                break;
-            }
+fn ptest_checker(name: &str, content: &[String]) -> bool {
+    if name == "test_execve" {
+        if !content
+            .iter()
+            .any(|line| line.contains("========== END main =========="))
+        {
+            return false;
         }
-        while need_clean {
-            let line = lines.next().unwrap().unwrap();
-            println!("[consume rest] {line}");
-            if line.contains("exited with code") {
-                need_clean = false;
-            }
-        }
-        output
-    };
-    if test_name == "test_echo" {
-        let echo_content = iter::repeat_with(fastrand::alphanumeric)
-            .take(fastrand::usize(16..32))
-            .collect::<String>();
-        writeln!(stdin, "ktest/{test_name} {echo_content}")?;
-        let output = get_test_output();
-        Ok(output.contains(&echo_content) && output.contains("ends  ----"))
-    } else {
-        writeln!(stdin, "ktest/{test_name}")?;
-        let output = get_test_output();
-        // 这样可能可读性更高点
-        if test_name.contains("_should_fail_") {
-            Ok(!output.contains("ends  ----"))
-        } else {
-            Ok(output.contains("ends  ----"))
-        }
+    } else if !content
+        .iter()
+        .any(|line| line.contains(&format!("========== END {name} ==========")))
+    {
+        return false;
     }
+    match name {
+        "test_brk" => {
+            static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"heap pos: (\d+)").unwrap());
+            let content = content.join("\n");
+            let heaps = RE
+                .captures_iter(&content)
+                .map(|c| c[1].parse::<usize>().unwrap())
+                .collect::<Vec<_>>();
+            if heaps.len() != 3 {
+                return false;
+            }
+            if heaps[0] + 64 != heaps[1] || heaps[1] + 64 != heaps[2] {
+                return false;
+            }
+        }
+        // TODO: 写其它测试的 checker
+        _ => {}
+    }
+    true
+}
+
+fn ktest_checker(name: &str, content: &[String]) -> bool {
+    let should_fail = name.contains("test_should_fail_");
+    let contain_end = content
+        .iter()
+        .any(|line| line.contains(&format!("----{name} ends  ----")));
+    if (contain_end && should_fail) || (!contain_end && !should_fail) {
+        return false;
+    }
+    match name {
+        "test_echo" => return content[1] == "echo_example",
+        // TODO: 写其它测试的 checker
+        _ => {}
+    }
+    true
 }
