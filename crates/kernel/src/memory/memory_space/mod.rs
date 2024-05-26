@@ -365,7 +365,7 @@ impl MemorySpace {
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 
-    /// 映射一段用户的帧映射内存区域。但并不立刻分配内存
+    /// 映射一段用户有文件后备的的帧映射内存区域。但并不立刻分配内存
     ///
     /// # Safety
     ///
