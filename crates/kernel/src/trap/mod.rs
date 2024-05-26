@@ -124,7 +124,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             {
                 let _enter = debug_span!("timer_irq").entered();
                 time::check_timer();
-            riscv_time::set_next_trigger();
+                riscv_time::set_next_trigger();
             }
             executor::yield_now().await;
             ControlFlow::Continue(())

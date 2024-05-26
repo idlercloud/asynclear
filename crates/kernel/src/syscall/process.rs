@@ -260,7 +260,7 @@ pub async fn sys_wait4(
             if options.contains(WaitFlags::WNOHANG) {
                 return Ok(0);
             }
-        };
+        }
 
         trace!("no proper child exited");
         BlockingFuture::new(listener).await;
