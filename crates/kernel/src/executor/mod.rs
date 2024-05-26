@@ -3,10 +3,13 @@ mod yield_now;
 use core::{future::Future, task::Poll};
 
 use async_task::{Runnable, Task};
+use atomic::Ordering;
 use common::config::TASK_LIMIT;
 use crossbeam_queue::ArrayQueue;
 use klocks::Lazy;
 pub use yield_now::yield_now;
+
+use crate::SHUTDOWN;
 
 static TASK_QUEUE: Lazy<TaskQueue> = Lazy::new(TaskQueue::new);
 
@@ -44,13 +47,13 @@ where
     })
 }
 
-pub fn run_utils_idle(should_shutdown: fn() -> bool) {
+pub fn run_utils_idle() {
     loop {
         while let Some(task) = TASK_QUEUE.fetch_task() {
             trace!("Schedule new task");
             task.run();
         }
-        if should_shutdown() {
+        if SHUTDOWN.load(Ordering::SeqCst) {
             break;
         }
         sbi_rt::hart_suspend(sbi_rt::Retentive, 0, 0);
