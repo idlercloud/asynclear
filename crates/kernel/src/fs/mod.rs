@@ -20,7 +20,7 @@ use defines::{
     fs::{MountFlags, Stat, StatMode, UnmountFlags, AT_FDCWD},
 };
 use hashbrown::HashMap;
-use klocks::{Lazy, SpinNoIrqMutex};
+use klocks::{Lazy, SpinMutex};
 use triomphe::Arc;
 use uninit::extension_traits::{AsOut, VecCapacity};
 
@@ -43,7 +43,7 @@ pub fn init() {
 
 pub struct VirtFileSystem {
     root_dir: Arc<DEntryDir>,
-    mount_table: SpinNoIrqMutex<HashMap<DEntry, FileSystem>>,
+    mount_table: SpinMutex<HashMap<DEntry, FileSystem>>,
 }
 
 impl VirtFileSystem {
@@ -180,7 +180,7 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
     let mount_table = HashMap::from([(DEntry::Dir(Arc::clone(&root_dir)), root_fs)]);
     VirtFileSystem {
         root_dir,
-        mount_table: SpinNoIrqMutex::new(mount_table),
+        mount_table: SpinMutex::new(mount_table),
     }
 });
 
