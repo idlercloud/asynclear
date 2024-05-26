@@ -90,7 +90,16 @@ bitflags! {
 }
 
 impl KSignalSet {
-    pub fn first_pending(self) -> Option<Signal> {
+    pub const fn from_user(bits: u64) -> Self {
+        // TODO: [low] 如果用户传入的信号集是非法的，该截断还是返回错误？
+        KSignalSet::from_bits_truncate(bits >> 1)
+    }
+
+    pub const fn to_user(&self) -> u64 {
+        self.bits() << 1
+    }
+
+    pub const fn first_pending(self) -> Option<Signal> {
         Signal::from_user(self.bits().trailing_zeros() as u8 + 1)
     }
 }
@@ -141,7 +150,7 @@ pub enum Signal {
 }
 
 impl Signal {
-    pub fn from_user(signum: u8) -> Option<Signal> {
+    pub const fn from_user(signum: u8) -> Option<Signal> {
         match signum {
             defines::signal::SIGHUP => Some(Signal::SIGHUP),
             defines::signal::SIGINT => Some(Signal::SIGINT),
@@ -178,7 +187,7 @@ impl Signal {
         }
     }
 
-    pub fn to_user(self) -> u8 {
+    pub const fn to_user(self) -> u8 {
         self as u8 + 1
     }
 }
@@ -186,6 +195,6 @@ impl Signal {
 #[ext]
 pub impl KSignalAction {
     fn kmask(&self) -> KSignalSet {
-        KSignalSet::from_bits_truncate(self.mask >> 1)
+        KSignalSet::from_user(self.mask)
     }
 }

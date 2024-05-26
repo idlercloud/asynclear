@@ -62,7 +62,7 @@ pub fn sys_rt_sigaction(
 ///
 /// 参数：
 /// - `how` 指定该调用的行为，具体见 [`SigprocmaskHow`]
-/// - `set` 是用户传入的，希望设置的掩码集，具体如何使用取决于 `how`
+/// - `new_set` 是用户传入的，希望设置的掩码集，具体如何使用取决于 `how`
 /// - `old_set` 如果非 NULL，则将旧的信号掩码写入 `old_act` 中
 ///
 /// 错误：
@@ -70,8 +70,8 @@ pub fn sys_rt_sigaction(
 /// - `EINVAL` 如果 `how` 参数非法或者内核不支持 `set_size`
 pub fn sys_rt_sigprocmask(
     how: usize,
-    set: UserCheck<KSignalSet>,
-    old_set: UserCheck<KSignalSet>,
+    new_set: UserCheck<u64>,
+    old_set: UserCheck<u64>,
     set_size: usize,
 ) -> KResult {
     if set_size > SIGSET_SIZE_BYTES {
@@ -82,21 +82,21 @@ pub fn sys_rt_sigprocmask(
         let old_set_ptr = unsafe { old_set.check_ptr_mut()? };
 
         local_hart().curr_thread().lock_inner_with(|inner| {
-            old_set_ptr.write(inner.signal_mask);
+            old_set_ptr.write(inner.signal_mask.to_user());
         });
     }
 
     let how = SigProcMaskHow::from_user(how).ok_or(errno::EINVAL)?;
 
-    if !set.is_null() {
+    if !new_set.is_null() {
         debug!("write signal mask with how = {how:?}");
-        let set_ptr = set.check_ptr()?.read();
+        let new_set = KSignalSet::from_user(new_set.check_ptr()?.read());
         local_hart()
             .curr_thread()
             .lock_inner_with(|inner| match how {
-                SigProcMaskHow::Block => inner.signal_mask.insert(set_ptr),
-                SigProcMaskHow::Unblock => inner.signal_mask.remove(set_ptr),
-                SigProcMaskHow::SetMask => inner.signal_mask = set_ptr,
+                SigProcMaskHow::Block => inner.signal_mask.insert(new_set),
+                SigProcMaskHow::Unblock => inner.signal_mask.remove(new_set),
+                SigProcMaskHow::SetMask => inner.signal_mask = new_set,
             });
     }
 
