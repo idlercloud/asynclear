@@ -93,16 +93,16 @@ impl UserCheck<u8> {
         if self.ptr as usize >= LOW_ADDRESS_END {
             return Err(errno::EFAULT);
         }
-        let _guard = NoIrqGuard::new();
-        unsafe {
-            stvec::write(trap_from_access_user as usize, TrapMode::Direct);
-        }
 
         let mut va = self.ptr as usize;
         let mut end;
 
         let _access_user_guard = AccessUserGuard::new();
         {
+            let _guard = NoIrqGuard::new();
+            unsafe {
+                stvec::write(trap_from_access_user as usize, TrapMode::Direct);
+            }
             defer! {
                 set_kernel_trap_entry();
             }
