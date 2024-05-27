@@ -251,7 +251,8 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
 
     let ret_fd = local_hart()
         .curr_process()
-        .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)));
+        .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)))
+        .ok_or(errno::EMFILE)?;
     Ok(ret_fd as isize)
 }
 
@@ -285,8 +286,9 @@ pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
     let write_end = FileDescriptor::new(File::Pipe(write_end), flags.with_write_only());
     let fds = local_hart()
         .curr_process()
-        .lock_inner_with(|inner| (inner.fd_table.add(read_end), inner.fd_table.add(write_end)));
-    pipefd.write([fds.0 as i32, fds.1 as i32]);
+        .lock_inner_with(|inner| inner.fd_table.add_many([read_end, write_end]))
+        .ok_or(errno::EMFILE)?;
+    pipefd.write([fds[0] as i32, fds[1] as i32]);
 
     Ok(0)
 }
@@ -341,7 +343,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
             if cmd == F_DUPFD_CLOEXEC {
                 desc.set_close_on_exec(true);
             }
-            let new_fd = inner.fd_table.add_from(desc, arg);
+            let new_fd = inner.fd_table.add_from(desc, arg).ok_or(errno::EMFILE)?;
             debug!(
                 "dup fd {fd}({}) to {new_fd}, with close_on_exec = {}",
                 inner.fd_table.get(new_fd).unwrap().meta().name(),
@@ -382,7 +384,7 @@ pub fn sys_dup(old_fd: usize) -> KResult {
     let Some(new_desc) = inner.fd_table.get(old_fd).cloned() else {
         return Err(errno::EBADF);
     };
-    let new_fd = inner.fd_table.add(new_desc);
+    let new_fd = inner.fd_table.add(new_desc).ok_or(errno::EMFILE)?;
     Ok(new_fd as isize)
 }
 

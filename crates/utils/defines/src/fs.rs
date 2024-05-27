@@ -2,6 +2,9 @@ use bitflags::bitflags;
 
 use crate::misc::TimeSpec;
 
+/// 默认的文件描述符软上限
+pub const MAX_FD_NUM: usize = 1024;
+
 // path walk 时，忽略 fd，从当前工作目录开始
 pub const AT_FDCWD: usize = -100isize as usize;
 

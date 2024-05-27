@@ -8,5 +8,6 @@ pub mod error;
 pub mod fs;
 pub mod ioctl;
 pub mod misc;
+pub mod resource;
 pub mod signal;
 pub mod syscall;

@@ -4,7 +4,8 @@ use core::ops::Deref;
 use bitflags::bitflags;
 use defines::{
     error::{errno, KResult},
-    fs::{Dirent64, OpenFlags, StatMode, NAME_MAX},
+    fs::{Dirent64, OpenFlags, StatMode, MAX_FD_NUM, NAME_MAX},
+    resource::{RLimit, RLIM_INFINITY},
 };
 use klocks::SpinMutex;
 use triomphe::Arc;
@@ -111,6 +112,7 @@ impl PagedFile {
 #[derive(Clone)]
 pub struct FdTable {
     files: BTreeMap<usize, FileDescriptor>,
+    rlimit: RLimit,
 }
 
 impl FdTable {
@@ -120,16 +122,56 @@ impl FdTable {
             (1, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
             (2, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
         ]);
-        Self { files }
+        Self {
+            files,
+            rlimit: RLimit {
+                rlim_curr: MAX_FD_NUM,
+                rlim_max: RLIM_INFINITY,
+            },
+        }
     }
 
     /// 找到最小可用的 fd，插入一个描述符，并返回该 fd
-    pub fn add(&mut self, desc: FileDescriptor) -> usize {
+    pub fn add(&mut self, desc: FileDescriptor) -> Option<usize> {
         self.add_from(desc, 0)
     }
 
+    pub fn add_many<const N: usize>(&mut self, descs: [FileDescriptor; N]) -> Option<[usize; N]> {
+        if self.files.len() + N > self.rlimit.rlim_curr {
+            return None;
+        }
+
+        let mut new_fd = 0;
+        let mut n_ok = 0;
+        let mut ret = [usize::MAX; N];
+        let mut descs = descs.into_iter();
+        for &existed_fd in self.files.keys() {
+            if new_fd != existed_fd {
+                n_ok += 1;
+                if n_ok >= N {
+                    break;
+                }
+                self.files.insert(new_fd, descs.next().unwrap());
+                ret[n_ok] = new_fd;
+                break;
+            }
+            new_fd += 1;
+        }
+        while n_ok < N {
+            self.files.insert(new_fd, descs.next().unwrap());
+            n_ok += 1;
+            new_fd += 1;
+        }
+        Some(ret)
+    }
+
     /// 找到自 `from` 最小可用的 fd，插入一个描述符，并返回该 fd
-    pub fn add_from(&mut self, desc: FileDescriptor, from: usize) -> usize {
+    ///
+    /// 如果超过进程文件描述符软上限则返回 None
+    pub fn add_from(&mut self, desc: FileDescriptor, from: usize) -> Option<usize> {
+        if self.files.len() >= self.rlimit.rlim_curr {
+            return None;
+        }
         let mut new_fd = 0;
         for (&existed_fd, _) in self.files.range(from..) {
             if new_fd != existed_fd {
@@ -138,7 +180,7 @@ impl FdTable {
             new_fd += 1;
         }
         self.files.insert(new_fd, desc);
-        new_fd
+        Some(new_fd)
     }
 
     pub fn get(&self, fd: usize) -> Option<&FileDescriptor> {
@@ -160,6 +202,10 @@ impl FdTable {
     pub fn close_on_exec(&mut self) {
         self.files
             .retain(|_, file| !file.flags.contains(OpenFlags::CLOEXEC));
+    }
+
+    pub fn limit(&self) -> usize {
+        self.rlimit.rlim_curr
     }
 }
 
