@@ -64,7 +64,8 @@ impl DirFile {
             if ptr as usize + d_reclen > range.end {
                 break;
             }
-            d_reclen = d_reclen.next_multiple_of(align_of::<Dirent64>());
+            d_reclen =
+                (ptr as usize + d_reclen).next_multiple_of(align_of::<Dirent64>()) - ptr as usize;
             let meta = child.meta();
             // SAFETY:
             // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域
@@ -81,7 +82,7 @@ impl DirFile {
                 ptr.add(offset_of!(Dirent64, d_name))
                     .copy_from_nonoverlapping(name.as_bytes()[0..name_len].as_ptr(), name_len);
                 // 名字是 null-terminated 的
-                ptr.add(d_reclen - 1).write(0);
+                ptr.add(offset_of!(Dirent64, d_name) + name_len).write(0);
                 ptr = ptr.add(d_reclen);
             }
             *dirent_index += 1;
@@ -267,7 +268,7 @@ impl FileDescriptor {
     pub fn seek(&self, pos: SeekFrom) -> KResult<usize> {
         match &self.file {
             File::Stdin | File::Stdout | File::Pipe(_) => Err(errno::ESPIPE),
-            File::Dir(_) => Ok(0),
+            File::Dir(_) => todo!("[low] what does dir seek mean?"),
             File::Paged(paged) => {
                 let ret = match pos {
                     SeekFrom::Start(pos) => {
