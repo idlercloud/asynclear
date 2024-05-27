@@ -4,7 +4,7 @@ use triomphe::Arc;
 use unsize::CoerceUnsize;
 
 use super::{
-    inode::{DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, Inode, InodeMeta},
+    inode::{DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, InodeMeta},
     DEntryDir, DynPagedInode, FileSystem, InodeMode,
 };
 use crate::time;
@@ -24,21 +24,27 @@ pub fn new_tmp_fs(
     })
 }
 
-pub struct TmpDir(());
+pub struct TmpDir {
+    meta: InodeMeta,
+}
 
 impl TmpDir {
-    pub fn new(name: CompactString) -> Inode<Self> {
+    pub fn new(name: CompactString) -> Self {
         let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
         meta.lock_inner_with(|inner| {
             inner.access_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
             inner.modify_time = inner.access_time;
         });
-        Inode::new(meta, TmpDir(()))
+        Self { meta }
     }
 }
 
 impl DirInodeBackend for TmpDir {
+    fn meta(&self) -> &InodeMeta {
+        &self.meta
+    }
+
     fn lookup(&self, _name: &str) -> Option<DynInode> {
         None
     }

@@ -14,7 +14,7 @@ use defines::{
 };
 use klocks::{Lazy, SpinMutex};
 
-use super::inode::{Inode, InodeMeta, InodeMode};
+use super::inode::{InodeMeta, InodeMode};
 use crate::{
     drivers::qemu_uart::TTY, memory::UserCheck, process::INITPROC, thread::BlockingFuture,
     uart_console::print,
@@ -31,7 +31,7 @@ pub fn write_stdout(buf: UserCheck<[u8]>) -> KResult<usize> {
     Ok(buf.len())
 }
 
-pub fn get_tty_inode() -> &'static Inode<TtyInode> {
+pub fn get_tty_inode() -> &'static TtyInode {
     &TTY_INODE
 }
 
@@ -104,6 +104,7 @@ pub fn tty_ioctl(cmd: usize, value: usize) -> KResult {
 }
 
 pub struct TtyInode {
+    meta: InodeMeta,
     inner: SpinMutex<TtyInodeInner>,
 }
 
@@ -113,52 +114,56 @@ struct TtyInodeInner {
     termios: Termios,
 }
 
-static TTY_INODE: Lazy<Inode<TtyInode>> = Lazy::new(|| {
-    Inode::new(
-        InodeMeta::new(InodeMode::CharDevice, CompactString::from_static_str("/")),
-        TtyInode {
-            inner: SpinMutex::new(TtyInodeInner {
-                fg_pgid: INITPROC.pid(),
-                win_size: WinSize {
-                    ws_row: 67,
-                    ws_col: 120,
-                    xpixel: 0,
-                    ypixel: 0,
-                },
-                termios: Termios {
-                    // IMAXBEL | IUTF8 | IXON | IXANY | ICRNL | BRKINT
-                    iflag: 0o66402,
-                    // OPOST | ONLCR
-                    oflag: 0o5,
-                    // HUPCL | CREAD | CSIZE | EXTB
-                    cflag: 0o2277,
-                    // IEXTEN | ECHOTCL | ECHOKE ECHO | ECHOE | ECHOK | ISIG | ICANON
-                    lflag: 0o105073,
-                    line: 0,
-                    cc: [
-                        3,   // VINTR Ctrl-C
-                        28,  // VQUIT
-                        127, // VERASE
-                        21,  // VKILL
-                        4,   // VEOF Ctrl-D
-                        0,   // VTIME
-                        1,   // VMIN
-                        0,   // VSWTC
-                        17,  // VSTART
-                        19,  // VSTOP
-                        26,  // VSUSP Ctrl-Z
-                        255, // VEOL
-                        18,  // VREPAINT
-                        15,  // VDISCARD
-                        23,  // VWERASE
-                        22,  // VLNEXT
-                        255, // VEOL2
-                        0, 0,
-                    ],
-                },
-            }),
-        },
-    )
+impl TtyInode {
+    pub fn meta(&self) -> &InodeMeta {
+        &self.meta
+    }
+}
+
+static TTY_INODE: Lazy<TtyInode> = Lazy::new(|| {
+    TtyInode {
+        meta: InodeMeta::new(InodeMode::CharDevice, CompactString::from_static_str("/")),
+        inner: SpinMutex::new(TtyInodeInner {
+            fg_pgid: INITPROC.pid(),
+            win_size: WinSize {
+                ws_row: 67,
+                ws_col: 120,
+                xpixel: 0,
+                ypixel: 0,
+            },
+            termios: Termios {
+                // IMAXBEL | IUTF8 | IXON | IXANY | ICRNL | BRKINT
+                iflag: 0o66402,
+                // OPOST | ONLCR
+                oflag: 0o5,
+                // HUPCL | CREAD | CSIZE | EXTB
+                cflag: 0o2277,
+                // IEXTEN | ECHOTCL | ECHOKE ECHO | ECHOE | ECHOK | ISIG | ICANON
+                lflag: 0o105073,
+                line: 0,
+                cc: [
+                    3,   // VINTR Ctrl-C
+                    28,  // VQUIT
+                    127, // VERASE
+                    21,  // VKILL
+                    4,   // VEOF Ctrl-D
+                    0,   // VTIME
+                    1,   // VMIN
+                    0,   // VSWTC
+                    17,  // VSTART
+                    19,  // VSTOP
+                    26,  // VSUSP Ctrl-Z
+                    255, // VEOL
+                    18,  // VREPAINT
+                    15,  // VDISCARD
+                    23,  // VWERASE
+                    22,  // VLNEXT
+                    255, // VEOL2
+                    0, 0,
+                ],
+            },
+        }),
+    }
 });
 
 #[must_use = "futures do nothing unless you `.await` or poll them"]

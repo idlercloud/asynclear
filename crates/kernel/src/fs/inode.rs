@@ -19,8 +19,8 @@ use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
-pub type DynDirInode = Inode<dyn DirInodeBackend>;
-pub type DynPagedInode = Inode<PagedInode<dyn PagedInodeBackend>>;
+pub type DynDirInode = dyn DirInodeBackend;
+pub type DynPagedInode = PagedInode<dyn PagedInodeBackend>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InodeMode {
@@ -44,37 +44,6 @@ impl From<InodeMode> for StatMode {
             InodeMode::BlockDevice => StatMode::BLOCK_DEVICE,
             InodeMode::CharDevice => StatMode::CHAR_DEVICE,
         }
-    }
-}
-
-pub struct Inode<T: ?Sized> {
-    meta: InodeMeta,
-    inner: T,
-}
-
-impl<T> Inode<T> {
-    pub fn new(meta: InodeMeta, inner: T) -> Self {
-        Self { meta, inner }
-    }
-}
-
-impl<T: ?Sized> Inode<T> {
-    pub fn meta(&self) -> &InodeMeta {
-        &self.meta
-    }
-}
-
-impl<T: ?Sized> Deref for Inode<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T: ?Sized> DerefMut for Inode<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 
@@ -131,6 +100,7 @@ pub struct InodeMetaInner {
 }
 
 pub trait DirInodeBackend: Send + Sync {
+    fn meta(&self) -> &InodeMeta;
     fn lookup(&self, name: &str) -> Option<DynInode>;
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>>;
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>>;
@@ -142,49 +112,49 @@ pub trait DirInodeBackend: Send + Sync {
 // NOTE: `meta` 的信息其实不知道应该在这里改还是在具体文件系统里改。
 // 目前的想法是，信息第一次获取到，比如第一次从磁盘加载、被创建时由具体文件系统来完成
 
-impl<T: ?Sized + DirInodeBackend> Inode<T> {
-    pub fn lookup(&self, name: &str) -> Option<DynInode> {
-        let ret = self.inner.lookup(name);
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
-        ret
-    }
+// impl<T: ?Sized + DirInodeBackend> Inode<T> {
+//     pub fn lookup(&self, name: &str) -> Option<DynInode> {
+//         let ret = self.inner.lookup(name);
+//         self.meta
+//             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+//         ret
+//     }
 
-    pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
-        let ret = self.inner.mkdir(name)?;
-        self.meta.lock_inner_with(|inner| {
-            inner.data_len = self.inner.disk_space();
-            inner.modify_time = TimeSpec::from(time::curr_time());
-        });
-        Ok(ret)
-    }
+//     pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
+//         let ret = self.inner.mkdir(name)?;
+//         self.meta.lock_inner_with(|inner| {
+//             inner.data_len = self.inner.disk_space();
+//             inner.modify_time = TimeSpec::from(time::curr_time());
+//         });
+//         Ok(ret)
+//     }
 
-    pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
-        let ret = self.inner.mknod(name, mode)?;
-        self.meta.lock_inner_with(|inner| {
-            inner.data_len = self.inner.disk_space();
-            inner.modify_time = TimeSpec::from(time::curr_time());
-        });
-        Ok(ret)
-    }
+//     pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+//         let ret = self.inner.mknod(name, mode)?;
+//         self.meta.lock_inner_with(|inner| {
+//             inner.data_len = self.inner.disk_space();
+//             inner.modify_time = TimeSpec::from(time::curr_time());
+//         });
+//         Ok(ret)
+//     }
 
-    pub fn unlink(&self, name: &str) -> KResult<()> {
-        self.inner.unlink(name)?;
-        self.meta.lock_inner_with(|inner| {
-            inner.data_len = self.inner.disk_space();
-            inner.modify_time = TimeSpec::from(time::curr_time());
-        });
-        Ok(())
-    }
+//     pub fn unlink(&self, name: &str) -> KResult<()> {
+//         self.inner.unlink(name)?;
+//         self.meta.lock_inner_with(|inner| {
+//             inner.data_len = self.inner.disk_space();
+//             inner.modify_time = TimeSpec::from(time::curr_time());
+//         });
+//         Ok(())
+//     }
 
-    pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
-        // TODO: [low] `read_dir` 可以记录一个状态表示是否已经全部读入，有的话就不用调用底层文件系统
-        self.inner.read_dir(dentry)?;
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
-        Ok(())
-    }
-}
+//     pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
+//         // TODO: [low] `read_dir` 可以记录一个状态表示是否已经全部读入，有的话就不用调用底层文件系统
+//         self.inner.read_dir(dentry)?;
+//         self.meta
+//             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+//         Ok(())
+//     }
+// }
 
 /// 可以按页级别进行读写的 inode，一般应该是块设备做后备
 pub struct PagedInode<T: ?Sized> {
@@ -207,7 +177,16 @@ impl<T: ?Sized> PagedInode<T> {
     }
 }
 
+impl<T: ?Sized> Deref for PagedInode<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.backend
+    }
+}
+
 pub trait PagedInodeBackend: Send + Sync {
+    fn meta(&self) -> &InodeMeta;
     fn read_page(&self, frame: &mut Frame, page_id: u64) -> KResult<()>;
     fn write_page(&self, frame: &Frame, page_id: u64) -> KResult<()>;
 }
@@ -316,8 +295,8 @@ pub macro DynDirInodeCoercion() {
         ::unsize::Coercion::new({
             #[allow(unused_parens)]
             fn coerce<'lt>(
-                p: *const Inode<impl DirInodeBackend + 'lt>,
-            ) -> *const Inode<dyn DirInodeBackend + 'lt> {
+                p: *const (impl DirInodeBackend + 'lt),
+            ) -> *const (dyn DirInodeBackend + 'lt) {
                 p
             }
             coerce
@@ -331,8 +310,8 @@ pub macro DynPagedInodeCoercion() {
         ::unsize::Coercion::new({
             #[allow(unused_parens)]
             fn coerce<'lt>(
-                p: *const Inode<PagedInode<impl PagedInodeBackend + 'lt>>,
-            ) -> *const Inode<PagedInode<dyn PagedInodeBackend + 'lt>> {
+                p: *const PagedInode<impl PagedInodeBackend + 'lt>,
+            ) -> *const PagedInode<dyn PagedInodeBackend + 'lt> {
                 p
             }
             coerce

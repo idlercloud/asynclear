@@ -20,7 +20,7 @@ use crate::{
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInode,
-            DynPagedInodeCoercion, Inode, InodeMeta, InodeMode,
+            DynPagedInodeCoercion, InodeMeta, InodeMode, PagedInode,
         },
     },
     hart::local_hart,
@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub struct FatDir {
+    meta: InodeMeta,
     clusters: RwLock<SmallVec<[u32; 4]>>,
     fat: Arc<FileAllocTable>,
     /// 记录目录的创建时间，会同步到磁盘中
@@ -35,33 +36,35 @@ pub struct FatDir {
 }
 
 impl FatDir {
-    pub fn new_root(fat: Arc<FileAllocTable>, first_root_cluster_id: u32) -> Inode<Self> {
+    pub fn new_root(fat: Arc<FileAllocTable>, first_root_cluster_id: u32) -> Self {
         debug!("init root dir");
         assert!(first_root_cluster_id >= 2);
         let clusters = fat
             .cluster_chain(first_root_cluster_id)
             .collect::<SmallVec<_>>();
+        let meta = InodeMeta::new(InodeMode::Dir, CompactString::from_static_str("/"));
         let root_dir = Self {
+            meta,
             clusters: RwLock::new(clusters),
             fat,
             create_time: None,
         };
-        let meta = InodeMeta::new(InodeMode::Dir, CompactString::from_static_str("/"));
-        meta.lock_inner_with(|inner| {
+        root_dir.meta.lock_inner_with(|inner| {
             inner.data_len = root_dir.disk_space();
         });
-        Inode::new(meta, root_dir)
+        root_dir
     }
 
-    pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Inode<Self> {
+    pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Self {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(InodeMode::Dir, dir_entry.take_name());
         let fat_dir = Self {
+            meta,
             clusters: RwLock::new(fat.cluster_chain(dir_entry.first_cluster_id()).collect()),
             fat,
             create_time: None,
         };
-        meta.lock_inner_with(|inner| {
+        fat_dir.meta.lock_inner_with(|inner| {
             inner.data_len = fat_dir.disk_space();
             inner.access_time = dir_entry.access_time();
             // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
@@ -70,25 +73,26 @@ impl FatDir {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        Inode::new(meta, fat_dir)
+        fat_dir
     }
 
-    fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Inode<Self>> {
+    fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
         let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
         let curr_time = TimeSpec::from(time::curr_time());
         let fat_dir = Self {
+            meta,
             clusters: RwLock::new(smallvec![allocated_cluster]),
             fat,
             create_time: Some(curr_time),
         };
-        meta.lock_inner_with(|inner| {
+        fat_dir.meta.lock_inner_with(|inner| {
             inner.data_len = fat_dir.disk_space();
             inner.access_time = TimeSpec::from(time::curr_time());
             inner.change_time = inner.access_time;
             inner.modify_time = inner.access_time;
         });
-        Ok(Inode::new(meta, fat_dir))
+        Ok(fat_dir)
     }
 
     pub fn dir_entry_iter<'a>(
@@ -140,6 +144,10 @@ impl FatDir {
 }
 
 impl DirInodeBackend for FatDir {
+    fn meta(&self) -> &InodeMeta {
+        &self.meta
+    }
+
     fn lookup(&self, name: &str) -> Option<DynInode> {
         for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
             let Ok(dir_entry) = dir_entry else {
@@ -157,7 +165,7 @@ impl DirInodeBackend for FatDir {
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 return Some(DynInode::Paged(
-                    Arc::new(fat_file).unsize(DynPagedInodeCoercion!()),
+                    Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()),
                 ));
             }
         }
@@ -176,7 +184,7 @@ impl DirInodeBackend for FatDir {
             _ => todo!("[mid] impl mknod for non-regular mode"),
         }
         let fat_file = FatFile::create(Arc::clone(&self.fat), name)?;
-        Ok(Arc::new(fat_file).unsize(DynPagedInodeCoercion!()))
+        Ok(Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()))
     }
 
     fn unlink(&self, name: &str) -> KResult<()> {
@@ -207,7 +215,7 @@ impl DirInodeBackend for FatDir {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Paged(DEntryPaged::new(
                     Arc::clone(parent),
-                    Arc::new(fat_file).unsize(DynPagedInodeCoercion!()),
+                    Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()),
                 ))
             };
             let name = new_dentry.meta().name().to_compact_string();
