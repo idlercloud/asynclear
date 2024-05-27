@@ -1,13 +1,10 @@
-use alloc::sync::{Arc, Weak};
-
 use async_channel::{Receiver, Sender};
-use async_lock::Mutex as SleepMutex;
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
 };
-use heapless::mpmc::MpMcQueue;
+use triomphe::Arc;
 
 use super::{inode::InodeMeta, InodeMode};
 use crate::{memory::UserCheck, time};
@@ -28,13 +25,14 @@ impl Pipe {
             return Err(errno::EBADF);
         };
         let mut buf = unsafe { buf.check_slice_mut()? };
-        let mut out = buf.out();
+        let buf = buf.as_bytes_mut();
         let mut n_read = 0;
 
-        while let Some(ptr) = out.reborrow().get_out(n_read)
-            && let Ok(byte) = receiver.recv().await
-        {
-            ptr.write(byte);
+        while n_read < buf.len() {
+            let Ok(byte) = receiver.recv().await else {
+                break;
+            };
+            buf[n_read] = byte;
             n_read += 1;
         }
         self.meta.lock_inner_with(|inner| {
@@ -72,11 +70,6 @@ impl Pipe {
 enum PipeInner {
     ReadEnd(Receiver<u8>),
     WriteEnd(Sender<u8>),
-}
-
-#[derive(Clone)]
-pub struct WritePipe {
-    sender: Sender<u8>,
 }
 
 /// 返回 (`read_end`, `write_end`)

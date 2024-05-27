@@ -5,7 +5,7 @@ use unsize::CoerceUnsize;
 
 use super::{
     inode::{DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, InodeMeta},
-    DEntryDir, DynPagedInode, FileSystem, InodeMode,
+    DEntryDir, DynBytesInode, FileSystem, InodeMode,
 };
 use crate::time;
 
@@ -53,7 +53,7 @@ impl DirInodeBackend for TmpDir {
         Ok(Arc::new(Self::new(name.to_compact_string())).unsize(DynDirInodeCoercion!()))
     }
 
-    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynBytesInode>> {
         todo!()
     }
 

@@ -22,19 +22,18 @@ use defines::{
 use hashbrown::HashMap;
 use klocks::{Lazy, SpinMutex};
 use triomphe::Arc;
-use uninit::extension_traits::{AsOut, VecCapacity};
 
 use self::inode::InodeMeta;
 pub use self::{
-    dentry::{DEntry, DEntryDir, DEntryPaged},
-    file::{DirFile, FdTable, File, FileDescriptor, PagedFile, SeekFrom},
-    inode::{DynPagedInode, InodeMode},
+    dentry::{DEntry, DEntryBytes, DEntryDir},
+    file::{DirFile, FdTable, File, FileDescriptor, SeekFrom, SeekableFile},
+    inode::{DynBytesInode, InodeMode, PagedInode},
     pipe::make_pipe,
 };
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
     hart::local_hart,
-    uart_console::{print, println},
+    uart_console::println,
 };
 
 pub fn init() {
@@ -77,7 +76,7 @@ impl VirtFileSystem {
                 Some(parent) => parent,
                 None => todo!("[low] mount under root dir"),
             },
-            DEntry::Paged(paged) => paged.parent(),
+            DEntry::Bytes(bytes) => bytes.parent(),
         };
 
         let fs = {
@@ -123,7 +122,7 @@ impl VirtFileSystem {
                     Some(parent) => parent,
                     None => todo!("[low] mount under root dir"),
                 },
-                DEntry::Paged(paged) => paged.parent(),
+                DEntry::Bytes(bytes) => bytes.parent(),
             };
             parent.lock_children().insert(
                 mounted_dentry.meta().name().to_compact_string(),
@@ -280,14 +279,12 @@ pub fn find_file(path: &str) -> KResult<DEntry> {
         .ok_or(errno::ENOENT)
 }
 
-pub fn read_file(file: &Arc<DynPagedInode>) -> KResult<Vec<u8>> {
+pub fn read_file(file: &Arc<DynBytesInode>) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
-    let meta = file.meta();
-    let mut ret = Vec::new();
-    let out = ret
-        .reserve_uninit(meta.lock_inner_with(|inner| inner.data_len as usize))
-        .as_out();
-    let len = file.read_at(meta, out, 0)?;
+    let data_len = file.meta().lock_inner_with(|inner| inner.data_len as usize);
+    let mut ret = Vec::with_capacity(data_len);
+    let buf = unsafe { core::slice::from_raw_parts_mut(ret.as_mut_ptr(), data_len) };
+    let len = file.read_at(buf, 0)?;
     // SAFETY: `0..len` 在 read_at 中已被初始化
     unsafe { ret.set_len(len) }
     Ok(ret)

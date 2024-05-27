@@ -1,4 +1,4 @@
-use common::config::PAGE_SIZE;
+use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
 use compact_str::ToCompactString;
 use defines::{
     error::{errno, KResult},
@@ -10,8 +10,7 @@ use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
-    fs::inode::{InodeMeta, InodeMode, PagedInode, PagedInodeBackend},
-    memory::Frame,
+    fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
     time,
 };
 
@@ -80,16 +79,31 @@ impl FatFile {
 
 const SECOTR_COUNT_PER_PAGE: usize = PAGE_SIZE / SECTOR_SIZE;
 
-impl PagedInodeBackend for FatFile {
+impl BytesInodeBackend for FatFile {
     fn meta(&self) -> &InodeMeta {
         &self.meta
     }
 
-    fn read_page(&self, frame: &mut Frame, page_id: u64) -> defines::error::KResult<()> {
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
+        if let Ok(page) = buf.try_into()
+            && (offset & PAGE_OFFSET_MASK as u64) == 0
+        {
+            self.read_page(page, offset >> PAGE_SIZE_BITS as u64)
+        } else {
+            todo!()
+        }
+    }
+
+    fn write_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
+        todo!("[high] impl write_page for FatFile")
+    }
+}
+
+impl FatFile {
+    pub fn read_page(&self, page: &mut [u8; 4096], page_id: u64) -> KResult<usize> {
         let (mut cluster_index, mut sector_offset) = self.page_id_to_cluster_pos(page_id);
 
         let mut sector_count = 0;
-        let bytes = frame.as_page_bytes_mut();
         let clusters = self.clusters.read();
         'ok: loop {
             let cluster_id = clusters[cluster_index as usize];
@@ -98,7 +112,7 @@ impl PagedInodeBackend for FatFile {
             for sector_id in sectors {
                 self.fat.block_device.read_blocks(
                     sector_id as usize,
-                    (&mut bytes[sector_count * SECTOR_SIZE..(sector_count + 1) * SECTOR_SIZE])
+                    (&mut page[sector_count * SECTOR_SIZE..(sector_count + 1) * SECTOR_SIZE])
                         .try_into()
                         .unwrap(),
                 );
@@ -114,10 +128,6 @@ impl PagedInodeBackend for FatFile {
             sector_offset = 0;
         }
 
-        Ok(())
-    }
-
-    fn write_page(&self, frame: &Frame, page_id: u64) -> defines::error::KResult<()> {
-        todo!("[high] impl write_page for FatFile")
+        Ok(sector_count * SECTOR_SIZE)
     }
 }

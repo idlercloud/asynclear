@@ -1,7 +1,4 @@
-use core::{
-    ops::{Deref, DerefMut},
-    sync::atomic::AtomicUsize,
-};
+use core::{ops::Deref, sync::atomic::AtomicUsize};
 
 use atomic::Ordering;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
@@ -9,18 +6,18 @@ use compact_str::CompactString;
 use defines::{error::KResult, fs::StatMode, misc::TimeSpec};
 use klocks::{RwLock, RwLockReadGuard, SpinMutex};
 use triomphe::Arc;
-use uninit::out_ref::Out;
+use unsize::{CoerceUnsize, Coercion};
 
 use super::{
     dentry::DEntryDir,
     page_cache::{BackedPage, PageCache},
 };
-use crate::{executor::block_on, fs::page_cache::PageState, memory::Frame, time};
+use crate::{executor::block_on, fs::page_cache::PageState, time};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
 pub type DynDirInode = dyn DirInodeBackend;
-pub type DynPagedInode = PagedInode<dyn PagedInodeBackend>;
+pub type DynBytesInode = dyn BytesInodeBackend;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InodeMode {
@@ -103,7 +100,7 @@ pub trait DirInodeBackend: Send + Sync {
     fn meta(&self) -> &InodeMeta;
     fn lookup(&self, name: &str) -> Option<DynInode>;
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>>;
-    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>>;
+    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynBytesInode>>;
     fn unlink(&self, name: &str) -> KResult<()>;
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
     fn disk_space(&self) -> u64;
@@ -156,6 +153,17 @@ pub trait DirInodeBackend: Send + Sync {
 //     }
 // }
 
+pub trait BytesInodeBackend: Send + Sync + 'static {
+    fn meta(&self) -> &InodeMeta;
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize>;
+    fn write_at(&self, buf: &[u8], offset: u64) -> KResult<usize>;
+
+    /// `self` 必须来自于一个 `Arc<Self>`
+    unsafe fn as_paged_inode(self: *const Self) -> Option<Arc<PagedInode<dyn BytesInodeBackend>>> {
+        None
+    }
+}
+
 /// 可以按页级别进行读写的 inode，一般应该是块设备做后备
 pub struct PagedInode<T: ?Sized> {
     page_cache: RwLock<PageCache>,
@@ -171,28 +179,13 @@ impl<T> PagedInode<T> {
     }
 }
 
-impl<T: ?Sized> PagedInode<T> {
-    pub fn lock_page_cache(&self) -> RwLockReadGuard<'_, PageCache> {
-        self.page_cache.read()
+impl<T: BytesInodeBackend> BytesInodeBackend for PagedInode<T> {
+    fn meta(&self) -> &InodeMeta {
+        self.backend.meta()
     }
-}
 
-impl<T: ?Sized> Deref for PagedInode<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.backend
-    }
-}
-
-pub trait PagedInodeBackend: Send + Sync {
-    fn meta(&self) -> &InodeMeta;
-    fn read_page(&self, frame: &mut Frame, page_id: u64) -> KResult<()>;
-    fn write_page(&self, frame: &Frame, page_id: u64) -> KResult<()>;
-}
-
-impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
-    pub fn read_at(&self, meta: &InodeMeta, mut buf: Out<'_, [u8]>, offset: u64) -> KResult<usize> {
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
+        let meta = self.meta();
         let data_len = meta.lock_inner_with(|inner| inner.data_len);
 
         if offset >= data_len {
@@ -211,17 +204,17 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
             if page.state.load(Ordering::SeqCst) == PageState::Invalid {
                 let mut _guard = block_on(page.state_guard.lock());
                 if page.state.load(Ordering::SeqCst) == PageState::Invalid {
-                    self.backend
-                        .read_page(&mut page.inner.frame_mut(), page_id)?;
+                    self.backend.read_at(
+                        page.inner.frame_mut().as_page_bytes_mut(),
+                        page_id << PAGE_SIZE_BITS,
+                    )?;
                     page.state.store(PageState::Synced, Ordering::SeqCst);
                 }
             }
             let frame = page.inner.frame();
 
             let copy_len = usize::min(read_end - nread, PAGE_SIZE - page_offset);
-            buf.reborrow()
-                .get_out(nread..nread + copy_len)
-                .unwrap()
+            buf[nread..nread + copy_len]
                 .copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
             nread += copy_len;
         }
@@ -230,7 +223,8 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
         Ok(nread)
     }
 
-    pub fn write_at(&self, meta: &InodeMeta, buf: &[u8], offset: u64) -> KResult<usize> {
+    fn write_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
+        let meta = self.meta();
         let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
         let curr_last_page_id = curr_data_len >> PAGE_SIZE_BITS;
 
@@ -254,7 +248,8 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
                     && full_page_range.contains(&page_id)
                     && page.state.load(Ordering::SeqCst) == PageState::Invalid
                 {
-                    self.backend.read_page(&mut frame, page_id)?;
+                    self.backend
+                        .read_at(frame.as_page_bytes_mut(), page_id << PAGE_SIZE_BITS)?;
                 }
                 page.state.store(PageState::Dirty, Ordering::SeqCst);
             } else {
@@ -278,6 +273,28 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
         Ok(nwrite)
     }
 
+    /// `self` 必须来自于一个 `Arc<Self>`
+    unsafe fn as_paged_inode(self: *const Self) -> Option<Arc<PagedInode<dyn BytesInodeBackend>>> {
+        let this = unsafe { Arc::from_raw(self) };
+        Some(this.unsize(unsafe { Coercion::new(|p| p as _) }))
+    }
+}
+
+impl<T: ?Sized> PagedInode<T> {
+    pub fn lock_page_cache(&self) -> RwLockReadGuard<'_, PageCache> {
+        self.page_cache.read()
+    }
+}
+
+impl<T: ?Sized> Deref for PagedInode<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.backend
+    }
+}
+
+impl<T: ?Sized + BytesInodeBackend> PagedInode<T> {
     fn get_or_init_page(&self, page_id: u64) -> Arc<BackedPage> {
         let page = self.page_cache.read().get(page_id);
         page.unwrap_or_else(|| self.page_cache.write().create(page_id))
@@ -286,7 +303,7 @@ impl<T: ?Sized + PagedInodeBackend> PagedInode<T> {
 
 pub enum DynInode {
     Dir(Arc<DynDirInode>),
-    Paged(Arc<DynPagedInode>),
+    Bytes(Arc<DynBytesInode>),
 }
 
 pub macro DynDirInodeCoercion() {
@@ -304,14 +321,14 @@ pub macro DynDirInodeCoercion() {
     }
 }
 
-pub macro DynPagedInodeCoercion() {
+pub macro DynBytesInodeCoercion() {
     #[allow(unused_unsafe)]
     unsafe {
         ::unsize::Coercion::new({
             #[allow(unused_parens)]
             fn coerce<'lt>(
-                p: *const PagedInode<impl PagedInodeBackend + 'lt>,
-            ) -> *const PagedInode<dyn PagedInodeBackend + 'lt> {
+                p: *const (impl BytesInodeBackend + 'lt),
+            ) -> *const (dyn BytesInodeBackend + 'lt) {
                 p
             }
             coerce

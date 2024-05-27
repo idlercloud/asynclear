@@ -1,7 +1,6 @@
 use alloc::collections::BTreeMap;
 use core::ops::Deref;
 
-use bitflags::bitflags;
 use defines::{
     error::{errno, KResult},
     fs::{Dirent64, OpenFlags, StatMode, MAX_FD_NUM, NAME_MAX},
@@ -9,22 +8,21 @@ use defines::{
 };
 use klocks::SpinMutex;
 use triomphe::Arc;
-use uninit::out_ref::Out;
 
 use super::{
     inode::{InodeMeta, InodeMode},
     pipe::Pipe,
-    stdio, DEntryDir, DEntryPaged, DynPagedInode,
+    stdio::{self, TtyInode},
+    DEntryBytes, DEntryDir, DynBytesInode,
 };
 use crate::memory::UserCheck;
 
 #[derive(Clone)]
 pub enum File {
-    Stdin,
-    Stdout,
+    Tty(Arc<TtyInode>),
     Pipe(Pipe),
     Dir(Arc<DirFile>),
-    Paged(Arc<PagedFile>),
+    Seekable(Arc<SeekableFile>),
 }
 
 pub struct DirFile {
@@ -44,7 +42,7 @@ impl DirFile {
         &self.dentry
     }
 
-    pub fn getdirents(&self, mut buf: Out<'_, [u8]>) -> KResult<usize> {
+    pub fn getdirents(&self, buf: &mut [u8]) -> KResult<usize> {
         self.dentry.read_dir()?;
 
         let children = self.dentry.lock_children();
@@ -92,20 +90,20 @@ impl DirFile {
     }
 }
 
-pub struct PagedFile {
-    dentry: DEntryPaged,
+pub struct SeekableFile {
+    dentry: DEntryBytes,
     offset: SpinMutex<u64>,
 }
 
-impl PagedFile {
-    pub fn new(dentry: DEntryPaged) -> Self {
+impl SeekableFile {
+    pub fn new(dentry: DEntryBytes) -> Self {
         Self {
             dentry,
             offset: SpinMutex::new(0),
         }
     }
 
-    pub fn inode(&self) -> &Arc<DynPagedInode> {
+    pub fn inode(&self) -> &Arc<DynBytesInode> {
         self.dentry.inode()
     }
 }
@@ -119,9 +117,18 @@ pub struct FdTable {
 impl FdTable {
     pub fn with_stdio() -> Self {
         let files = BTreeMap::from([
-            (0, FileDescriptor::new(File::Stdin, OpenFlags::RDONLY)),
-            (1, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
-            (2, FileDescriptor::new(File::Stdout, OpenFlags::WRONLY)),
+            (
+                0,
+                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::RDONLY),
+            ),
+            (
+                1,
+                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::WRONLY),
+            ),
+            (
+                2,
+                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::WRONLY),
+            ),
         ]);
         Self {
             files,
@@ -231,15 +238,14 @@ impl FileDescriptor {
 
     pub async fn read(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
         match &self.file {
-            File::Stdin => stdio::read_stdin(buf).await,
-            File::Stdout | File::Dir(_) => Err(errno::EBADF),
+            File::Tty(tty) => tty.read(buf).await,
+            File::Dir(_) => Err(errno::EBADF),
             File::Pipe(pipe) => pipe.read(buf).await,
-            File::Paged(paged) => {
-                let inode = paged.dentry.inode();
-                let meta = inode.meta();
-                let mut offset = paged.offset.lock();
-                let nread =
-                    inode.read_at(meta, unsafe { buf.check_slice_mut()?.out() }, *offset)?;
+            File::Seekable(seekable) => {
+                let inode = seekable.dentry.inode();
+                let mut offset = seekable.offset.lock();
+                let mut buf = unsafe { buf.check_slice_mut()? };
+                let nread = inode.read_at(buf.as_bytes_mut(), *offset)?;
                 *offset += nread as u64;
                 Ok(nread)
             }
@@ -248,17 +254,16 @@ impl FileDescriptor {
 
     pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
         match &self.file {
-            File::Stdin | File::Dir(_) => Err(errno::EBADF),
-            File::Stdout => stdio::write_stdout(buf),
+            File::Tty(tty) => tty.write(buf),
+            File::Dir(_) => Err(errno::EBADF),
             File::Pipe(pipe) => pipe.write(buf).await,
-            File::Paged(paged) => {
-                let inode = paged.dentry.inode();
-                let meta = inode.meta();
-                let mut offset = paged.offset.lock();
+            File::Seekable(seekable) => {
+                let inode = seekable.dentry.inode();
+                let mut offset = seekable.offset.lock();
                 if self.flags.contains(OpenFlags::APPEND) {
-                    *offset = meta.lock_inner_with(|inner| inner.data_len);
+                    *offset = inode.meta().lock_inner_with(|inner| inner.data_len);
                 }
-                let nwrite = inode.write_at(meta, &buf.check_slice()?, *offset)?;
+                let nwrite = inode.write_at(&buf.check_slice()?, *offset)?;
                 *offset += nwrite as u64;
                 Ok(nwrite)
             }
@@ -267,27 +272,27 @@ impl FileDescriptor {
 
     pub fn seek(&self, pos: SeekFrom) -> KResult<usize> {
         match &self.file {
-            File::Stdin | File::Stdout | File::Pipe(_) => Err(errno::ESPIPE),
+            File::Tty(_) | File::Pipe(_) => Err(errno::ESPIPE),
             File::Dir(_) => todo!("[low] what does dir seek mean?"),
-            File::Paged(paged) => {
+            File::Seekable(seekable) => {
                 let ret = match pos {
                     SeekFrom::Start(pos) => {
-                        *paged.offset.lock() = pos;
+                        *seekable.offset.lock() = pos;
                         pos as usize
                     }
                     SeekFrom::End(offset) => {
-                        let new_pos = paged
+                        let new_pos = seekable
                             .dentry
                             .inode()
                             .meta()
                             .lock_inner_with(|inner| inner.data_len)
                             .checked_add_signed(offset)
                             .ok_or(errno::EOVERFLOW)?;
-                        *paged.offset.lock() = new_pos;
+                        *seekable.offset.lock() = new_pos;
                         new_pos as usize
                     }
                     SeekFrom::Current(pos) => {
-                        let mut curr = paged.offset.lock();
+                        let mut curr = seekable.offset.lock();
                         *curr = curr.checked_add_signed(pos).ok_or(errno::EOVERFLOW)?;
                         *curr as usize
                     }
@@ -299,9 +304,9 @@ impl FileDescriptor {
 
     pub fn meta(&self) -> &InodeMeta {
         match &self.file {
-            File::Stdin | File::Stdout => stdio::get_tty_inode().meta(),
+            File::Tty(tty) => tty.meta(),
             File::Dir(dir) => dir.dentry.inode().meta(),
-            File::Paged(paged) => paged.dentry.inode().meta(),
+            File::Seekable(seekable) => seekable.dentry.inode().meta(),
             File::Pipe(pipe) => pipe.meta(),
         }
     }
@@ -312,7 +317,7 @@ impl FileDescriptor {
             return Err(errno::ENOTTY);
         }
         match &self.file {
-            File::Stdin | File::Stdout => stdio::tty_ioctl(request, argp),
+            File::Tty(tty) => tty.ioctl(request, argp),
             _ => Err(errno::ENOTTY),
         }
     }

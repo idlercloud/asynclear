@@ -5,7 +5,7 @@ use common::config::PAGE_SIZE;
 use triomphe::Arc;
 
 use crate::{
-    fs::DynPagedInode,
+    fs::{DynBytesInode, PagedInode},
     memory::{
         frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
         VirtPageNum,
@@ -20,7 +20,7 @@ pub struct FramedVmArea {
     // 暂时而言，整个 area 要么都是有文件后备，要么都是无文件后备
     // 但是实现 private mmap 的话可能就不是了
     unbacked_map: BTreeMap<VirtPageNum, Arc<Page>>,
-    backed_file: Option<Arc<DynPagedInode>>,
+    backed_file: Option<Arc<PagedInode<DynBytesInode>>>,
     backed_pages: BTreeSet<VirtPageNum>,
     backed_file_page_id: u64,
 }
@@ -64,7 +64,7 @@ impl FramedVmArea {
         &self.unbacked_map
     }
 
-    pub fn backed_file(&self) -> Option<&Arc<DynPagedInode>> {
+    pub fn backed_file(&self) -> Option<&Arc<PagedInode<DynBytesInode>>> {
         self.backed_file.as_ref()
     }
 
@@ -78,7 +78,7 @@ impl FramedVmArea {
 
     pub fn init_backed_file(
         &mut self,
-        file: Arc<DynPagedInode>,
+        file: Arc<PagedInode<DynBytesInode>>,
         file_page_id: u64,
         page_table: &mut PageTable,
     ) {

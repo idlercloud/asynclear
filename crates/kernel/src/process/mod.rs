@@ -56,10 +56,10 @@ impl Process {
 
         let mut memory_space;
         let (elf_end, auxv, elf_entry) = {
-            let DEntry::Paged(paged) = fs::find_file(&path)? else {
+            let DEntry::Bytes(bytes) = fs::find_file(&path)? else {
                 return Err(errno::EISDIR);
             };
-            let elf_data = fs::read_file(paged.inode())?;
+            let elf_data = fs::read_file(bytes.inode())?;
             let elf = Elf::parse(&elf_data).map_err(|e| {
                 warn!("parse elf error {e}");
                 errno::ENOEXEC
@@ -180,22 +180,22 @@ impl Process {
         envs: Vec<CompactString>,
     ) -> KResult<()> {
         let elf_data = {
-            let DEntry::Paged(paged) = fs::find_file(&path)? else {
+            let DEntry::Bytes(bytes) = fs::find_file(&path)? else {
                 return Err(errno::EISDIR);
             };
-            fs::read_file(paged.inode())?
+            fs::read_file(bytes.inode())?
         };
-        // let paged = {
-        //     let DEntry::Paged(paged) =
+        // let bytes = {
+        //     let DEntry::Bytes(bytes) =
         //         fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
         //     else {
         //         return Err(errno::EISDIR);
         //     };
-        //     paged.into_inode()
+        //     bytes.into_inode()
         // };
         // let header_buf = {
         //     let mut buf = MaybeUninit::uninit_array::<{ elf64::header::SIZEOF_EHDR }>();
-        //     let n_read = paged.inner.read_at(paged.meta(), buf.as_out(), 0)?;
+        //     let n_read = bytes.inner.read_at(bytes.meta(), buf.as_out(), 0)?;
         //     if n_read != elf64::header::SIZEOF_EHDR {
         //         return Err(errno::ENOEXEC);
         //     }
@@ -215,9 +215,9 @@ impl Process {
         //     let ph_size = header.e_phnum as usize * header.e_phentsize as usize;
         //     let mut buf = Vec::new();
         //     let out = buf.reserve_uninit(ph_size).as_out();
-        //     let n_read = paged
+        //     let n_read = bytes
         //         .inner
-        //         .read_at(paged.meta(), out, header.e_phoff as usize)?;
+        //         .read_at(bytes.meta(), out, header.e_phoff as usize)?;
         //     if n_read != ph_size {
         //         return Err(errno::ENOEXEC);
         //     }

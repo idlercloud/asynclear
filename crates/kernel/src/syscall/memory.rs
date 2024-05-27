@@ -135,11 +135,16 @@ fn shared_file_map(
         }
     }
 
-    let File::Paged(paged) = &**desc else {
+    let File::Seekable(bytes) = &**desc else {
         warn!("paged file marked as regular file");
         return Err(errno::EACCES);
     };
-    let paged = Arc::clone(paged.inode());
+
+    let paged = unsafe {
+        Arc::into_raw(Arc::clone(bytes.inode()))
+            .as_paged_inode()
+            .unwrap()
+    };
 
     inner.memory_space.try_map_file(
         addr,

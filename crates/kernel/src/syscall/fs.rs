@@ -15,7 +15,7 @@ use triomphe::Arc;
 use crate::{
     fs::{
         self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType,
-        InodeMode, PagedFile, SeekFrom, VFS,
+        InodeMode, SeekFrom, SeekableFile, VFS,
     },
     hart::local_hart,
     memory::UserCheck,
@@ -227,11 +227,11 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
                 };
                 File::Dir(Arc::new(DirFile::new(dir)))
             }
-            DEntry::Paged(paged) => {
+            DEntry::Bytes(bytes) => {
                 if flags.contains(OpenFlags::DIRECTORY) {
                     return Err(errno::ENOTDIR);
                 }
-                File::Paged(Arc::new(PagedFile::new(paged)))
+                File::Seekable(Arc::new(SeekableFile::new(bytes)))
             }
         }
     } else {
@@ -246,7 +246,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
             p2i.dir.inode().meta().name()
         );
         let dentry = p2i.dir.mknod(p2i.last_component, InodeMode::Regular)?;
-        File::Paged(Arc::new(PagedFile::new(dentry)))
+        File::Seekable(Arc::new(SeekableFile::new(dentry)))
     };
 
     let ret_fd = local_hart()
@@ -302,7 +302,7 @@ pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
         return Err(errno::EBADF);
     };
     let mut buf = unsafe { buf.check_slice_mut()? };
-    let ret = dir.getdirents(buf.out())?;
+    let ret = dir.getdirents(buf.as_bytes_mut())?;
     Ok(ret as isize)
 }
 
@@ -488,10 +488,10 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
     if flags.contains(FstatFlags::AT_REMOVEDIR) {
         todo!("[mid] impl rmdir");
     } else {
-        let DEntry::Paged(paged) = dentry else {
+        let DEntry::Bytes(bytes) = dentry else {
             return Err(errno::EISDIR);
         };
-        paged.parent().unlink(paged.inode().meta().name())?;
+        bytes.parent().unlink(bytes.inode().meta().name())?;
     }
     Ok(0)
 }
@@ -599,9 +599,9 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
         return Err(errno::ERANGE);
     }
     let mut buf = unsafe { buf.check_slice_mut()? };
-    let mut buf = buf.out();
+    let buf = buf.as_bytes_mut();
 
-    buf.reborrow().get_out(0).unwrap().write(b'/');
+    buf[0] = b'/';
     let mut curr = 1;
     for name in dirs
         .into_iter()
@@ -609,10 +609,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
         .map(|dir| dir.inode().meta().name().as_bytes())
         .intersperse(b"/")
     {
-        buf.reborrow()
-            .get_out(curr..curr + name.len())
-            .unwrap()
-            .copy_from_slice(name);
+        buf[curr..curr + name.len()].copy_from_slice(name);
         curr += name.len();
     }
 
@@ -675,7 +672,7 @@ pub fn sys_ppoll(
             };
             match &**fd {
                 // TODO: `stdio` 应该建立起合适的轮询机制用以支持 ppoll
-                File::Stdin | File::Stdout | File::Dir(_) | File::Paged(_) => {
+                File::Tty(_) | File::Dir(_) | File::Seekable(_) => {
                     poll_fd_val.revents =
                         (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                 }

@@ -10,13 +10,13 @@ use defines::{
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
-use super::inode::{DynDirInode, DynInode, DynPagedInode, InodeMeta, InodeMode};
+use super::inode::{DynBytesInode, DynDirInode, DynInode, InodeMeta, InodeMode};
 use crate::time;
 
 #[derive(Clone)]
 pub enum DEntry {
     Dir(Arc<DEntryDir>),
-    Paged(DEntryPaged),
+    Bytes(DEntryBytes),
 }
 
 impl Hash for DEntry {
@@ -37,14 +37,14 @@ impl DEntry {
     pub fn meta(&self) -> &InodeMeta {
         match self {
             DEntry::Dir(dir) => dir.inode.meta(),
-            DEntry::Paged(paged) => paged.inode.meta(),
+            DEntry::Bytes(bytes) => bytes.inode.meta(),
         }
     }
 
     fn addr(&self) -> usize {
         match self {
             DEntry::Dir(dir) => dir.as_ptr() as usize,
-            DEntry::Paged(paged) => paged.inode.as_ptr().addr(),
+            DEntry::Bytes(bytes) => bytes.inode.as_ptr().addr(),
         }
     }
 }
@@ -88,8 +88,8 @@ impl DEntryDir {
                     DynInode::Dir(dir) => {
                         DEntry::Dir(Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir)))
                     }
-                    DynInode::Paged(paged) => {
-                        DEntry::Paged(DEntryPaged::new(Arc::clone(self), paged))
+                    DynInode::Bytes(bytes) => {
+                        DEntry::Bytes(DEntryBytes::new(Arc::clone(self), bytes))
                     }
                 };
                 vacant.insert(Some(new_dentry.clone()));
@@ -120,7 +120,7 @@ impl DEntryDir {
         self: &Arc<Self>,
         component: CompactString,
         mode: InodeMode,
-    ) -> KResult<DEntryPaged> {
+    ) -> KResult<DEntryBytes> {
         if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir)
             || component == "."
             || component == ".."
@@ -135,8 +135,8 @@ impl DEntryDir {
             return Err(errno::EEXIST);
         }
         let file = self.inode.mknod(child_entry.key(), mode)?;
-        let dentry = DEntryPaged::new(Arc::clone(self), file);
-        *child_entry.or_insert(None) = Some(DEntry::Paged(dentry.clone()));
+        let dentry = DEntryBytes::new(Arc::clone(self), file);
+        *child_entry.or_insert(None) = Some(DEntry::Bytes(dentry.clone()));
         Ok(dentry)
     }
 
@@ -173,13 +173,13 @@ impl DEntryDir {
 }
 
 #[derive(Clone)]
-pub struct DEntryPaged {
+pub struct DEntryBytes {
     parent: Arc<DEntryDir>,
-    inode: Arc<DynPagedInode>,
+    inode: Arc<DynBytesInode>,
 }
 
-impl DEntryPaged {
-    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynPagedInode>) -> Self {
+impl DEntryBytes {
+    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynBytesInode>) -> Self {
         Self { parent, inode }
     }
 
@@ -187,11 +187,7 @@ impl DEntryPaged {
         &self.parent
     }
 
-    pub fn inode(&self) -> &Arc<DynPagedInode> {
+    pub fn inode(&self) -> &Arc<DynBytesInode> {
         &self.inode
-    }
-
-    pub fn into_inode(self) -> Arc<DynPagedInode> {
-        self.inode
     }
 }

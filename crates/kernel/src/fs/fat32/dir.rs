@@ -16,11 +16,11 @@ use super::{
 use crate::{
     drivers::qemu_block::BLOCK_SIZE,
     fs::{
-        dentry::{DEntry, DEntryDir, DEntryPaged},
+        dentry::{DEntry, DEntryBytes, DEntryDir},
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
-            DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, DynPagedInode,
-            DynPagedInodeCoercion, InodeMeta, InodeMode, PagedInode,
+            DirInodeBackend, DynBytesInode, DynBytesInodeCoercion, DynDirInode,
+            DynDirInodeCoercion, DynInode, InodeMeta, InodeMode, PagedInode,
         },
     },
     hart::local_hart,
@@ -164,8 +164,8 @@ impl DirInodeBackend for FatDir {
                 ));
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                return Some(DynInode::Paged(
-                    Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()),
+                return Some(DynInode::Bytes(
+                    Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()),
                 ));
             }
         }
@@ -177,14 +177,14 @@ impl DirInodeBackend for FatDir {
         Ok(Arc::new(fat_dir).unsize(DynDirInodeCoercion!()))
     }
 
-    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
+    fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynBytesInode>> {
         match mode {
             InodeMode::Regular => {}
             InodeMode::Dir | InodeMode::SymbolLink => unreachable!(),
             _ => todo!("[mid] impl mknod for non-regular mode"),
         }
         let fat_file = FatFile::create(Arc::clone(&self.fat), name)?;
-        Ok(Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()))
+        Ok(Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()))
     }
 
     fn unlink(&self, name: &str) -> KResult<()> {
@@ -213,9 +213,9 @@ impl DirInodeBackend for FatDir {
                 )))
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                DEntry::Paged(DEntryPaged::new(
+                DEntry::Bytes(DEntryBytes::new(
                     Arc::clone(parent),
-                    Arc::new(PagedInode::new(fat_file)).unsize(DynPagedInodeCoercion!()),
+                    Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()),
                 ))
             };
             let name = new_dentry.meta().name().to_compact_string();

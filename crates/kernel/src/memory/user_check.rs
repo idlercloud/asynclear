@@ -8,7 +8,6 @@ use riscv::register::{
 };
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
-use uninit::out_ref::Out;
 
 use crate::hart::local_hart;
 
@@ -187,13 +186,10 @@ impl<T> UserRead<[T]> {
     }
 }
 
-impl<T> Deref for UserRead<[T]> {
-    type Target = [T];
+impl Deref for UserRead<[u8]> {
+    type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        const {
-            assert!(mem::align_of::<T>() == 1);
-        }
         unsafe { self.ptr.as_ref() }
     }
 }
@@ -234,13 +230,6 @@ impl<T> UserWrite<T> {
 }
 
 impl<T> UserWrite<[T]> {
-    pub fn out(&mut self) -> Out<'_, [T]> {
-        const {
-            assert!(mem::align_of::<T>() == 1);
-        }
-        unsafe { Out::from_raw(self.ptr.as_ptr()) }
-    }
-
     pub fn iter_mut(&mut self) -> impl Iterator<Item = UserWrite<T>> + '_ {
         core::iter::from_coroutine(
             #[coroutine]
@@ -254,6 +243,12 @@ impl<T> UserWrite<[T]> {
                 }
             },
         )
+    }
+}
+
+impl UserWrite<[u8]> {
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { self.ptr.as_mut() }
     }
 }
 

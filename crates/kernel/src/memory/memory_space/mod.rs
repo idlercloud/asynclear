@@ -28,7 +28,10 @@ use self::{
 use super::{
     kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
-use crate::{fs::DynPagedInode, thread::Thread};
+use crate::{
+    fs::{DynBytesInode, PagedInode},
+    thread::Thread,
+};
 
 pub mod init_stack;
 pub mod page_table;
@@ -266,7 +269,7 @@ impl MemorySpace {
         len: NonZeroUsize,
         perm: MapPermission,
         flags: MmapFlags,
-        file: Arc<DynPagedInode>,
+        file: Arc<PagedInode<DynBytesInode>>,
         file_page_id: u64,
     ) -> KResult<VirtPageNum> {
         let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
@@ -374,7 +377,7 @@ impl MemorySpace {
         &mut self,
         vpn_range: Range<VirtPageNum>,
         perm: MapPermission,
-        file: Arc<DynPagedInode>,
+        file: Arc<PagedInode<DynBytesInode>>,
         file_page_id: u64,
     ) {
         let mut map_area = FramedVmArea::new(vpn_range.clone(), perm, AreaType::Mmap);
