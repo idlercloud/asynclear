@@ -273,8 +273,8 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     Ok(ret)
 }
 
-pub fn find_file(start_dir: Arc<DEntryDir>, path: &str) -> KResult<DEntry> {
-    let p2i = path_walk(start_dir, path)?;
+pub fn find_file(path: &str) -> KResult<DEntry> {
+    let p2i = resolve_path_with_dir_fd(AT_FDCWD, path)?;
     p2i.dir
         .lookup(Cow::Owned(p2i.last_component))
         .ok_or(errno::ENOENT)

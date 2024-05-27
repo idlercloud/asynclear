@@ -45,6 +45,7 @@ pub struct Process {
 impl Process {
     // TODO: 整理这些函数，抽出共同部分
 
+    /// `path` 需要是绝对路径
     fn from_path(path: CompactString, args: Vec<CompactString>) -> KResult<Arc<Self>> {
         let _enter = info_span!("spawn process", path = path, args = args).entered();
         let mut process_name = path.clone();
@@ -55,7 +56,7 @@ impl Process {
 
         let mut memory_space;
         let (elf_end, auxv, elf_entry) = {
-            let DEntry::Paged(paged) = fs::find_file(Arc::clone(VFS.root_dir()), &path)? else {
+            let DEntry::Paged(paged) = fs::find_file(&path)? else {
                 return Err(errno::EISDIR);
             };
             let elf_data = fs::read_file(paged.inode())?;
@@ -179,9 +180,7 @@ impl Process {
         envs: Vec<CompactString>,
     ) -> KResult<()> {
         let elf_data = {
-            let DEntry::Paged(paged) =
-                fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
-            else {
+            let DEntry::Paged(paged) = fs::find_file(&path)? else {
                 return Err(errno::EISDIR);
             };
             fs::read_file(paged.inode())?
