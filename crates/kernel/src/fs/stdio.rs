@@ -36,7 +36,7 @@ pub fn get_tty_inode() -> &'static Inode<TtyInode> {
 }
 
 pub fn tty_ioctl(cmd: usize, value: usize) -> KResult {
-    let _enter = debug_span!("tty_ioctl", cmd = cmd, value = value).entered();
+    let _enter = debug_span!("tty_ioctl", cmd = compact_str::format_compact!("{cmd:x}")).entered();
     match cmd {
         TCGETS | TCGETA => {
             debug!("Get termios");
@@ -95,7 +95,10 @@ pub fn tty_ioctl(cmd: usize, value: usize) -> KResult {
             TTY_INODE.inner.lock().win_size = win_size;
             Ok(0)
         }
-        TCSBRK => Ok(0),
+        TCSBRK => {
+            debug!("Send break");
+            Ok(0)
+        }
         _ => todo!("[low] other tty ioctl command"),
     }
 }
@@ -175,7 +178,7 @@ impl Future for TtyFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut tty = TTY.lock();
         let mut cnt = 0;
-        let user_buf = unsafe { self.user_buf.check_slice_mut()? };
+        let mut user_buf = unsafe { self.user_buf.check_slice_mut()? };
         let mut out = user_buf.out();
         loop {
             let out = out.reborrow();

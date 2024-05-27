@@ -27,7 +27,7 @@ impl Pipe {
         let PipeInner::ReadEnd(receiver) = &self.inner else {
             return Err(errno::EBADF);
         };
-        let buf = unsafe { buf.check_slice_mut()? };
+        let mut buf = unsafe { buf.check_slice_mut()? };
         let mut out = buf.out();
         let mut n_read = 0;
 

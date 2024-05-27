@@ -212,6 +212,18 @@ pub struct UserWrite<T: ?Sized> {
 }
 
 impl<T> UserWrite<T> {
+    // NOTE: 这里其实有一个隐式的假设：不存在只写页，也就是只要可写就可读
+    // 一些资料表示没有支持只写页的处理器
+    // - <https://devblogs.microsoft.com/oldnewthing/20230306-00/?p=107902>
+    // - <https://stackoverflow.com/questions/49421125/what-is-the-use-of-a-page-table-entry-being-write-only>
+    pub fn read(&self) -> T {
+        if self.ptr.is_aligned() {
+            unsafe { self.ptr.read() }
+        } else {
+            unsafe { self.ptr.read_unaligned() }
+        }
+    }
+
     pub fn write(self, val: T) {
         if self.ptr.is_aligned() {
             unsafe { self.ptr.write(val) }
@@ -222,11 +234,26 @@ impl<T> UserWrite<T> {
 }
 
 impl<T> UserWrite<[T]> {
-    pub fn out(&self) -> Out<'_, [T]> {
+    pub fn out(&mut self) -> Out<'_, [T]> {
         const {
             assert!(mem::align_of::<T>() == 1);
         }
         unsafe { Out::from_raw(self.ptr.as_ptr()) }
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = UserWrite<T>> + '_ {
+        core::iter::from_coroutine(
+            #[coroutine]
+            || {
+                for i in 0..self.ptr.len() {
+                    let ptr = unsafe { self.ptr.as_non_null_ptr().add(i) };
+                    yield UserWrite {
+                        ptr,
+                        _access_user_guard: AccessUserGuard::new(),
+                    }
+                }
+            },
+        )
     }
 }
 

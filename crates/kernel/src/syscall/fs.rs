@@ -166,11 +166,11 @@ pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
     // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
     while let Some(iov) = iovec.read_at(iov_index) {
         iov_index += 1;
+        if iov.iov_len == 0 {
+            continue;
+        }
         let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
         let nwrite = file.write(buf).await?;
-        if nwrite == 0 {
-            break;
-        }
         total_write += nwrite;
     }
     Ok(total_write as isize)
@@ -301,7 +301,7 @@ pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     else {
         return Err(errno::EBADF);
     };
-    let buf = unsafe { buf.check_slice_mut()? };
+    let mut buf = unsafe { buf.check_slice_mut()? };
     let ret = dir.getdirents(buf.out())?;
     Ok(ret as isize)
 }
@@ -598,7 +598,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     if path_len > buf.len() {
         return Err(errno::ERANGE);
     }
-    let buf = unsafe { buf.check_slice_mut()? };
+    let mut buf = unsafe { buf.check_slice_mut()? };
     let mut buf = buf.out();
 
     buf.reborrow().get_out(0).unwrap().write(b'/');
