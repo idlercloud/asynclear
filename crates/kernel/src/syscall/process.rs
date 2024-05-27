@@ -18,7 +18,6 @@ use crate::{
     memory::UserCheck,
     process::{exit_process, INITPROC},
     signal::Signal,
-    thread::BlockingFuture,
 };
 
 /// 退出当前线程，结束用户线程循环。
@@ -264,7 +263,7 @@ pub async fn sys_wait4(
         }
 
         trace!("no proper child exited");
-        BlockingFuture::new(listener).await;
+        listener.await;
     }
 }
 

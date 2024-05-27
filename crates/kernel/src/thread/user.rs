@@ -156,6 +156,8 @@ impl Future for UserThreadWrapperFuture {
 
         if ret.is_ready() {
             exit_thread(project.thread);
+        } else if project.thread.status.load(Ordering::SeqCst) != ThreadStatus::Ready {
+            project.thread.set_status(ThreadStatus::Blocking);
         }
 
         // NOTE: 一定要切换页表。否则进程页表被回收立刻导致内核异常
@@ -166,35 +168,6 @@ impl Future for UserThreadWrapperFuture {
         trace!("User task deactivate");
         local_hart().replace_thread(None);
 
-        ret
-    }
-}
-
-/// 在 Pending 时会将线程标记为 `Blocking` 的 Future
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project::pin_project]
-pub struct BlockingFuture<F> {
-    #[pin]
-    future: F,
-}
-
-impl<F> BlockingFuture<F> {
-    pub fn new(future: F) -> Self {
-        Self { future }
-    }
-}
-
-impl<F: Future> Future for BlockingFuture<F> {
-    type Output = F::Output;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let pinned = self.project().future;
-        let ret = pinned.poll(cx);
-        if ret.is_pending() {
-            local_hart()
-                .curr_thread()
-                .set_status(ThreadStatus::Blocking);
-        }
         ret
     }
 }

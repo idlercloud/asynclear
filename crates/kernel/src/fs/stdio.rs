@@ -15,13 +15,10 @@ use defines::{
 use klocks::{Lazy, SpinMutex};
 
 use super::inode::{InodeMeta, InodeMode};
-use crate::{
-    drivers::qemu_uart::TTY, memory::UserCheck, process::INITPROC, thread::BlockingFuture,
-    uart_console::print,
-};
+use crate::{drivers::qemu_uart::TTY, memory::UserCheck, process::INITPROC, uart_console::print};
 
 pub async fn read_stdin(buf: UserCheck<[u8]>) -> KResult<usize> {
-    BlockingFuture::new(TtyFuture::new(buf)).await
+    TtyFuture::new(buf).await
 }
 
 pub fn write_stdout(buf: UserCheck<[u8]>) -> KResult<usize> {

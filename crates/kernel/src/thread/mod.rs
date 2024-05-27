@@ -9,7 +9,7 @@ use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
 use self::inner::ThreadInner;
-pub use self::user::{spawn_user_thread, BlockingFuture};
+pub use self::user::spawn_user_thread;
 use crate::{
     memory::{self, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
     process::Process,
