@@ -247,3 +247,30 @@ pub struct PollFd {
     /// 可以包括 `events` 中指定的任何位，或者值 `POLLHUP`、`POLLERR` 或 `POLLNVAL` 之一。
     pub revents: i16,
 }
+
+bitflags! {
+    #[derive(Debug)]
+    pub struct PollEvents: i16 {
+        /// 有数据可读
+        const POLLIN = 1 << 0;
+        /// 文件描述符上存在一些异常情况，包括
+        ///
+        /// - TCP socket 上存在带外 (out-of-band) 数据
+        /// - 数据包模式下的伪终端 master 发现 slave 的状态更改
+        /// - cgroup.events 文件已被修改
+        const POLLPRI = 1 << 1;
+        /// 可以进行写入，但大于 socket 或 pipe 可用空间的写入仍然会阻塞（除非设置了 `O_NONBLOCK`
+        const POLLOUT = 1 << 2;
+        /// 错误情况（仅在 `revents` 返回，在 `events` 中会被忽略）
+        ///
+        /// 当 pipe 的读取端关闭时，也会为写入端的文件描述符设置该位
+        const POLLERR = 1 << 3;
+        /// Hang up（仅在 `revents` 返回，在 `events` 中会被忽略）
+        ///
+        /// 当从管道或者 stream socket 等通道读取数据时，此事件仅表明 peer 关闭了其通道端
+        /// 仅当通道中所有未读取的数据都被消耗后，后续的读取才会返回 0
+        const POLLHUP = 1 << 4;
+        /// 无效请求，fd 未打开（仅在 `revents` 返回，在 `events` 中会被忽略）
+        const POLLNVAL = 1 << 5;
+    }
+}

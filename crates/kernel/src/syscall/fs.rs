@@ -5,8 +5,8 @@ use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{
-        FstatFlags, IoVec, MountFlags, OpenFlags, PollFd, Stat, UnmountFlags, AT_FDCWD, SEEK_CUR,
-        SEEK_END, SEEK_SET,
+        FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Stat, UnmountFlags, AT_FDCWD,
+        SEEK_CUR, SEEK_END, SEEK_SET,
     },
     misc::TimeSpec,
 };
@@ -619,12 +619,73 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     Ok(ret)
 }
 
-/// 等待一组文件描述符上的事件
+/// 等待一组文件描述符上的事件。返回就绪的文件描述符数量，如果超时则返回 0
+///
+/// 如果任何文件描述符都没有发生请求的事件且没有错误，则将阻塞直到：
+///
+/// - 文件描述符准备就绪
+///     - 这意味着请求的操作不会阻塞
+///     - 因此，对于常规文件、块设备和其他没有合理轮询语义的文件总是立即返回为可供读写的状态
+/// - 调用被信号中断
+/// - 超时 (`timeout`) 到期
+///
+/// 参数：
+/// - `fds` 描述感兴趣的所有文件描述符及事件，同时也是返回事件的输出参数
+///     - 如果长度超过 `RLIMIT_NOFILE` 指定的 rlimit，则返回 EINVAL
+/// - `timeout` 如果为 `NULL` 则意味着无限的超时。为负返回 `EINVAL`
+/// - `signal_mask` 指定在阻塞期间忽略的信号
+/// - `sig_set_size` 是信号集的大小。似乎没有用
 #[allow(unused)]
 pub fn sys_ppoll(
     fds: UserCheck<[PollFd]>,
-    timeout: UserCheck<TimeSpec>,
-    signal_mask: UserCheck<u64>,
+    timeout: Option<UserCheck<TimeSpec>>,
+    signal_mask: Option<UserCheck<u64>>,
+    sig_set_size: usize,
 ) -> KResult {
-    Ok(1)
+    let _enter = trace_span!("sys_ppoll");
+
+    // TODO: [mid] ppoll 要考虑 `timeout`
+    let _timeout = if let Some(timeout) = timeout {
+        let timeout = timeout.check_ptr()?.read();
+        if timeout < TimeSpec::default() {
+            return Err(errno::EINVAL);
+        }
+        Some(timeout)
+    } else {
+        None
+    };
+
+    let process = local_hart().curr_process();
+    let mut inner = process.lock_inner();
+    if fds.len() >= inner.fd_table.limit() {
+        return Err(errno::EINVAL);
+    }
+    let mut fds = unsafe { fds.check_slice_mut()? };
+    let mut ret = 0;
+    for poll_fd in fds.iter_mut() {
+        let mut poll_fd_val = poll_fd.read();
+        if poll_fd_val.fd < 0 {
+            poll_fd_val.revents = 0;
+            poll_fd.write(poll_fd_val);
+            continue;
+        }
+        if let Some(fd) = inner.fd_table.get(poll_fd_val.fd as usize) {
+            let Some(events) = PollEvents::from_bits(poll_fd_val.events) else {
+                todo!("[low] unsupported poll events: {:#b}", poll_fd_val.events);
+            };
+            match &**fd {
+                // TODO: `stdio` 应该建立起合适的轮询机制用以支持 ppoll
+                File::Stdin | File::Stdout | File::Dir(_) | File::Paged(_) => {
+                    poll_fd_val.revents =
+                        (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
+                }
+                File::Pipe(_) => todo!("[mid] impl other ppoll target"),
+            }
+            ret += 1;
+        } else {
+            poll_fd_val.revents = PollEvents::POLLNVAL.bits();
+        }
+        poll_fd.write(poll_fd_val);
+    }
+    Ok(ret)
 }

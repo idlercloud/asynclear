@@ -124,7 +124,12 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             )
             .await
         }
-        // PPOLL => sys_ppoll(),
+        PPOLL => sys_ppoll(
+            UserCheck::new_slice(args[0] as _, args[1]).ok_or(errno::EINVAL)?,
+            UserCheck::new(args[2] as _),
+            UserCheck::new(args[3] as _),
+            args[4],
+        ),
         NEWFSTATAT => sys_newfstatat(
             args[0],
             UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
