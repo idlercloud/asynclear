@@ -90,6 +90,10 @@ impl InodeMeta {
     pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut InodeMetaInner) -> T) -> T {
         f(&mut self.inner.lock())
     }
+
+    pub fn get_inner_mut(&mut self) -> &mut InodeMetaInner {
+        self.inner.get_mut()
+    }
 }
 
 pub struct InodeMetaInner {
@@ -112,53 +116,6 @@ pub trait DirInodeBackend: Send + Sync {
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()>;
     fn disk_space(&self) -> u64;
 }
-
-// NOTE: `meta` 的信息其实不知道应该在这里改还是在具体文件系统里改。
-// 目前的想法是，信息第一次获取到，比如第一次从磁盘加载、被创建时由具体文件系统来完成
-
-// impl<T: ?Sized + DirInodeBackend> Inode<T> {
-//     pub fn lookup(&self, name: &str) -> Option<DynInode> {
-//         let ret = self.inner.lookup(name);
-//         self.meta
-//             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
-//         ret
-//     }
-
-//     pub fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
-//         let ret = self.inner.mkdir(name)?;
-//         self.meta.lock_inner_with(|inner| {
-//             inner.data_len = self.inner.disk_space();
-//             inner.modify_time = TimeSpec::from(time::curr_time());
-//         });
-//         Ok(ret)
-//     }
-
-//     pub fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynPagedInode>> {
-//         let ret = self.inner.mknod(name, mode)?;
-//         self.meta.lock_inner_with(|inner| {
-//             inner.data_len = self.inner.disk_space();
-//             inner.modify_time = TimeSpec::from(time::curr_time());
-//         });
-//         Ok(ret)
-//     }
-
-//     pub fn unlink(&self, name: &str) -> KResult<()> {
-//         self.inner.unlink(name)?;
-//         self.meta.lock_inner_with(|inner| {
-//             inner.data_len = self.inner.disk_space();
-//             inner.modify_time = TimeSpec::from(time::curr_time());
-//         });
-//         Ok(())
-//     }
-
-//     pub fn read_dir(&self, dentry: &Arc<DEntryDir>) -> KResult<()> {
-//         // TODO: [low] `read_dir` 可以记录一个状态表示是否已经全部读入，有的话就不用调用底层文件系统
-//         self.inner.read_dir(dentry)?;
-//         self.meta
-//             .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
-//         Ok(())
-//     }
-// }
 
 pub trait BytesInodeBackend: Send + Sync + 'static {
     fn meta(&self) -> &InodeMeta;
@@ -201,7 +158,8 @@ impl dyn BytesInodeBackend {
                     .copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
                 nread += copy_len;
             }
-            meta.lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+            let curr_time = time::curr_time_spec();
+            meta.lock_inner_with(|inner| inner.access_time = curr_time);
             return Ok(nread);
         } else {
             self.read_inode_at(buf, offset)
@@ -247,12 +205,13 @@ impl dyn BytesInodeBackend {
                     .copy_from_slice(&buf[nwrite..nwrite + copy_len]);
                 nwrite += copy_len;
             }
+            let curr_time = time::curr_time_spec();
             meta.lock_inner_with(|inner| {
-                inner.access_time = TimeSpec::from(time::curr_time());
-                inner.modify_time = inner.access_time;
+                inner.access_time = curr_time;
+                inner.modify_time = curr_time;
                 if inner.data_len < offset + buf.len() as u64 {
                     inner.data_len = offset + buf.len() as u64;
-                    inner.change_time = inner.access_time;
+                    inner.change_time = curr_time;
                 }
             });
 

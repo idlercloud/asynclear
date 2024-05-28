@@ -54,7 +54,7 @@ impl Default for UtsName {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TimeSpec {
     pub sec: i64,
     pub nsec: i64,

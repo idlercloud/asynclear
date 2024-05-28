@@ -65,9 +65,10 @@ impl DEntryDir {
     }
 
     pub fn lookup(self: &Arc<Self>, component: Cow<'_, CompactString, str>) -> Option<DEntry> {
+        let curr_time = time::curr_time_spec();
         self.inode
             .meta()
-            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+            .lock_inner_with(|inner| inner.access_time = curr_time);
         if &component == "." {
             return Some(DEntry::Dir(Arc::clone(self)));
         } else if &component == ".." {

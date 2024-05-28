@@ -9,6 +9,8 @@ use super::{
 };
 use crate::time;
 
+// TODO: [mid] 完善 tmpfs
+
 pub fn new_tmp_fs(
     parent: Arc<DEntryDir>,
     name: CompactString,
@@ -30,12 +32,12 @@ pub struct TmpDir {
 
 impl TmpDir {
     pub fn new(name: CompactString) -> Self {
-        let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
-        meta.lock_inner_with(|inner| {
-            inner.access_time = TimeSpec::from(time::curr_time());
-            inner.change_time = inner.access_time;
-            inner.modify_time = inner.access_time;
-        });
+        let mut meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+        let meta_inner = meta.get_inner_mut();
+        let curr_time = time::curr_time_spec();
+        meta_inner.access_time = curr_time;
+        meta_inner.change_time = curr_time;
+        meta_inner.modify_time = curr_time;
         Self { meta }
     }
 }

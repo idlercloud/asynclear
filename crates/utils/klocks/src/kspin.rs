@@ -56,6 +56,10 @@ impl<T: ?Sized> SpinMutex<T> {
         }
     }
 
+    pub fn get_mut(&mut self) -> &mut T {
+        self.base.get_mut()
+    }
+
     /// Returns `true` if the lock is currently held.
     ///
     /// # Safety

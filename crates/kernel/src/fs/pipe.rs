@@ -35,9 +35,9 @@ impl Pipe {
             buf[n_read] = byte;
             n_read += 1;
         }
-        self.meta.lock_inner_with(|inner| {
-            inner.access_time = TimeSpec::from(time::curr_time());
-        });
+        let curr_time = time::curr_time_spec();
+        self.meta
+            .lock_inner_with(|inner| inner.access_time = curr_time);
         Ok(n_read)
     }
 
@@ -55,9 +55,9 @@ impl Pipe {
             n_write += 1;
         }
 
-        self.meta.lock_inner_with(|inner| {
-            inner.modify_time = TimeSpec::from(time::curr_time());
-        });
+        let curr_time = time::curr_time_spec();
+        self.meta
+            .lock_inner_with(|inner| inner.modify_time = curr_time);
         Ok(n_write)
     }
 
@@ -79,9 +79,10 @@ pub fn make_pipe() -> (Pipe, Pipe) {
         InodeMode::Fifo,
         CompactString::from_static_str("_pipe"),
     ));
+    let curr_time = time::curr_time_spec();
     meta.lock_inner_with(|inner| {
         inner.data_len = PIPE_CAPACITY as u64;
-        inner.change_time = TimeSpec::from(time::curr_time());
+        inner.change_time = curr_time;
     });
     (
         Pipe {

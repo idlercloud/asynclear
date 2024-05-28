@@ -58,41 +58,41 @@ impl FatDir {
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Self {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(InodeMode::Dir, dir_entry.take_name());
-        let fat_dir = Self {
-            meta,
-            clusters: RwLock::new(fat.cluster_chain(dir_entry.first_cluster_id()).collect()),
-            fat,
-            create_time: None,
-        };
-        fat_dir.meta.lock_inner_with(|inner| {
-            inner.data_len = fat_dir.disk_space();
+        let clusters: SmallVec<[u32; 4]> =
+            fat.cluster_chain(dir_entry.first_cluster_id()).collect();
+        let data_len = clusters_disk_space(&fat, clusters.len() as u64);
+        meta.lock_inner_with(|inner| {
+            inner.data_len = data_len;
             inner.access_time = dir_entry.access_time();
             // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
             // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
-            // NOTE: 同步时不覆盖创建时间
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
+        let fat_dir = Self {
+            meta,
+            clusters: RwLock::new(clusters),
+            fat,
+            create_time: None,
+        };
         fat_dir
     }
 
     fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
-        let meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
-        let curr_time = TimeSpec::from(time::curr_time());
-        let fat_dir = Self {
+        let mut meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+        let meta_inner = meta.get_inner_mut();
+        meta_inner.data_len = clusters_disk_space(&fat, 1);
+        let curr_time = time::curr_time_spec();
+        meta_inner.access_time = curr_time;
+        meta_inner.change_time = curr_time;
+        meta_inner.modify_time = curr_time;
+        Ok(Self {
             meta,
             clusters: RwLock::new(smallvec![allocated_cluster]),
             fat,
             create_time: Some(curr_time),
-        };
-        fat_dir.meta.lock_inner_with(|inner| {
-            inner.data_len = fat_dir.disk_space();
-            inner.access_time = TimeSpec::from(time::curr_time());
-            inner.change_time = inner.access_time;
-            inner.modify_time = inner.access_time;
-        });
-        Ok(fat_dir)
+        })
     }
 
     pub fn dir_entry_iter<'a>(
@@ -143,12 +143,19 @@ impl FatDir {
     }
 }
 
+fn clusters_disk_space(fat: &FileAllocTable, n_cluster: u64) -> u64 {
+    n_cluster * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64
+}
+
 impl DirInodeBackend for FatDir {
     fn meta(&self) -> &InodeMeta {
         &self.meta
     }
 
     fn lookup(&self, name: &str) -> Option<DynInode> {
+        let curr_time = time::curr_time_spec();
+        self.meta
+            .lock_inner_with(|inner| inner.access_time = curr_time);
         for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
             let Ok(dir_entry) = dir_entry else {
                 continue;
@@ -221,12 +228,13 @@ impl DirInodeBackend for FatDir {
             let name = new_dentry.meta().name().to_compact_string();
             children.insert(name, Some(new_dentry));
         }
+        let curr_time = time::curr_time_spec();
+        self.meta
+            .lock_inner_with(|inner| inner.access_time = curr_time);
         Ok(())
     }
 
     fn disk_space(&self) -> u64 {
-        self.clusters.read().len() as u64
-            * self.fat.sector_per_cluster() as u64
-            * SECTOR_SIZE as u64
+        clusters_disk_space(&self.fat, self.clusters.read().len() as u64)
     }
 }

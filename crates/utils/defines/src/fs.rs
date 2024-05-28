@@ -195,7 +195,7 @@ pub struct Dirent64 {
 
 /// 一个 inode 的相关信息
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Stat {
     /// 包含该文件的设备号
     pub st_dev: u64,

@@ -39,14 +39,16 @@ impl TtyInode {
     }
 
     pub async fn read(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+        let curr_time = time::curr_time_spec();
         self.meta
-            .lock_inner_with(|inner| inner.access_time = TimeSpec::from(time::curr_time()));
+            .lock_inner_with(|inner| inner.access_time = curr_time);
         TtyFuture::new(buf).await
     }
 
     pub fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+        let curr_time = time::curr_time_spec();
         self.meta
-            .lock_inner_with(|inner| inner.modify_time = TimeSpec::from(time::curr_time()));
+            .lock_inner_with(|inner| inner.modify_time = curr_time);
         let buf = buf.check_slice()?;
         let s = core::str::from_utf8(&buf).unwrap();
         print!("{s}");

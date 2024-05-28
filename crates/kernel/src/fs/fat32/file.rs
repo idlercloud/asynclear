@@ -36,16 +36,14 @@ impl FatFile {
             dir_entry.file_size()
                 <= clusters.len() as u64 * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64
         );
-        let meta = InodeMeta::new(InodeMode::Regular, dir_entry.take_name());
-        meta.lock_inner_with(|inner| {
-            inner.data_len = dir_entry.file_size();
-            inner.access_time = dir_entry.access_time();
-            // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
-            // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
-            // NOTE: 同步时不覆盖创建时间
-            inner.change_time = dir_entry.create_time();
-            inner.modify_time = dir_entry.modify_time();
-        });
+        let mut meta = InodeMeta::new(InodeMode::Regular, dir_entry.take_name());
+        let meta_inner = meta.get_inner_mut();
+        meta_inner.data_len = dir_entry.file_size();
+        meta_inner.access_time = dir_entry.access_time();
+        // inode 中并不存储创建时间，而 fat32 并不单独记录文件元数据改变时间
+        // 此处将 fat32 的创建时间存放在 inode 的元数据改变时间中
+        meta_inner.change_time = dir_entry.create_time();
+        meta_inner.modify_time = dir_entry.modify_time();
         Self {
             meta,
             clusters: RwLock::new(clusters),
@@ -57,7 +55,7 @@ impl FatFile {
     pub fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
         let meta = InodeMeta::new(InodeMode::Regular, name.to_compact_string());
-        let curr_time = TimeSpec::from(time::curr_time());
+        let curr_time = time::curr_time_spec();
         meta.lock_inner_with(|inner| {
             inner.access_time = curr_time;
             inner.change_time = curr_time;
@@ -88,13 +86,14 @@ impl BytesInodeBackend for FatFile {
     }
 
     fn read_inode_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
-        if let Ok(page) = buf.try_into()
+        let ret = if let Ok(page) = buf.try_into()
             && (offset & PAGE_OFFSET_MASK as u64) == 0
         {
             self.read_page(page, offset >> PAGE_SIZE_BITS as u64)
         } else {
             todo!()
-        }
+        };
+        ret
     }
 
     fn write_inode_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
