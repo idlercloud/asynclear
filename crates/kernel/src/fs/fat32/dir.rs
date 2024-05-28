@@ -1,3 +1,5 @@
+use alloc::collections::btree_map::Entry;
+
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
@@ -42,7 +44,7 @@ impl FatDir {
         let clusters = fat
             .cluster_chain(first_root_cluster_id)
             .collect::<SmallVec<_>>();
-        let meta = InodeMeta::new(InodeMode::Dir, CompactString::from_static_str("/"));
+        let meta = InodeMeta::new(InodeMode::Dir);
         let root_dir = Self {
             meta,
             clusters: RwLock::new(clusters),
@@ -57,7 +59,7 @@ impl FatDir {
 
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Self {
         debug_assert!(dir_entry.is_dir());
-        let meta = InodeMeta::new(InodeMode::Dir, dir_entry.take_name());
+        let meta = InodeMeta::new(InodeMode::Dir);
         let clusters: SmallVec<[u32; 4]> =
             fat.cluster_chain(dir_entry.first_cluster_id()).collect();
         let data_len = clusters_disk_space(&fat, clusters.len() as u64);
@@ -80,7 +82,7 @@ impl FatDir {
 
     fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
-        let mut meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+        let mut meta = InodeMeta::new(InodeMode::Dir);
         let meta_inner = meta.get_inner_mut();
         meta_inner.data_len = clusters_disk_space(&fat, 1);
         let curr_time = time::curr_time_spec();
@@ -181,6 +183,7 @@ impl DirInodeBackend for FatDir {
 
     fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
         let fat_dir = FatDir::create(Arc::clone(&self.fat), name)?;
+        // TODO: [mid] fat32 mkdir 实际写入磁盘
         Ok(Arc::new(fat_dir).unsize(DynDirInodeCoercion!()))
     }
 
@@ -190,7 +193,8 @@ impl DirInodeBackend for FatDir {
             InodeMode::Dir | InodeMode::SymbolLink => unreachable!(),
             _ => todo!("[mid] impl mknod for non-regular mode"),
         }
-        let fat_file = FatFile::create(Arc::clone(&self.fat), name)?;
+        let fat_file = FatFile::create(Arc::clone(&self.fat))?;
+        // TODO: [mid] fat32 mknod 实际写入磁盘
         Ok(Arc::new(fat_file).unsize(DynBytesInodeCoercion!()))
     }
 
@@ -202,31 +206,36 @@ impl DirInodeBackend for FatDir {
         debug!("fat32 read dir");
         let mut children = parent.lock_children();
         for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
-            let Ok(dir_entry) = dir_entry else {
+            let Ok(mut dir_entry) = dir_entry else {
                 continue;
             };
 
-            if let Some(child_entry) = children.get(dir_entry.name()) {
-                // 该目录项实际存在，因此不可能为 None
-                assert!(child_entry.is_some());
-                continue;
-            }
+            let vacant = match children.entry(dir_entry.take_name()) {
+                Entry::Vacant(vacant) => vacant,
+                Entry::Occupied(occupied) => {
+                    // 该目录项实际存在，因此不可能为 None
+                    assert!(occupied.get().is_some());
+                    continue;
+                }
+            };
 
             let new_dentry = if dir_entry.is_dir() {
                 let fat_dir = FatDir::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Dir(Arc::new(DEntryDir::new(
                     Some(Arc::clone(parent)),
+                    vacant.key().clone(),
                     Arc::new(fat_dir).unsize(DynDirInodeCoercion!()),
                 )))
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Bytes(DEntryBytes::new(
                     Arc::clone(parent),
+                    vacant.key().clone(),
                     Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
                 ))
             };
-            let name = new_dentry.meta().name().to_compact_string();
-            children.insert(name, Some(new_dentry));
+            let name = new_dentry.name().to_compact_string();
+            vacant.insert(Some(new_dentry));
         }
         let curr_time = time::curr_time_spec();
         self.meta

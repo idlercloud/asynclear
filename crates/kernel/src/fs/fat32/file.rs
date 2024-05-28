@@ -36,7 +36,7 @@ impl FatFile {
             dir_entry.file_size()
                 <= clusters.len() as u64 * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64
         );
-        let mut meta = InodeMeta::new(InodeMode::Regular, dir_entry.take_name());
+        let mut meta = InodeMeta::new(InodeMode::Regular);
         let meta_inner = meta.get_inner_mut();
         meta_inner.data_len = dir_entry.file_size();
         meta_inner.access_time = dir_entry.access_time();
@@ -52,9 +52,9 @@ impl FatFile {
         }
     }
 
-    pub fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
+    pub fn create(fat: Arc<FileAllocTable>) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
-        let meta = InodeMeta::new(InodeMode::Regular, name.to_compact_string());
+        let meta = InodeMeta::new(InodeMode::Regular);
         let curr_time = time::curr_time_spec();
         meta.lock_inner_with(|inner| {
             inner.access_time = curr_time;

@@ -41,6 +41,13 @@ impl DEntry {
         }
     }
 
+    pub fn name(&self) -> &str {
+        match self {
+            DEntry::Dir(dir) => dir.name(),
+            DEntry::Bytes(bytes) => bytes.name(),
+        }
+    }
+
     fn addr(&self) -> usize {
         match self {
             DEntry::Dir(dir) => dir.as_ptr().addr(),
@@ -51,14 +58,20 @@ impl DEntry {
 
 pub struct DEntryDir {
     parent: Option<Arc<DEntryDir>>,
+    name: CompactString,
     children: SpinMutex<BTreeMap<CompactString, Option<DEntry>>>,
     inode: Arc<DynDirInode>,
 }
 
 impl DEntryDir {
-    pub fn new(parent: Option<Arc<DEntryDir>>, inode: Arc<DynDirInode>) -> Self {
+    pub fn new(
+        parent: Option<Arc<DEntryDir>>,
+        name: CompactString,
+        inode: Arc<DynDirInode>,
+    ) -> Self {
         Self {
             parent,
+            name,
             children: SpinMutex::new(BTreeMap::new()),
             inode,
         }
@@ -86,12 +99,16 @@ impl DEntryDir {
                     return None;
                 };
                 let new_dentry = match new_inode {
-                    DynInode::Dir(dir) => {
-                        DEntry::Dir(Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir)))
-                    }
-                    DynInode::Bytes(bytes) => {
-                        DEntry::Bytes(DEntryBytes::new(Arc::clone(self), bytes))
-                    }
+                    DynInode::Dir(dir) => DEntry::Dir(Arc::new(DEntryDir::new(
+                        Some(Arc::clone(self)),
+                        vacant.key().clone(),
+                        dir,
+                    ))),
+                    DynInode::Bytes(bytes) => DEntry::Bytes(DEntryBytes::new(
+                        Arc::clone(self),
+                        vacant.key().clone(),
+                        bytes,
+                    )),
                 };
                 vacant.insert(Some(new_dentry.clone()));
                 Some(new_dentry)
@@ -112,7 +129,11 @@ impl DEntryDir {
             return Err(errno::EEXIST);
         }
         let dir = self.inode.mkdir(child_entry.key())?;
-        let dentry = Arc::new(DEntryDir::new(Some(Arc::clone(self)), dir));
+        let dentry = Arc::new(DEntryDir::new(
+            Some(Arc::clone(self)),
+            child_entry.key().clone(),
+            dir,
+        ));
         *child_entry.or_insert(None) = Some(DEntry::Dir(Arc::clone(&dentry)));
         Ok(dentry)
     }
@@ -136,7 +157,7 @@ impl DEntryDir {
             return Err(errno::EEXIST);
         }
         let file = self.inode.mknod(child_entry.key(), mode)?;
-        let dentry = DEntryBytes::new(Arc::clone(self), file);
+        let dentry = DEntryBytes::new(Arc::clone(self), child_entry.key().clone(), file);
         *child_entry.or_insert(None) = Some(DEntry::Bytes(dentry.clone()));
         Ok(dentry)
     }
@@ -156,12 +177,16 @@ impl DEntryDir {
     }
 
     pub fn read_dir(self: &Arc<Self>) -> KResult<()> {
-        let _enter = debug_span!("read_dir", name = self.inode.meta().name()).entered();
+        let _enter = debug_span!("read_dir", name = self.name).entered();
         self.inode.read_dir(self)
     }
 
     pub fn parent(&self) -> Option<&Arc<DEntryDir>> {
         self.parent.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<CompactString, Option<DEntry>>> {
@@ -176,16 +201,25 @@ impl DEntryDir {
 #[derive(Clone)]
 pub struct DEntryBytes {
     parent: Arc<DEntryDir>,
+    name: CompactString,
     inode: Arc<DynBytesInode>,
 }
 
 impl DEntryBytes {
-    pub fn new(parent: Arc<DEntryDir>, inode: Arc<DynBytesInode>) -> Self {
-        Self { parent, inode }
+    pub fn new(parent: Arc<DEntryDir>, name: CompactString, inode: Arc<DynBytesInode>) -> Self {
+        Self {
+            parent,
+            name,
+            inode,
+        }
     }
 
     pub fn parent(&self) -> &Arc<DEntryDir> {
         &self.parent
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn inode(&self) -> &Arc<DynBytesInode> {

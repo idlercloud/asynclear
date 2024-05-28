@@ -16,8 +16,8 @@ pub fn new_tmp_fs(
     name: CompactString,
     device_path: CompactString,
 ) -> KResult<FileSystem> {
-    let root_dir = Arc::new(TmpDir::new(name)).unsize(DynDirInodeCoercion!());
-    let root_dentry = Arc::new(DEntryDir::new(Some(parent), root_dir));
+    let root_dir = Arc::new(TmpDir::new()).unsize(DynDirInodeCoercion!());
+    let root_dentry = Arc::new(DEntryDir::new(Some(parent), name, root_dir));
     Ok(FileSystem {
         root_dentry,
         device_path,
@@ -31,8 +31,8 @@ pub struct TmpDir {
 }
 
 impl TmpDir {
-    pub fn new(name: CompactString) -> Self {
-        let mut meta = InodeMeta::new(InodeMode::Dir, name.to_compact_string());
+    pub fn new() -> Self {
+        let mut meta = InodeMeta::new(InodeMode::Dir);
         let meta_inner = meta.get_inner_mut();
         let curr_time = time::curr_time_spec();
         meta_inner.access_time = curr_time;
@@ -42,6 +42,7 @@ impl TmpDir {
     }
 }
 
+// TmpDir 的主要机制都是靠 DEntryDir 的，所以这里不需要做太多事儿
 impl DirInodeBackend for TmpDir {
     fn meta(&self) -> &InodeMeta {
         &self.meta
@@ -51,8 +52,8 @@ impl DirInodeBackend for TmpDir {
         None
     }
 
-    fn mkdir(&self, name: &str) -> KResult<Arc<DynDirInode>> {
-        Ok(Arc::new(Self::new(name.to_compact_string())).unsize(DynDirInodeCoercion!()))
+    fn mkdir(&self, _name: &str) -> KResult<Arc<DynDirInode>> {
+        Ok(Arc::new(Self::new()).unsize(DynDirInodeCoercion!()))
     }
 
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynBytesInode>> {

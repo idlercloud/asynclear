@@ -245,11 +245,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
             return Err(errno::ENOENT);
         }
 
-        debug!(
-            "create {} under {}",
-            p2i.last_component,
-            p2i.dir.inode().meta().name()
-        );
+        debug!("create {} under {}", p2i.last_component, p2i.dir.name());
         let dentry = p2i.dir.mknod(p2i.last_component, InodeMode::Regular)?;
         File::Seekable(Arc::new(SeekableFile::new(dentry)))
     };
@@ -351,14 +347,14 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
             let new_fd = inner.fd_table.add_from(desc, arg).ok_or(errno::EMFILE)?;
             debug!(
                 "dup fd {fd}({}) to {new_fd}, with close_on_exec = {}",
-                inner.fd_table.get(new_fd).unwrap().meta().name(),
+                inner.fd_table.get(new_fd).unwrap().debug_name(),
                 cmd == F_DUPFD_CLOEXEC
             );
             Ok(new_fd as isize)
         }
         F_GETFD => {
             let desc = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
-            debug!("get the CLOEXEC flag of fd {fd}({})", desc.meta().name());
+            debug!("get the CLOEXEC flag of fd {fd}({})", desc.debug_name());
             if desc.flags().contains(OpenFlags::CLOEXEC) {
                 Ok(1)
             } else {
@@ -369,7 +365,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
             let desc = inner.fd_table.get_mut(fd).ok_or(errno::EBADF)?;
             debug!(
                 "set the CLOEXEC flag of fd {fd}({}) to {}",
-                desc.meta().name(),
+                desc.debug_name(),
                 arg & 1 != 0
             );
             desc.set_close_on_exec(arg & 1 != 0);
@@ -496,7 +492,7 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
         let DEntry::Bytes(bytes) = dentry else {
             return Err(errno::EISDIR);
         };
-        bytes.parent().unlink(bytes.inode().meta().name())?;
+        bytes.parent().unlink(bytes.name())?;
     }
     Ok(0)
 }
@@ -593,7 +589,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
         let Some(parent) = dir.parent() else {
             break;
         };
-        path_len += dir.inode().meta().name().len();
+        path_len += dir.name().len();
         dirs.push(dir);
         dir = parent;
     }
@@ -611,7 +607,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     for name in dirs
         .into_iter()
         .rev()
-        .map(|dir| dir.inode().meta().name().as_bytes())
+        .map(|dir| dir.name().as_bytes())
         .intersperse(b"/")
     {
         buf[curr..curr + name.len()].copy_from_slice(name);

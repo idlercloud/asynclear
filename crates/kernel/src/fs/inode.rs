@@ -49,18 +49,15 @@ pub struct InodeMeta {
     /// inode number，在一个文件系统中唯一标识一个 Inode
     ino: usize,
     mode: InodeMode,
-    // FIXME: name 应该是属于 DEntry 的属性，不应该放在这里
-    name: CompactString,
     page_cache: PageCache,
     inner: SpinMutex<InodeMetaInner>,
 }
 
 impl InodeMeta {
-    pub fn new(mode: InodeMode, name: CompactString) -> Self {
+    pub fn new(mode: InodeMode) -> Self {
         Self {
             ino: INODE_NUMBER.fetch_add(1, Ordering::SeqCst),
             mode,
-            name,
             page_cache: PageCache::new(),
             inner: SpinMutex::new(InodeMetaInner {
                 data_len: 0,
@@ -73,10 +70,6 @@ impl InodeMeta {
 
     pub fn ino(&self) -> usize {
         self.ino
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
     }
 
     pub fn mode(&self) -> InodeMode {

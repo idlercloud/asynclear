@@ -329,6 +329,15 @@ impl FileDescriptor {
     pub fn flags(&self) -> OpenFlags {
         self.flags
     }
+
+    pub fn debug_name(&self) -> &str {
+        match &self.file {
+            File::Tty(_) => "<tty>", // TODO: [mid] tty 可以对应到字符设备的名字
+            File::Pipe(_) => "<pipe>",
+            File::Dir(dir) => dir.dentry.name(),
+            File::Seekable(seekable) => seekable.dentry.name(),
+        }
+    }
 }
 
 impl Deref for FileDescriptor {

@@ -118,7 +118,7 @@ fn shared_file_map(
     };
     debug!(
         "shared file map, add: {addr:#}, len: {len}, fd: {fd}({})",
-        desc.meta().name()
+        desc.debug_name()
     );
 
     {

@@ -82,7 +82,7 @@ impl VirtFileSystem {
         let fs = {
             let mut children = parent.lock_children();
 
-            let name = dentry.meta().name();
+            let name = dentry.name();
 
             // TODO: 暂时是放了一个 tmpfs 进去
             let mut fs = tmpfs::new_tmp_fs(
@@ -125,7 +125,7 @@ impl VirtFileSystem {
                 DEntry::Bytes(bytes) => bytes.parent(),
             };
             parent.lock_children().insert(
-                mounted_dentry.meta().name().to_compact_string(),
+                mounted_dentry.name().to_compact_string(),
                 Some(mounted_dentry),
             );
         }
@@ -241,10 +241,7 @@ pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInod
 }
 
 pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {
-    debug!(
-        "walk path: {path}, from {}",
-        start_dir.inode().meta().name()
-    );
+    debug!("walk path: {path}, from {}", start_dir.name());
     let mut split = path
         .trim_start_matches('/')
         .trim_end_matches('/')

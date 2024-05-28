@@ -75,10 +75,7 @@ enum PipeInner {
 /// 返回 (`read_end`, `write_end`)
 pub fn make_pipe() -> (Pipe, Pipe) {
     let (sender, receiver) = async_channel::bounded(PIPE_CAPACITY);
-    let meta = Arc::new(InodeMeta::new(
-        InodeMode::Fifo,
-        CompactString::from_static_str("_pipe"),
-    ));
+    let meta = Arc::new(InodeMeta::new(InodeMode::Fifo));
     let curr_time = time::curr_time_spec();
     meta.lock_inner_with(|inner| {
         inner.data_len = PIPE_CAPACITY as u64;

@@ -128,7 +128,7 @@ impl TtyInode {
 static TTY_INODE: Lazy<Arc<TtyInode>> = Lazy::new(|| {
     Arc::new({
         TtyInode {
-            meta: InodeMeta::new(InodeMode::CharDevice, CompactString::from_static_str("/")),
+            meta: InodeMeta::new(InodeMode::CharDevice),
             inner: SpinMutex::new(TtyInodeInner {
                 fg_pgid: 1,
                 win_size: WinSize {

@@ -57,7 +57,7 @@ pub fn new_fat32_fs(
     debug!("init fat");
     let fat = Arc::new(FileAllocTable::new(block_device, &bpb)?);
     let root_dir = Arc::new(FatDir::new_root(fat, bpb.root_cluster)).unsize(DynDirInodeCoercion!());
-    let root_dentry = Arc::new(DEntryDir::new(None, root_dir));
+    let root_dentry = Arc::new(DEntryDir::new(None, name, root_dir));
     Ok(FileSystem {
         root_dentry,
         device_path,
