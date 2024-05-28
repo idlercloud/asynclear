@@ -231,7 +231,12 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
                 if flags.contains(OpenFlags::DIRECTORY) {
                     return Err(errno::ENOTDIR);
                 }
-                File::Seekable(Arc::new(SeekableFile::new(bytes)))
+                let mode = bytes.inode().meta().mode();
+                if mode == InodeMode::Regular {
+                    File::Seekable(Arc::new(SeekableFile::new(bytes)))
+                } else {
+                    todo!("[mid] impl other bytes file");
+                }
             }
         }
     } else {

@@ -20,7 +20,7 @@ use crate::{
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynBytesInode, DynBytesInodeCoercion, DynDirInode,
-            DynDirInodeCoercion, DynInode, InodeMeta, InodeMode, PagedInode,
+            DynDirInodeCoercion, DynInode, InodeMeta, InodeMode,
         },
     },
     hart::local_hart,
@@ -165,7 +165,7 @@ impl DirInodeBackend for FatDir {
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 return Some(DynInode::Bytes(
-                    Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()),
+                    Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
                 ));
             }
         }
@@ -184,7 +184,7 @@ impl DirInodeBackend for FatDir {
             _ => todo!("[mid] impl mknod for non-regular mode"),
         }
         let fat_file = FatFile::create(Arc::clone(&self.fat), name)?;
-        Ok(Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()))
+        Ok(Arc::new(fat_file).unsize(DynBytesInodeCoercion!()))
     }
 
     fn unlink(&self, name: &str) -> KResult<()> {
@@ -215,7 +215,7 @@ impl DirInodeBackend for FatDir {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
                 DEntry::Bytes(DEntryBytes::new(
                     Arc::clone(parent),
-                    Arc::new(PagedInode::new(fat_file)).unsize(DynBytesInodeCoercion!()),
+                    Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
                 ))
             };
             let name = new_dentry.meta().name().to_compact_string();

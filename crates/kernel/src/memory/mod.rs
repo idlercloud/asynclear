@@ -13,7 +13,7 @@ pub use self::{
     memory_space::{
         flush_tlb, log_kernel_sections,
         page_table::{PTEFlags, PageTable},
-        vm_area::FramedVmArea,
+        vm_area::{BackedInode, FramedVmArea},
         MapPermission, MemorySpace, KERNEL_SPACE,
     },
     page::Page,

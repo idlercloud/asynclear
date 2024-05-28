@@ -43,7 +43,7 @@ impl DEntry {
 
     fn addr(&self) -> usize {
         match self {
-            DEntry::Dir(dir) => dir.as_ptr() as usize,
+            DEntry::Dir(dir) => dir.as_ptr().addr(),
             DEntry::Bytes(bytes) => bytes.inode.as_ptr().addr(),
         }
     }

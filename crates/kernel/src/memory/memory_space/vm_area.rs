@@ -1,11 +1,11 @@
 use alloc::collections::{BTreeMap, BTreeSet};
-use core::ops::Range;
+use core::ops::{Deref, Range};
 
 use common::config::PAGE_SIZE;
 use triomphe::Arc;
 
 use crate::{
-    fs::{DynBytesInode, PagedInode},
+    fs::{DynBytesInode, InodeMode},
     memory::{
         frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
         VirtPageNum,
@@ -20,9 +20,30 @@ pub struct FramedVmArea {
     // 暂时而言，整个 area 要么都是有文件后备，要么都是无文件后备
     // 但是实现 private mmap 的话可能就不是了
     unbacked_map: BTreeMap<VirtPageNum, Arc<Page>>,
-    backed_file: Option<Arc<PagedInode<DynBytesInode>>>,
+    backed_inode: Option<BackedInode>,
     backed_pages: BTreeSet<VirtPageNum>,
-    backed_file_page_id: u64,
+    backed_inode_page_id: u64,
+}
+
+#[derive(Clone)]
+pub struct BackedInode(Arc<DynBytesInode>);
+
+impl BackedInode {
+    pub fn new(inode: &Arc<DynBytesInode>) -> Option<Self> {
+        if inode.meta().mode() == InodeMode::Regular {
+            Some(Self(Arc::clone(inode)))
+        } else {
+            None
+        }
+    }
+}
+
+impl Deref for BackedInode {
+    type Target = Arc<DynBytesInode>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -42,9 +63,9 @@ impl FramedVmArea {
             unbacked_map: BTreeMap::new(),
             perm,
             area_type,
-            backed_file: None,
+            backed_inode: None,
             backed_pages: BTreeSet::new(),
-            backed_file_page_id: 0,
+            backed_inode_page_id: 0,
         }
     }
 
@@ -64,40 +85,38 @@ impl FramedVmArea {
         &self.unbacked_map
     }
 
-    pub fn backed_file(&self) -> Option<&Arc<PagedInode<DynBytesInode>>> {
-        self.backed_file.as_ref()
+    pub fn backed_inode(&self) -> Option<&BackedInode> {
+        self.backed_inode.as_ref()
     }
 
-    pub fn backed_file_page_id(&self) -> u64 {
-        self.backed_file_page_id
+    pub fn backed_inode_page_id(&self) -> u64 {
+        self.backed_inode_page_id
     }
 
     pub fn len(&self) -> usize {
         self.vpn_range.end.0.saturating_sub(self.vpn_range.start.0) * PAGE_SIZE
     }
 
-    pub fn init_backed_file(
+    pub fn init_backed_inode(
         &mut self,
-        file: Arc<PagedInode<DynBytesInode>>,
-        file_page_id: u64,
+        inode: BackedInode,
+        inode_page_id: u64,
         page_table: &mut PageTable,
     ) {
-        let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
         // 先把已经在页缓存中的映射好
         {
-            let page_cache = file.lock_page_cache();
-            for (&page_id, page) in page_cache
-                .pages()
-                .range(file_page_id..file_page_id + n_pages as u64)
+            let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
+            let page_cache = inode.meta().page_cache().lock_pages();
+            for (&page_id, page) in page_cache.range(inode_page_id..inode_page_id + n_pages as u64)
             {
                 let frame = page.inner_page().frame();
-                let vpn = self.vpn_range.start + (page_id - file_page_id) as usize;
+                let vpn = self.vpn_range.start + (page_id - inode_page_id) as usize;
                 page_table.map(vpn, frame.ppn(), PTEFlags::from(self.perm));
                 self.backed_pages.insert(vpn);
             }
         }
-        self.backed_file = Some(file);
-        self.backed_file_page_id = file_page_id;
+        self.backed_inode = Some(inode);
+        self.backed_inode_page_id = inode_page_id;
     }
 
     // 只能给
@@ -141,9 +160,9 @@ impl FramedVmArea {
             page_table.unmap(mapped);
         }
         self.unbacked_map.clear();
-        self.backed_file = None;
+        self.backed_inode = None;
         self.backed_pages.clear();
-        self.backed_file_page_id = 0;
+        self.backed_inode_page_id = 0;
     }
 
     /// 尝试收缩末尾区域

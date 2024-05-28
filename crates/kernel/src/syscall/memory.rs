@@ -6,12 +6,11 @@ use defines::{
     fs::OpenFlags,
     misc::{MmapFlags, MmapProt},
 };
-use triomphe::Arc;
 
 use crate::{
     fs::{File, InodeMode},
     hart::local_hart,
-    memory::{MapPermission, VirtAddr, VirtPageNum},
+    memory::{BackedInode, MapPermission, VirtAddr, VirtPageNum},
 };
 
 /// 映射虚拟内存。返回实际映射的地址（一般是页对齐的）。
@@ -135,23 +134,19 @@ fn shared_file_map(
         }
     }
 
-    let File::Seekable(bytes) = &**desc else {
-        warn!("paged file marked as regular file");
-        return Err(errno::EACCES);
-    };
+    let backed_inode = (|| {
+        let File::Seekable(bytes) = &**desc else {
+            return Err(errno::EACCES);
+        };
+        BackedInode::new(bytes.inode()).ok_or(errno::EACCES)
+    })()?;
 
-    let paged = unsafe {
-        Arc::into_raw(Arc::clone(bytes.inode()))
-            .as_paged_inode()
-            .unwrap()
-    };
-
-    inner.memory_space.try_map_file(
+    inner.memory_space.try_map_inode(
         addr,
         len,
         MapPermission::from(prot),
         flags,
-        paged,
+        backed_inode,
         file_page_id,
     )
 }

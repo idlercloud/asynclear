@@ -10,7 +10,10 @@ use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
-    fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
+    fs::{
+        inode::{BytesInodeBackend, InodeMeta, InodeMode},
+        page_cache::PageCache,
+    },
     time,
 };
 
@@ -84,7 +87,7 @@ impl BytesInodeBackend for FatFile {
         &self.meta
     }
 
-    fn read_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
+    fn read_inode_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
         if let Ok(page) = buf.try_into()
             && (offset & PAGE_OFFSET_MASK as u64) == 0
         {
@@ -94,7 +97,7 @@ impl BytesInodeBackend for FatFile {
         }
     }
 
-    fn write_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
+    fn write_inode_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
         todo!("[high] impl write_page for FatFile")
     }
 }

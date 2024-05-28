@@ -17,21 +17,17 @@ use goblin::elf::{
 };
 use klocks::Lazy;
 use smallvec::SmallVec;
-use triomphe::Arc;
 use virtio_drivers::PAGE_SIZE;
 use vm_area::AreaType;
 
 use self::{
     init_stack::{StackInitCtx, AT_BASE, AT_ENTRY, AT_PAGESZ, AT_PHDR, AT_PHENT, AT_PHNUM},
-    vm_area::FramedVmArea,
+    vm_area::{BackedInode, FramedVmArea},
 };
 use super::{
     kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
 };
-use crate::{
-    fs::{DynBytesInode, PagedInode},
-    thread::Thread,
-};
+use crate::thread::Thread;
 
 pub mod init_stack;
 pub mod page_table;
@@ -122,12 +118,12 @@ impl MemorySpace {
         for src_area in user_space.user_areas.values() {
             let vpn_range = src_area.vpn_range();
             unsafe {
-                if let Some(backed_file) = src_area.backed_file() {
+                if let Some(backed_inode) = src_area.backed_inode() {
                     memory_set.user_map_with_file(
                         vpn_range.clone(),
                         src_area.perm(),
-                        Arc::clone(backed_file),
-                        src_area.backed_file_page_id(),
+                        backed_inode.clone(),
+                        src_area.backed_inode_page_id(),
                     );
                 } else {
                     memory_set.user_map(vpn_range.clone(), src_area.perm());
@@ -263,19 +259,19 @@ impl MemorySpace {
     }
 
     /// 尝试根据 `va_range` 进行映射
-    pub fn try_map_file(
+    pub fn try_map_inode(
         &mut self,
         addr: usize,
         len: NonZeroUsize,
         perm: MapPermission,
         flags: MmapFlags,
-        file: Arc<PagedInode<DynBytesInode>>,
-        file_page_id: u64,
+        inode: BackedInode,
+        inode_page_id: u64,
     ) -> KResult<VirtPageNum> {
         let vpn_range = self.try_find_mmap_area(addr, len, flags)?;
         // SAFETY: 上面寻找映射区域的函数保证不会返回重叠的区域
         unsafe {
-            self.user_map_with_file(vpn_range.clone(), perm, file, file_page_id);
+            self.user_map_with_file(vpn_range.clone(), perm, inode, inode_page_id);
         }
         flush_tlb(None);
         Ok(vpn_range.start)
@@ -377,11 +373,11 @@ impl MemorySpace {
         &mut self,
         vpn_range: Range<VirtPageNum>,
         perm: MapPermission,
-        file: Arc<PagedInode<DynBytesInode>>,
+        inode: BackedInode,
         file_page_id: u64,
     ) {
         let mut map_area = FramedVmArea::new(vpn_range.clone(), perm, AreaType::Mmap);
-        map_area.init_backed_file(file, file_page_id, &mut self.page_table);
+        map_area.init_backed_inode(inode, file_page_id, &mut self.page_table);
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 

@@ -27,7 +27,7 @@ use self::inode::InodeMeta;
 pub use self::{
     dentry::{DEntry, DEntryBytes, DEntryDir},
     file::{DirFile, FdTable, File, FileDescriptor, SeekFrom, SeekableFile},
-    inode::{DynBytesInode, InodeMode, PagedInode},
+    inode::{DynBytesInode, InodeMode},
     pipe::make_pipe,
 };
 use crate::{

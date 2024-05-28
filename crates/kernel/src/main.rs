@@ -16,6 +16,7 @@
 #![feature(strict_provenance)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]
+#![feature(ptr_metadata)]
 
 #[macro_use]
 extern crate kernel_tracer;
