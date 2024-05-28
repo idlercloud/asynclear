@@ -1,19 +1,13 @@
-use core::{ops::Deref, sync::atomic::AtomicUsize};
+use core::sync::atomic::AtomicUsize;
 
 use atomic::Ordering;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
-use compact_str::CompactString;
 use defines::{error::KResult, fs::StatMode, misc::TimeSpec};
-use extend::ext;
-use klocks::{RwLock, RwLockReadGuard, SpinMutex};
+use klocks::SpinMutex;
 use triomphe::Arc;
-use unsize::{CoerceUnsize, Coercion};
 
-use super::{
-    dentry::DEntryDir,
-    page_cache::{BackedPage, PageCache},
-};
-use crate::{drivers::qemu_block::DiskDriver, executor::block_on, fs::page_cache::PageState, time};
+use super::{dentry::DEntryDir, page_cache::PageCache};
+use crate::{executor::block_on, fs::page_cache::PageState, time};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
@@ -153,7 +147,7 @@ impl dyn BytesInodeBackend {
             }
             let curr_time = time::curr_time_spec();
             meta.lock_inner_with(|inner| inner.access_time = curr_time);
-            return Ok(nread);
+            Ok(nread)
         } else {
             self.read_inode_at(buf, offset)
         }

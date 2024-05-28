@@ -1,6 +1,5 @@
 use alloc::collections::btree_map::Entry;
 
-use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
@@ -57,7 +56,7 @@ impl FatDir {
         root_dir
     }
 
-    pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Self {
+    pub fn from_dir_entry(fat: Arc<FileAllocTable>, dir_entry: DirEntry) -> Self {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(InodeMode::Dir);
         let clusters: SmallVec<[u32; 4]> =
@@ -71,13 +70,12 @@ impl FatDir {
             inner.change_time = dir_entry.create_time();
             inner.modify_time = dir_entry.modify_time();
         });
-        let fat_dir = Self {
+        Self {
             meta,
             clusters: RwLock::new(clusters),
             fat,
             create_time: None,
-        };
-        fat_dir
+        }
     }
 
     fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
@@ -234,7 +232,6 @@ impl DirInodeBackend for FatDir {
                     Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
                 ))
             };
-            let name = new_dentry.name().to_compact_string();
             vacant.insert(Some(new_dentry));
         }
         let curr_time = time::curr_time_spec();

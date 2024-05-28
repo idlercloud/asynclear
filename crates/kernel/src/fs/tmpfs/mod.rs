@@ -1,5 +1,5 @@
-use compact_str::{CompactString, ToCompactString};
-use defines::{error::KResult, misc::TimeSpec};
+use compact_str::CompactString;
+use defines::error::KResult;
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
@@ -60,7 +60,7 @@ impl DirInodeBackend for TmpDir {
         todo!()
     }
 
-    fn unlink(&self, name: &str) -> KResult<()> {
+    fn unlink(&self, _name: &str) -> KResult<()> {
         Ok(())
     }
 

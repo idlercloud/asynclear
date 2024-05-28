@@ -4,14 +4,12 @@ use core::{
     task::{Context, Poll},
 };
 
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     ioctl::{
         Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
         TIOCSPGRP, TIOCSWINSZ,
     },
-    misc::TimeSpec,
 };
 use klocks::{Lazy, SpinMutex};
 use triomphe::Arc;

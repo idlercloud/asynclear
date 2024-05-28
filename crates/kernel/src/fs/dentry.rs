@@ -3,10 +3,7 @@ use core::hash::Hash;
 
 use cervine::Cow;
 use compact_str::CompactString;
-use defines::{
-    error::{errno, KResult},
-    misc::TimeSpec,
-};
+use defines::error::{errno, KResult};
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 

@@ -1,9 +1,5 @@
 use async_channel::{Receiver, Sender};
-use compact_str::CompactString;
-use defines::{
-    error::{errno, KResult},
-    misc::TimeSpec,
-};
+use defines::error::{errno, KResult};
 use triomphe::Arc;
 
 use super::{inode::InodeMeta, InodeMode};

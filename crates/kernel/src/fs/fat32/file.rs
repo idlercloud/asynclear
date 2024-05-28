@@ -1,5 +1,4 @@
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
-use compact_str::ToCompactString;
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
@@ -10,10 +9,7 @@ use triomphe::Arc;
 
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
-    fs::{
-        inode::{BytesInodeBackend, InodeMeta, InodeMode},
-        page_cache::PageCache,
-    },
+    fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
     time,
 };
 
@@ -26,7 +22,7 @@ pub struct FatFile {
 }
 
 impl FatFile {
-    pub fn from_dir_entry(fat: Arc<FileAllocTable>, mut dir_entry: DirEntry) -> Self {
+    pub fn from_dir_entry(fat: Arc<FileAllocTable>, dir_entry: DirEntry) -> Self {
         debug_assert!(!dir_entry.is_dir());
         let clusters = fat
             .cluster_chain(dir_entry.first_cluster_id())
@@ -86,14 +82,13 @@ impl BytesInodeBackend for FatFile {
     }
 
     fn read_inode_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
-        let ret = if let Ok(page) = buf.try_into()
+        if let Ok(page) = buf.try_into()
             && (offset & PAGE_OFFSET_MASK as u64) == 0
         {
             self.read_page(page, offset >> PAGE_SIZE_BITS as u64)
         } else {
             todo!()
-        };
-        ret
+        }
     }
 
     fn write_inode_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
