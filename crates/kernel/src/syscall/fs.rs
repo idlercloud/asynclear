@@ -613,6 +613,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
         buf[curr..curr + name.len()].copy_from_slice(name);
         curr += name.len();
     }
+    buf[curr] = b'\0';
 
     Ok(ret)
 }
