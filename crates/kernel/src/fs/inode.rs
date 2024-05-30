@@ -2,12 +2,22 @@ use core::sync::atomic::AtomicUsize;
 
 use atomic::Ordering;
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
-use defines::{error::KResult, fs::StatMode, misc::TimeSpec};
+use defines::{
+    error::{errno, AKResult, KResult},
+    fs::StatMode,
+    misc::TimeSpec,
+};
+use kernel_tracer::Instrument;
 use klocks::SpinMutex;
 use triomphe::Arc;
 
 use super::{dentry::DEntryDir, page_cache::PageCache};
-use crate::{executor::block_on, fs::page_cache::PageState, time};
+use crate::{
+    executor::block_on,
+    fs::page_cache::PageState,
+    memory::{ReadBuffer, UserCheck},
+    time,
+};
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
 
@@ -24,6 +34,8 @@ pub enum InodeMode {
     BlockDevice,
     CharDevice,
 }
+
+pub struct Inode {}
 
 impl From<InodeMode> for StatMode {
     fn from(value: InodeMode) -> Self {
@@ -106,22 +118,32 @@ pub trait DirInodeBackend: Send + Sync {
 
 pub trait BytesInodeBackend: Send + Sync + 'static {
     fn meta(&self) -> &InodeMeta;
-    fn read_inode_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize>;
-    fn write_inode_at(&self, buf: &[u8], offset: u64) -> KResult<usize>;
+    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, _offset: u64) -> AKResult<'_, usize>;
+    fn write_inode_at(&self, buf: UserCheck<[u8]>, offset: u64) -> AKResult<'_, usize>;
+    fn ioctl(&self, request: usize, argp: usize) -> KResult {
+        Err(errno::ENOTTY)
+    }
 }
 
 impl dyn BytesInodeBackend {
-    pub fn read_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
+    pub async fn read_at(&self, buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
+        self.read_at_impl(buf, offset)
+            .instrument(debug_span!("read_at", offset = offset))
+            .await
+    }
+
+    async fn read_at_impl(&self, mut buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         let meta = self.meta();
         let data_len = meta.lock_inner_with(|inner| inner.data_len);
 
-        if offset >= data_len {
+        if offset > data_len {
             return Ok(0);
         }
 
         if meta.mode() == InodeMode::Regular {
             let read_end = usize::min(buf.len(), (data_len - offset) as usize);
             let mut nread = 0;
+
             while nread < read_end {
                 let page_id = (offset + nread as u64) >> PAGE_SIZE_BITS;
                 let page_offset = ((offset + nread as u64) & PAGE_OFFSET_MASK as u64) as usize;
@@ -132,32 +154,49 @@ impl dyn BytesInodeBackend {
                     let mut _guard = block_on(page.state_guard.lock());
                     if page.state.load(Ordering::SeqCst) == PageState::Invalid {
                         self.read_inode_at(
-                            page.inner.frame_mut().as_page_bytes_mut(),
+                            ReadBuffer::Kernel(page.inner.frame_mut().as_page_bytes_mut()),
                             page_id << PAGE_SIZE_BITS,
-                        )?;
+                        )
+                        .await?;
                         page.state.store(PageState::Synced, Ordering::SeqCst);
                     }
                 }
                 let frame = page.inner.frame();
 
                 let copy_len = usize::min(read_end - nread, PAGE_SIZE - page_offset);
-                buf[nread..nread + copy_len]
-                    .copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
+                let mut user_buf;
+                let buf = match &mut buf {
+                    ReadBuffer::Kernel(buf) => &mut buf[nread..nread + copy_len],
+                    ReadBuffer::User(buf) => unsafe {
+                        user_buf = buf
+                            .slice(nread..nread + copy_len)
+                            .expect("should not panic")
+                            .check_slice_mut()?;
+                        user_buf.as_bytes_mut()
+                    },
+                };
+                buf.copy_from_slice(&frame.as_page_bytes()[page_offset..page_offset + copy_len]);
+
                 nread += copy_len;
             }
             let curr_time = time::curr_time_spec();
             meta.lock_inner_with(|inner| inner.access_time = curr_time);
             Ok(nread)
         } else {
-            self.read_inode_at(buf, offset)
+            self.read_inode_at(buf, offset).await
         }
     }
 
-    pub fn write_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
-        let meta = self.meta();
-        let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
+    pub async fn write_at(&self, buf: UserCheck<[u8]>, offset: u64) -> KResult<usize> {
+        self.write_at_impl(buf, offset)
+            .instrument(debug_span!("write_at", offset = offset))
+            .await
+    }
 
+    async fn write_at_impl(&self, buf: UserCheck<[u8]>, offset: u64) -> KResult<usize> {
+        let meta = self.meta();
         if meta.mode() == InodeMode::Regular {
+            let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
             let curr_last_page_id = curr_data_len >> PAGE_SIZE_BITS;
 
             // 写范围是 offset..offset + buf.len()。
@@ -180,7 +219,11 @@ impl dyn BytesInodeBackend {
                         && full_page_range.contains(&page_id)
                         && page.state.load(Ordering::SeqCst) == PageState::Invalid
                     {
-                        self.read_inode_at(frame.as_page_bytes_mut(), page_id << PAGE_SIZE_BITS)?;
+                        self.read_inode_at(
+                            ReadBuffer::Kernel(frame.as_page_bytes_mut()),
+                            page_id << PAGE_SIZE_BITS,
+                        )
+                        .await?;
                     }
                     page.state.store(PageState::Dirty, Ordering::SeqCst);
                 } else {
@@ -188,8 +231,11 @@ impl dyn BytesInodeBackend {
                 }
 
                 let copy_len = usize::min(buf.len() - nwrite, PAGE_SIZE - page_offset);
-                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len]
-                    .copy_from_slice(&buf[nwrite..nwrite + copy_len]);
+                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len].copy_from_slice(
+                    &buf.slice(nwrite..nwrite + copy_len)
+                        .expect("should not panic")
+                        .check_slice()?,
+                );
                 nwrite += copy_len;
             }
             let curr_time = time::curr_time_spec();
@@ -204,7 +250,7 @@ impl dyn BytesInodeBackend {
 
             Ok(nwrite)
         } else {
-            self.write_inode_at(buf, offset)
+            self.write_inode_at(buf, offset).await
         }
     }
 }

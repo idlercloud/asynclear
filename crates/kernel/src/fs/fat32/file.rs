@@ -1,6 +1,8 @@
+use alloc::boxed::Box;
+
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::{
-    error::{errno, KResult},
+    error::{errno, AKResult, KResult},
     misc::TimeSpec,
 };
 use klocks::RwLock;
@@ -10,6 +12,7 @@ use triomphe::Arc;
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
     fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
+    memory::{ReadBuffer, UserCheck},
     time,
 };
 
@@ -81,28 +84,36 @@ impl BytesInodeBackend for FatFile {
         &self.meta
     }
 
-    fn read_inode_at(&self, buf: &mut [u8], offset: u64) -> KResult<usize> {
-        if let Ok(page) = buf.try_into()
-            && (offset & PAGE_OFFSET_MASK as u64) == 0
-        {
-            self.read_page(page, offset >> PAGE_SIZE_BITS as u64)
+    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'a, usize> {
+        if buf.len() == PAGE_SIZE && (offset & PAGE_OFFSET_MASK as u64) == 0 {
+            Box::pin(self.read_page(buf, offset >> PAGE_SIZE_BITS as u64))
         } else {
-            todo!()
+            todo!("[low] impl non-page read for FatFile")
         }
     }
 
-    fn write_inode_at(&self, buf: &[u8], offset: u64) -> KResult<usize> {
+    fn write_inode_at(&self, buf: UserCheck<[u8]>, offset: u64) -> AKResult<'_, usize> {
         todo!("[high] impl write_page for FatFile")
     }
 }
 
 impl FatFile {
-    pub fn read_page(&self, page: &mut [u8; 4096], page_id: u64) -> KResult<usize> {
+    pub async fn read_page(&self, page: ReadBuffer<'_>, page_id: u64) -> KResult<usize> {
         let (mut cluster_index, mut sector_offset) = self.page_id_to_cluster_pos(page_id);
-
+        let mut user_buf;
+        let page: &mut [u8; PAGE_SIZE] = match page {
+            ReadBuffer::Kernel(buf) => buf.try_into().unwrap(),
+            ReadBuffer::User(buf) => {
+                user_buf = unsafe { buf.check_slice_mut()? };
+                user_buf.as_bytes_mut().try_into().unwrap()
+            }
+        };
         let mut sector_count = 0;
         let clusters = self.clusters.read();
         'ok: loop {
+            if cluster_index as usize >= clusters.len() {
+                break 'ok;
+            }
             let cluster_id = clusters[cluster_index as usize];
             let mut sectors = self.fat.cluster_sectors(cluster_id);
             sectors.start += sector_offset as u32;
@@ -119,9 +130,6 @@ impl FatFile {
                 }
             }
             cluster_index += 1;
-            if cluster_index as usize >= clusters.len() {
-                break 'ok;
-            }
             sector_offset = 0;
         }
 

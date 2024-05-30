@@ -16,6 +16,7 @@ use triomphe::Arc;
 
 use self::inner::ProcessInner;
 use crate::{
+    executor,
     fs::{self, DEntry, FdTable, VFS},
     memory,
     signal::{KSignalSet, Signal, SignalHandlers},
@@ -54,7 +55,7 @@ impl Process {
             let DEntry::Bytes(bytes) = fs::find_file(path)? else {
                 return Err(errno::EISDIR);
             };
-            let elf_data = fs::read_file(bytes.inode())?;
+            let elf_data = executor::block_on(fs::read_file(bytes.inode()))?;
             let elf = Elf::parse(&elf_data).map_err(|e| {
                 warn!("parse elf error {e}");
                 errno::ENOEXEC
@@ -163,21 +164,15 @@ impl Process {
         child
     }
 
-    /// 根据 `path` 加载一个新的 ELF 文件并执行。
+    /// 根据 `elf_data` 加载一个新的 ELF 文件并执行。
     ///
     /// 目前要求原进程仅有一个线程并且没有子进程
     pub fn exec(
         &self,
-        path: CompactString,
+        elf_data: &[u8],
         args: Vec<CompactString>,
         envs: Vec<CompactString>,
     ) -> KResult<()> {
-        let elf_data = {
-            let DEntry::Bytes(bytes) = fs::find_file(&path)? else {
-                return Err(errno::EISDIR);
-            };
-            fs::read_file(bytes.inode())?
-        };
         // let bytes = {
         //     let DEntry::Bytes(bytes) =
         //         fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?
@@ -238,7 +233,7 @@ impl Process {
         //     })?;
         // }
 
-        let elf = Elf::parse(&elf_data).map_err(|e| {
+        let elf = Elf::parse(elf_data).map_err(|e| {
             warn!("parse elf error {e}");
             errno::ENOEXEC
         })?;
@@ -249,7 +244,7 @@ impl Process {
             inner.memory_space.recycle_user_pages();
             // TODO: 执行新进程过程中发生错误，该退出还是恢复？
             let (elf_end, auxv, elf_entry) =
-                inner.memory_space.load_elf_sections(&elf, &elf_data)?;
+                inner.memory_space.load_elf_sections(&elf, elf_data)?;
             inner.heap_range = {
                 let brk = elf_end.vpn_ceil().page_start();
                 brk..brk

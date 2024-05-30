@@ -197,7 +197,8 @@ impl DirInodeBackend for FatDir {
     }
 
     fn unlink(&self, name: &str) -> KResult<()> {
-        todo!("[mid] impl unlink for fat32");
+        // FIXME: 实现 FatDir 的 `unlink()`
+        Ok(())
     }
 
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {
@@ -208,13 +209,8 @@ impl DirInodeBackend for FatDir {
                 continue;
             };
 
-            let vacant = match children.entry(dir_entry.take_name()) {
-                Entry::Vacant(vacant) => vacant,
-                Entry::Occupied(occupied) => {
-                    // 该目录项实际存在，因此不可能为 None
-                    assert!(occupied.get().is_some());
-                    continue;
-                }
+            let Entry::Vacant(vacant) = children.entry(dir_entry.take_name()) else {
+                continue;
             };
 
             let new_dentry = if dir_entry.is_dir() {
@@ -226,13 +222,13 @@ impl DirInodeBackend for FatDir {
                 )))
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                DEntry::Bytes(DEntryBytes::new(
+                DEntry::Bytes(Arc::new(DEntryBytes::new(
                     Arc::clone(parent),
                     vacant.key().clone(),
                     Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
-                ))
+                )))
             };
-            vacant.insert(Some(new_dentry));
+            vacant.insert(new_dentry);
         }
         let curr_time = time::curr_time_spec();
         self.meta

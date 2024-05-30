@@ -10,6 +10,7 @@ use defines::{
     },
     misc::TimeSpec,
 };
+use kernel_tracer::Instrument;
 use triomphe::Arc;
 
 use crate::{
@@ -54,17 +55,21 @@ pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult 
 /// 根据 `whence` 和 `offset` 重新设置 `fd` 指向的文件的偏移量
 ///
 /// 成功后返回最终的偏移位置（从文件头开始算）
-pub fn sys_lseek(fd: usize, offset: i64, whence: usize) -> KResult {
-    let process = local_hart().curr_process();
-    let inner = process.lock_inner();
-    let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
+pub async fn sys_lseek(fd: usize, offset: i64, whence: usize) -> KResult {
+    let file = local_hart()
+        .curr_process()
+        .lock_inner()
+        .fd_table
+        .get(fd)
+        .ok_or(errno::EBADF)?
+        .clone();
     let pos = match whence {
         SEEK_SET => SeekFrom::Start(offset as u64),
         SEEK_END => SeekFrom::End(offset),
         SEEK_CUR => SeekFrom::Current(offset),
         _ => return Err(errno::EINVAL),
     };
-    Ok(file.seek(pos)? as isize)
+    Ok(file.seek(pos).await? as isize)
 }
 
 fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
@@ -92,7 +97,10 @@ pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     }
 
     let file = prepare_io::<true>(fd)?;
-    let nread = file.read(buf).await?;
+    let nread = file
+        .read(buf)
+        .instrument(debug_span!("read_fd", fd = fd))
+        .await?;
     Ok(nread as isize)
 }
 
@@ -119,27 +127,28 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
-/// - `iovec` 指定 `IoVec` 数组
-pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
+/// - `iovec` 指定 `IoVec` 数组起始位置
+/// - `vlen` 指定 `IoVec` 数组长度
+pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("writev stdout/stderr");
     } else {
         debug!("writev fd = {fd}");
     }
-    let iovec = iovec.check_slice()?;
     let file = prepare_io::<true>(fd)?;
     let mut tot_read = 0;
     // TODO: [mid] 改变 `sys_readv` 的实现方式使其满足原子性
-    // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
-    let mut iov_index = 0;
-    while let Some(iov) = iovec.read_at(iov_index) {
-        iov_index += 1;
-        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
-        let nread = file.read(buf).await?;
-        if nread == 0 {
-            break;
+    for _ in 0..vlen {
+        let iov = iovec.check_ptr()?.read();
+        if iov.iov_len != 0 {
+            let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
+            let nread = file.read(buf).await?;
+            if nread == 0 {
+                break;
+            }
+            tot_read += nread;
         }
-        tot_read += nread;
+        iovec = iovec.add(1).ok_or(errno::EINVAL)?;
     }
     Ok(tot_read as isize)
 }
@@ -150,28 +159,25 @@ pub async fn sys_readv(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
-/// - `iovec` 指定 `IoVec` 数组
-/// - `vlen` 指定数组的长度
-pub async fn sys_writev(fd: usize, iovec: UserCheck<[IoVec]>) -> KResult {
-    if fd == 0 {
+/// - `iovec` 指定 `IoVec` 数组起始位置
+/// - `vlen` 指定 `IoVec` 数组长度
+pub async fn sys_writev(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> KResult {
+    if fd == 1 || fd == 2 {
         trace!("writev stdout");
     } else {
         debug!("writev fd = {fd}");
     }
-    let iovec = iovec.check_slice()?;
     let file = prepare_io::<false>(fd)?;
     let mut total_write = 0;
-    let mut iov_index = 0;
     // TODO: [mid] 改变 `sys_writev` 的实现方式使其满足原子性
-    // NOTE: `IoVec` 带裸指针所以不 Send 也不 Sync，因此用下标而非迭代器来绕一下
-    while let Some(iov) = iovec.read_at(iov_index) {
-        iov_index += 1;
-        if iov.iov_len == 0 {
-            continue;
+    for _ in 0..vlen {
+        let iov = iovec.check_ptr()?.read();
+        if iov.iov_len != 0 {
+            let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
+            let nwrite = file.write(buf).await?;
+            total_write += nwrite;
         }
-        let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
-        let nwrite = file.write(buf).await?;
-        total_write += nwrite;
+        iovec = iovec.add(1).ok_or(errno::EINVAL)?;
     }
     Ok(total_write as isize)
 }
@@ -232,10 +238,10 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
                     return Err(errno::ENOTDIR);
                 }
                 let mode = bytes.inode().meta().mode();
-                if mode == InodeMode::Regular {
+                if mode == InodeMode::Regular || mode == InodeMode::BlockDevice {
                     File::Seekable(Arc::new(SeekableFile::new(bytes)))
                 } else {
-                    todo!("[mid] impl other bytes file");
+                    File::Stream(bytes)
                 }
             }
         }
@@ -668,13 +674,18 @@ pub fn sys_ppoll(
             poll_fd.write(poll_fd_val);
             continue;
         }
+        debug!(
+            "poll fd {}, events: {:b}",
+            poll_fd_val.fd, poll_fd_val.events
+        );
         if let Some(fd) = inner.fd_table.get(poll_fd_val.fd as usize) {
             let Some(events) = PollEvents::from_bits(poll_fd_val.events) else {
                 todo!("[low] unsupported poll events: {:#b}", poll_fd_val.events);
             };
+            debug!("poll events {:?}", events);
             match &**fd {
-                // TODO: `stdio` 应该建立起合适的轮询机制用以支持 ppoll
-                File::Tty(_) | File::Dir(_) | File::Seekable(_) => {
+                // TODO: `stream` 应该建立起合适的轮询机制用以支持 ppoll
+                File::Stream(_) | File::Dir(_) | File::Seekable(_) => {
                     poll_fd_val.revents =
                         (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                 }

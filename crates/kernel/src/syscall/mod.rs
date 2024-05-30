@@ -95,7 +95,7 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             args[0],
             UserCheck::new_slice(args[1] as _, args[2]).ok_or(errno::EINVAL)?,
         ),
-        LSEEK => sys_lseek(args[0], args[1] as _, args[2]),
+        LSEEK => sys_lseek(args[0], args[1] as _, args[2]).await,
         READ => {
             sys_read(
                 args[0],
@@ -113,14 +113,16 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
         READV => {
             sys_readv(
                 args[0],
-                UserCheck::new_slice(args[1] as _, args[2]).ok_or(errno::EINVAL)?,
+                UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+                args[2],
             )
             .await
         }
         WRITEV => {
             sys_writev(
                 args[0],
-                UserCheck::new_slice(args[1] as _, args[2]).ok_or(errno::EINVAL)?,
+                UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+                args[2],
             )
             .await
         }
@@ -170,11 +172,14 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
         BRK => sys_brk(args[0]),
         MUNMAP => sys_munmap(args[0], args[1]),
         CLONE => sys_clone(args[0], args[1], args[2], args[3], args[4]),
-        EXECVE => sys_execve(
-            UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?,
-            UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
-            UserCheck::new(args[2] as _),
-        ),
+        EXECVE => {
+            sys_execve(
+                UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?,
+                UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+                UserCheck::new(args[2] as _),
+            )
+            .await
+        }
         WAIT4 => sys_wait4(args[0] as _, UserCheck::new(args[1] as _), args[2], args[3]).await,
         GET_TIME => {
             sys_get_time_of_day(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?, args[1])

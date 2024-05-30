@@ -1,4 +1,9 @@
-use core::{arch, mem, num::NonZeroUsize, ops::Deref, ptr::NonNull};
+use core::{
+    arch, mem,
+    num::NonZeroUsize,
+    ops::{Deref, Range},
+    ptr::NonNull,
+};
 
 use common::config::{LOW_ADDRESS_END, MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::error::{errno, KResult};
@@ -10,6 +15,21 @@ use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
 
 use crate::hart::local_hart;
+
+/// 内核有时也会有读文件的需求
+pub enum ReadBuffer<'a> {
+    Kernel(&'a mut [u8]),
+    User(UserCheck<[u8]>),
+}
+
+impl ReadBuffer<'_> {
+    pub fn len(&self) -> usize {
+        match self {
+            ReadBuffer::Kernel(buf) => buf.len(),
+            ReadBuffer::User(buf) => buf.len(),
+        }
+    }
+}
 
 pub struct UserCheck<T: ?Sized> {
     ptr: NonNull<T>,
@@ -81,6 +101,27 @@ impl<T> UserCheck<[T]> {
         Ok(UserWrite {
             ptr: self.ptr,
             _access_user_guard,
+        })
+    }
+
+    pub fn into_raw_parts(self) -> (UserCheck<T>, usize) {
+        (
+            UserCheck {
+                ptr: self.ptr.as_non_null_ptr(),
+            },
+            self.ptr.len(),
+        )
+    }
+
+    pub fn slice(&self, range: Range<usize>) -> Option<UserCheck<[T]>> {
+        if range.end > self.len() || range.start > range.end {
+            return None;
+        }
+        let first = UserCheck {
+            ptr: self.ptr.as_non_null_ptr(),
+        };
+        Some(UserCheck {
+            ptr: NonNull::slice_from_raw_parts(first.ptr, range.end - range.start),
         })
     }
 }
@@ -172,18 +213,6 @@ impl<T> UserRead<[T]> {
     pub fn len(&self) -> usize {
         self.ptr.len()
     }
-
-    pub fn read_at(&self, index: usize) -> Option<T> {
-        if index >= self.len() {
-            return None;
-        }
-        let ptr = unsafe { self.ptr.as_non_null_ptr().add(index) };
-        Some(if ptr.is_aligned() {
-            unsafe { ptr.read() }
-        } else {
-            unsafe { ptr.read_unaligned() }
-        })
-    }
 }
 
 impl Deref for UserRead<[u8]> {
@@ -208,10 +237,6 @@ pub struct UserWrite<T: ?Sized> {
 }
 
 impl<T> UserWrite<T> {
-    // NOTE: 这里其实有一个隐式的假设：不存在只写页，也就是只要可写就可读
-    // 一些资料表示没有支持只写页的处理器
-    // - <https://devblogs.microsoft.com/oldnewthing/20230306-00/?p=107902>
-    // - <https://stackoverflow.com/questions/49421125/what-is-the-use-of-a-page-table-entry-being-write-only>
     pub fn read(&self) -> T {
         if self.ptr.is_aligned() {
             unsafe { self.ptr.read() }
@@ -252,8 +277,11 @@ impl UserWrite<[u8]> {
     }
 }
 
-unsafe impl<T: ?Sized> Send for UserRead<T> {}
-unsafe impl<T: ?Sized> Send for UserWrite<T> {}
+impl<T: ?Sized> !Send for UserRead<T> {}
+impl<T: ?Sized> !Send for UserWrite<T> {}
+
+// unsafe impl<T: ?Sized> Send for UserRead<T> {}
+// unsafe impl<T: ?Sized> Send for UserWrite<T> {}
 
 fn try_read_user_byte(addr: usize) -> KResult<()> {
     let ret = try_read_user_byte_impl(addr);
@@ -279,30 +307,29 @@ fn try_write_user_byte(addr: usize) -> KResult<()> {
 
 #[repr(C)]
 struct TryOpRet {
-    is_err: bool,
     scause: usize,
+    is_err: bool,
 }
 
 #[naked]
 extern "C" fn try_read_user_byte_impl(addr: usize) -> TryOpRet {
     unsafe {
-        arch::asm!(
-            "mv a1, a0",
-            "mv a0, zero",
-            "lb a1, 0(a1)",
-            "ret",
-            options(noreturn)
-        );
+        arch::asm!("mv a1, zero", "lb a0, 0(a0)", "ret", options(noreturn));
     }
 }
 
+/// NOTE: 这里其实有一个隐式的假设：不存在只写页，也就是只要可写就可读
+///
+/// 一些资料表示没有支持只写页的处理器：
+/// - <https://devblogs.microsoft.com/oldnewthing/20230306-00/?p=107902>
+/// - <https://stackoverflow.com/questions/49421125/what-is-the-use-of-a-page-table-entry-being-write-only>
 #[naked]
 extern "C" fn try_write_user_byte_impl(addr: usize) -> TryOpRet {
     unsafe {
         arch::asm!(
-            "mv a1, a0",
-            "mv a0, zero",
-            "sb a1, 0(a1)",
+            "mv a1, zero",
+            "lb a2, 0(a0)",
+            "sb a2, 0(a0)",
             "ret",
             options(noreturn)
         );
@@ -310,13 +337,13 @@ extern "C" fn try_write_user_byte_impl(addr: usize) -> TryOpRet {
 }
 
 #[naked]
-extern "C" fn trap_from_access_user(addr: usize) {
+extern "C" fn trap_from_access_user() {
     unsafe {
         arch::asm!(
             ".align 2",
             "csrw sepc, ra",
-            "li a0, 1",
-            "csrr a1, scause",
+            "li a1, 1",
+            "csrr a0, scause",
             "sret",
             options(noreturn)
         );

@@ -4,8 +4,11 @@ use triomphe::Arc;
 use unsize::CoerceUnsize;
 
 use super::{
-    inode::{DirInodeBackend, DynDirInode, DynDirInodeCoercion, DynInode, InodeMeta},
-    DEntryDir, DynBytesInode, FileSystem, InodeMode,
+    inode::{
+        DirInodeBackend, DynBytesInodeCoercion, DynDirInode, DynDirInodeCoercion, DynInode,
+        InodeMeta,
+    },
+    DEntry, DEntryBytes, DEntryDir, DynBytesInode, FileSystem, InodeMode,
 };
 use crate::time;
 
@@ -18,10 +21,11 @@ pub fn new_tmp_fs(
 ) -> KResult<FileSystem> {
     let root_dir = Arc::new(TmpDir::new()).unsize(DynDirInodeCoercion!());
     let root_dentry = Arc::new(DEntryDir::new(Some(parent), name, root_dir));
+
     Ok(FileSystem {
         root_dentry,
         device_path,
-        fs_type: crate::fs::FileSystemType::VFat,
+        fs_type: crate::fs::FileSystemType::Tmpfs,
         mounted_dentry: None,
     })
 }
@@ -57,7 +61,8 @@ impl DirInodeBackend for TmpDir {
     }
 
     fn mknod(&self, name: &str, mode: InodeMode) -> KResult<Arc<DynBytesInode>> {
-        todo!()
+        debug_assert_ne!(mode, InodeMode::Dir);
+        todo!("[low] impl mknod for tmpfs");
     }
 
     fn unlink(&self, _name: &str) -> KResult<()> {
@@ -71,4 +76,8 @@ impl DirInodeBackend for TmpDir {
     fn disk_space(&self) -> u64 {
         0
     }
+}
+
+pub struct TmpFile {
+    meta: InodeMeta,
 }

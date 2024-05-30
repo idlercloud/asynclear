@@ -17,7 +17,7 @@ pub use self::{
         MapPermission, MemorySpace, KERNEL_SPACE,
     },
     page::Page,
-    user_check::UserCheck,
+    user_check::{ReadBuffer, UserCheck},
 };
 
 #[inline]

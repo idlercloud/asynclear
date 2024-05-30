@@ -20,15 +20,15 @@ impl Pipe {
         let PipeInner::ReadEnd(receiver) = &self.inner else {
             return Err(errno::EBADF);
         };
-        let mut buf = unsafe { buf.check_slice_mut()? };
-        let buf = buf.as_bytes_mut();
+        let (mut curr, len) = buf.into_raw_parts();
         let mut n_read = 0;
 
-        while n_read < buf.len() {
+        while n_read < len {
             let Ok(byte) = receiver.recv().await else {
                 break;
             };
-            buf[n_read] = byte;
+            unsafe { curr.check_ptr_mut()? }.write(byte);
+            curr = curr.add(1).ok_or(errno::EINVAL)?;
             n_read += 1;
         }
         let curr_time = time::curr_time_spec();
@@ -37,18 +37,38 @@ impl Pipe {
         Ok(n_read)
     }
 
-    pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn write(&self, mut buf: UserCheck<[u8]>) -> KResult<usize> {
         let PipeInner::WriteEnd(sender) = &self.inner else {
             return Err(errno::EBADF);
         };
-        let buf = buf.check_slice()?;
+        let len = buf.len();
         let mut n_write = 0;
 
-        for &byte in &*buf {
-            if sender.send(byte).await.is_err() {
-                break;
-            }
-            n_write += 1;
+        'out: loop {
+            let mut this_n_write = 0;
+            let last_byte = {
+                let slice = buf.check_slice()?;
+                for &byte in slice.iter() {
+                    if let Err(err) = sender.try_send(byte) {
+                        this_n_write += 1;
+                        n_write += this_n_write;
+                        break 'out;
+                    }
+                    this_n_write += 1;
+                }
+                if this_n_write < slice.len() {
+                    slice[this_n_write]
+                } else {
+                    n_write += this_n_write;
+                    break 'out;
+                }
+            };
+            sender.send(last_byte).await;
+            this_n_write += 1;
+            n_write += this_n_write;
+            buf = buf
+                .slice(this_n_write..buf.len())
+                .expect("this_n_write <= buf.len()");
         }
 
         let curr_time = time::curr_time_spec();

@@ -1,6 +1,7 @@
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::ops::Deref;
 
+use async_lock::Mutex as SleepMutex;
 use defines::{
     error::{errno, KResult},
     fs::{Dirent64, OpenFlags, StatMode, MAX_FD_NUM, NAME_MAX},
@@ -10,19 +11,18 @@ use klocks::SpinMutex;
 use triomphe::Arc;
 
 use super::{
-    inode::{InodeMeta, InodeMode},
+    inode::{DynDirInode, InodeMeta, InodeMode},
     pipe::Pipe,
-    stdio::{self, TtyInode},
-    DEntryBytes, DEntryDir, DynBytesInode,
+    DEntry, DEntryBytes, DEntryDir, DynBytesInode,
 };
-use crate::memory::UserCheck;
+use crate::memory::{ReadBuffer, UserCheck};
 
 #[derive(Clone)]
 pub enum File {
-    Tty(Arc<TtyInode>),
     Pipe(Pipe),
     Dir(Arc<DirFile>),
     Seekable(Arc<SeekableFile>),
+    Stream(Arc<DEntryBytes>),
 }
 
 pub struct DirFile {
@@ -42,6 +42,10 @@ impl DirFile {
         &self.dentry
     }
 
+    pub fn inode(&self) -> &Arc<DynDirInode> {
+        self.dentry.inode()
+    }
+
     pub fn getdirents(&self, buf: &mut [u8]) -> KResult<usize> {
         self.dentry.read_dir()?;
 
@@ -51,10 +55,7 @@ impl DirFile {
         let mut ptr = buf.as_mut_ptr().cast::<u8>();
         let range = (ptr as usize)..(ptr as usize + buf.len());
 
-        let children_iter = children
-            .iter()
-            .filter_map(|(name, child)| child.as_ref().map(|child| (name, child)))
-            .skip(*dirent_index);
+        let children_iter = children.iter().skip(*dirent_index);
         for (name, child) in children_iter {
             use core::mem::{align_of, offset_of};
             let name_len = name.len().min(NAME_MAX);
@@ -91,15 +92,15 @@ impl DirFile {
 }
 
 pub struct SeekableFile {
-    dentry: DEntryBytes,
-    offset: SpinMutex<u64>,
+    dentry: Arc<DEntryBytes>,
+    offset: SleepMutex<u64>,
 }
 
 impl SeekableFile {
-    pub fn new(dentry: DEntryBytes) -> Self {
+    pub fn new(dentry: Arc<DEntryBytes>) -> Self {
         Self {
             dentry,
-            offset: SpinMutex::new(0),
+            offset: SleepMutex::new(0),
         }
     }
 
@@ -116,19 +117,15 @@ pub struct FdTable {
 
 impl FdTable {
     pub fn with_stdio() -> Self {
+        let inode = super::find_file("/dev/tty").unwrap();
+        let DEntry::Bytes(bytes) = inode else {
+            unreachable!("/dev/tty should not be dir");
+        };
+        let file = File::Stream(bytes);
         let files = BTreeMap::from([
-            (
-                0,
-                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::RDONLY),
-            ),
-            (
-                1,
-                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::WRONLY),
-            ),
-            (
-                2,
-                FileDescriptor::new(stdio::default_tty_file(), OpenFlags::WRONLY),
-            ),
+            (0, FileDescriptor::new(file.clone(), OpenFlags::RDONLY)),
+            (1, FileDescriptor::new(file.clone(), OpenFlags::WRONLY)),
+            (2, FileDescriptor::new(file, OpenFlags::WRONLY)),
         ]);
         Self {
             files,
@@ -220,6 +217,7 @@ impl FdTable {
 #[derive(Clone)]
 pub struct FileDescriptor {
     file: File,
+    // FIXME: 实现有问题，要区分 file status flags 和 file descriptor flags
     flags: OpenFlags,
 }
 
@@ -236,48 +234,47 @@ impl FileDescriptor {
         self.flags.read_write().1
     }
 
-    pub async fn read(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn read(&self, mut buf: UserCheck<[u8]>) -> KResult<usize> {
         match &self.file {
-            File::Tty(tty) => tty.read(buf).await,
             File::Dir(_) => Err(errno::EBADF),
             File::Pipe(pipe) => pipe.read(buf).await,
             File::Seekable(seekable) => {
-                let inode = seekable.dentry.inode();
-                let mut offset = seekable.offset.lock();
-                let mut buf = unsafe { buf.check_slice_mut()? };
-                let nread = inode.read_at(buf.as_bytes_mut(), *offset)?;
+                let inode = seekable.inode();
+                let mut offset = seekable.offset.lock().await;
+                let nread = inode.read_at(ReadBuffer::User(buf), *offset).await?;
                 *offset += nread as u64;
                 Ok(nread)
             }
+            File::Stream(stream) => stream.inode().read_at(ReadBuffer::User(buf), 0).await,
         }
     }
 
     pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
         match &self.file {
-            File::Tty(tty) => tty.write(buf),
             File::Dir(_) => Err(errno::EBADF),
             File::Pipe(pipe) => pipe.write(buf).await,
             File::Seekable(seekable) => {
-                let inode = seekable.dentry.inode();
-                let mut offset = seekable.offset.lock();
+                let inode = seekable.inode();
+                let mut offset = seekable.offset.lock().await;
                 if self.flags.contains(OpenFlags::APPEND) {
                     *offset = inode.meta().lock_inner_with(|inner| inner.data_len);
                 }
-                let nwrite = inode.write_at(&buf.check_slice()?, *offset)?;
+                let nwrite = inode.write_at(buf, *offset).await?;
                 *offset += nwrite as u64;
                 Ok(nwrite)
             }
+            File::Stream(stream) => stream.inode().write_at(buf, 0).await,
         }
     }
 
-    pub fn seek(&self, pos: SeekFrom) -> KResult<usize> {
+    pub async fn seek(&self, pos: SeekFrom) -> KResult<usize> {
         match &self.file {
-            File::Tty(_) | File::Pipe(_) => Err(errno::ESPIPE),
+            File::Stream(_) | File::Pipe(_) => Err(errno::ESPIPE),
             File::Dir(_) => todo!("[low] what does dir seek mean?"),
             File::Seekable(seekable) => {
                 let ret = match pos {
                     SeekFrom::Start(pos) => {
-                        *seekable.offset.lock() = pos;
+                        *seekable.offset.lock().await = pos;
                         pos as usize
                     }
                     SeekFrom::End(offset) => {
@@ -288,11 +285,11 @@ impl FileDescriptor {
                             .lock_inner_with(|inner| inner.data_len)
                             .checked_add_signed(offset)
                             .ok_or(errno::EOVERFLOW)?;
-                        *seekable.offset.lock() = new_pos;
+                        *seekable.offset.lock().await = new_pos;
                         new_pos as usize
                     }
                     SeekFrom::Current(pos) => {
-                        let mut curr = seekable.offset.lock();
+                        let mut curr = seekable.offset.lock().await;
                         *curr = curr.checked_add_signed(pos).ok_or(errno::EOVERFLOW)?;
                         *curr as usize
                     }
@@ -304,10 +301,10 @@ impl FileDescriptor {
 
     pub fn meta(&self) -> &InodeMeta {
         match &self.file {
-            File::Tty(tty) => tty.meta(),
-            File::Dir(dir) => dir.dentry.inode().meta(),
-            File::Seekable(seekable) => seekable.dentry.inode().meta(),
+            File::Dir(dir) => dir.inode().meta(),
+            File::Seekable(seekable) => seekable.inode().meta(),
             File::Pipe(pipe) => pipe.meta(),
+            File::Stream(stream) => stream.inode().meta(),
         }
     }
 
@@ -317,7 +314,7 @@ impl FileDescriptor {
             return Err(errno::ENOTTY);
         }
         match &self.file {
-            File::Tty(tty) => tty.ioctl(request, argp),
+            File::Stream(tty) => tty.inode().ioctl(request, argp),
             _ => Err(errno::ENOTTY),
         }
     }
@@ -332,10 +329,10 @@ impl FileDescriptor {
 
     pub fn debug_name(&self) -> &str {
         match &self.file {
-            File::Tty(_) => "<tty>", // TODO: [mid] tty 可以对应到字符设备的名字
             File::Pipe(_) => "<pipe>",
             File::Dir(dir) => dir.dentry.name(),
             File::Seekable(seekable) => seekable.dentry.name(),
+            File::Stream(stream) => stream.name(),
         }
     }
 }

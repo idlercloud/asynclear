@@ -13,7 +13,7 @@ use crate::time;
 #[derive(Clone)]
 pub enum DEntry {
     Dir(Arc<DEntryDir>),
-    Bytes(DEntryBytes),
+    Bytes(Arc<DEntryBytes>),
 }
 
 impl Hash for DEntry {
@@ -51,12 +51,16 @@ impl DEntry {
             DEntry::Bytes(bytes) => bytes.inode.as_ptr().addr(),
         }
     }
+
+    pub fn is_dir(&self) -> bool {
+        matches!(self, DEntry::Dir(_))
+    }
 }
 
 pub struct DEntryDir {
     parent: Option<Arc<DEntryDir>>,
     name: CompactString,
-    children: SpinMutex<BTreeMap<CompactString, Option<DEntry>>>,
+    children: SpinMutex<BTreeMap<CompactString, DEntry>>,
     inode: Arc<DynDirInode>,
 }
 
@@ -91,26 +95,23 @@ impl DEntryDir {
         let entry = children.entry(component);
         match entry {
             Entry::Vacant(vacant) => {
-                let Some(new_inode) = self.inode.lookup(vacant.key()) else {
-                    vacant.insert(None);
-                    return None;
-                };
+                let new_inode = self.inode.lookup(vacant.key())?;
                 let new_dentry = match new_inode {
                     DynInode::Dir(dir) => DEntry::Dir(Arc::new(DEntryDir::new(
                         Some(Arc::clone(self)),
                         vacant.key().clone(),
                         dir,
                     ))),
-                    DynInode::Bytes(bytes) => DEntry::Bytes(DEntryBytes::new(
+                    DynInode::Bytes(bytes) => DEntry::Bytes(Arc::new(DEntryBytes::new(
                         Arc::clone(self),
                         vacant.key().clone(),
                         bytes,
-                    )),
+                    ))),
                 };
-                vacant.insert(Some(new_dentry.clone()));
+                vacant.insert(new_dentry.clone());
                 Some(new_dentry)
             }
-            Entry::Occupied(occupied) => occupied.get().clone(),
+            Entry::Occupied(occupied) => Some(occupied.get().clone()),
         }
     }
 
@@ -119,19 +120,17 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
-        let child_entry = children.entry(component);
-        if let Entry::Occupied(occupied) = &child_entry
-            && occupied.get().is_some()
-        {
-            return Err(errno::EEXIST);
-        }
-        let dir = self.inode.mkdir(child_entry.key())?;
+        let vacant = match children.entry(component) {
+            Entry::Vacant(vacant) => vacant,
+            Entry::Occupied(_) => return Err(errno::EEXIST),
+        };
+        let dir = self.inode.mkdir(vacant.key())?;
         let dentry = Arc::new(DEntryDir::new(
             Some(Arc::clone(self)),
-            child_entry.key().clone(),
+            vacant.key().clone(),
             dir,
         ));
-        *child_entry.or_insert(None) = Some(DEntry::Dir(Arc::clone(&dentry)));
+        vacant.insert(DEntry::Dir(Arc::clone(&dentry)));
         Ok(dentry)
     }
 
@@ -139,7 +138,7 @@ impl DEntryDir {
         self: &Arc<Self>,
         component: CompactString,
         mode: InodeMode,
-    ) -> KResult<DEntryBytes> {
+    ) -> KResult<Arc<DEntryBytes>> {
         if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir)
             || component == "."
             || component == ".."
@@ -147,15 +146,17 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
-        let child_entry = children.entry(component);
-        if let Entry::Occupied(occupied) = &child_entry
-            && occupied.get().is_some()
-        {
-            return Err(errno::EEXIST);
-        }
-        let file = self.inode.mknod(child_entry.key(), mode)?;
-        let dentry = DEntryBytes::new(Arc::clone(self), child_entry.key().clone(), file);
-        *child_entry.or_insert(None) = Some(DEntry::Bytes(dentry.clone()));
+        let vacant = match children.entry(component) {
+            Entry::Vacant(vacant) => vacant,
+            Entry::Occupied(_) => return Err(errno::EEXIST),
+        };
+        let file = self.inode.mknod(vacant.key(), mode)?;
+        let dentry = Arc::new(DEntryBytes::new(
+            Arc::clone(self),
+            vacant.key().clone(),
+            file,
+        ));
+        vacant.insert(DEntry::Bytes(dentry.clone()));
         Ok(dentry)
     }
 
@@ -164,13 +165,9 @@ impl DEntryDir {
             return Err(errno::EINVAL);
         }
         let mut children = self.lock_children();
-        if let Some(v) = children.get_mut(name) {
-            *v = None;
-            Ok(())
-        } else {
-            // 不在 `children` 中就说明它还未被引用，因此可以直接删除
-            self.inode.unlink(name)
-        }
+        children.remove(name);
+        // TODO: [low] 其实这里要考虑硬链接之类的问题？
+        self.inode.unlink(name)
     }
 
     pub fn read_dir(self: &Arc<Self>) -> KResult<()> {
@@ -186,7 +183,7 @@ impl DEntryDir {
         &self.name
     }
 
-    pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<CompactString, Option<DEntry>>> {
+    pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<CompactString, DEntry>> {
         self.children.lock()
     }
 
@@ -195,7 +192,6 @@ impl DEntryDir {
     }
 }
 
-#[derive(Clone)]
 pub struct DEntryBytes {
     parent: Arc<DEntryDir>,
     name: CompactString,

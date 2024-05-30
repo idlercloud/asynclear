@@ -48,13 +48,11 @@ impl FileAllocTable {
                 fat_entries.push(u32::from_le_bytes(entry));
             }
         }
-        debug!("fat entries num is {}", fat_entries.len());
 
         let data_start_sector_id =
             fat_start_sector_id as u32 + bpb.fat_count as u32 * bpb.fat32_length;
         let data_clusters_count =
             (bpb.total_sector_count - data_start_sector_id) / bpb.sector_per_cluster as u32;
-        debug!("fat_start_sector_id: {fat_start_sector_id}");
 
         let ret = Self {
             count: bpb.fat_count,

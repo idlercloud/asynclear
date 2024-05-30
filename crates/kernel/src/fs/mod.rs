@@ -2,17 +2,18 @@
 #![allow(unused)]
 
 mod dentry;
+mod devfs;
 mod fat32;
 mod file;
 mod inode;
 mod page_cache;
 mod pipe;
-mod stdio;
 mod tmpfs;
 
 use alloc::{string::String, vec::Vec};
-use core::str::FromStr;
+use core::{fmt::Write, str::FromStr};
 
+use anstyle::{AnsiColor, Reset};
 use cervine::Cow;
 use compact_str::{CompactString, ToCompactString};
 use defines::{
@@ -33,11 +34,14 @@ pub use self::{
 use crate::{
     drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
     hart::local_hart,
+    memory::ReadBuffer,
     uart_console::println,
 };
 
 pub fn init() {
     Lazy::force(&VFS);
+    VFS.mount("/dev", "udev", FileSystemType::Devfs, MountFlags::empty());
+    VFS.list_root_dir();
 }
 
 pub struct VirtFileSystem {
@@ -59,47 +63,52 @@ impl VirtFileSystem {
     ) -> KResult<()> {
         debug!("mount {device_path} under {mount_point}, fs_type: {fs_type:?}, flags: {flags:?}",);
         let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
-        let dentry = p2i
-            .dir
-            .lookup(Cow::Borrowed(&p2i.last_component))
-            .ok_or(errno::ENOENT)?;
-
         let mut mount_table = self.mount_table.lock();
-
-        if mount_table.contains_key(&dentry) {
-            // 暂时不支持挂载到已有挂载的挂载点上
-            error!("cover mount fs not supported yet");
-            return Err(errno::EBUSY);
-        }
-        let parent = match &dentry {
-            DEntry::Dir(dir) => match dir.parent() {
-                Some(parent) => parent,
-                None => todo!("[low] mount under root dir"),
-            },
-            DEntry::Bytes(bytes) => bytes.parent(),
+        // NOTE: linux 要求挂载必须发生在一个存在的目录上，但是我们的实现似乎不需要
+        let mounted_dentry;
+        let mut name = Cow::Owned(p2i.last_component);
+        if let Some(dentry) = p2i.dir.lookup(Cow::Borrowed(&name)) {
+            if mount_table.contains_key(&dentry) {
+                // 暂时不支持挂载到已有挂载的挂载点上
+                error!("cover mount fs not supported yet");
+                return Err(errno::EBUSY);
+            }
+            mounted_dentry = Some(dentry);
+            if &*name != "." && &*name != ".." {
+                name = Cow::Borrowed(mounted_dentry.as_ref().unwrap().name());
+            }
+        } else {
+            mounted_dentry = None;
         };
-
-        let fs = {
-            let mut children = parent.lock_children();
-
-            let name = dentry.name();
-
-            // TODO: 暂时是放了一个 tmpfs 进去
-            let mut fs = tmpfs::new_tmp_fs(
-                Arc::clone(parent),
+        let parent = if let Some(mounted_dentry) = &mounted_dentry {
+            match mounted_dentry {
+                DEntry::Dir(dir) => match dir.parent() {
+                    Some(parent) => Arc::clone(parent),
+                    None => todo!("[low] mount under root dir"),
+                },
+                DEntry::Bytes(bytes) => Arc::clone(bytes.parent()),
+            }
+        } else {
+            p2i.dir
+        };
+        let mut fs = match fs_type {
+            // TODO: [high] 挂载 vfat 时是放了一个 tmpfs 进去
+            FileSystemType::VFat | FileSystemType::Tmpfs => tmpfs::new_tmp_fs(
+                Arc::clone(&parent),
                 name.to_compact_string(),
                 device_path.to_compact_string(),
-            )?;
-
-            if let Some(Some(covered_dentry)) = children.insert(
+            )?,
+            FileSystemType::Devfs => devfs::new_dev_fs(
+                Arc::clone(&parent),
                 name.to_compact_string(),
-                Some(DEntry::Dir(Arc::clone(&fs.root_dentry))),
-            ) {
-                fs.mounted_dentry = Some(covered_dentry);
-            }
-
-            fs
+                device_path.to_compact_string(),
+            )?,
         };
+        {
+            let mut children = parent.lock_children();
+            children.insert(name.into_owned(), DEntry::Dir(Arc::clone(&fs.root_dentry)));
+        };
+        fs.mounted_dentry = mounted_dentry;
         mount_table.insert(DEntry::Dir(Arc::clone(&fs.root_dentry)), fs);
         Ok(())
     }
@@ -124,34 +133,19 @@ impl VirtFileSystem {
                 },
                 DEntry::Bytes(bytes) => bytes.parent(),
             };
-            parent.lock_children().insert(
-                mounted_dentry.name().to_compact_string(),
-                Some(mounted_dentry),
-            );
+            let mut children = parent.lock_children();
+            let entry = children.get_mut(mounted_dentry.name()).unwrap();
+            *entry = mounted_dentry;
         }
 
         Ok(())
     }
-}
 
-pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
-    debug!("Init vfs");
-    let root_fs = fat32::new_fat32_fs(
-        &BLOCK_DEVICE,
-        CompactString::from_static_str("/"),
-        CompactString::from_static_str("/dev/mmcblk0"),
-    )
-    .expect("root_fs init failed");
-
-    root_fs
-        .root_dentry
-        .read_dir()
-        .expect("read root dir failed");
-    {
-        let children = root_fs.root_dentry.lock_children();
+    fn list_root_dir(&self) {
+        self.root_dir.read_dir().expect("read root dir failed");
         let mut curr_col = 0;
         let mut output = String::with_capacity(128);
-        for name in children.keys() {
+        for (name, dentry) in self.root_dir.lock_children().iter() {
             let mut this_end = curr_col + name.len();
             // 当前行超过硬上限了，且至少输出了一个名字，因此换行
             if this_end > 120 && curr_col != 0 {
@@ -160,7 +154,17 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
                 output.push('\n');
             }
 
-            output.push_str(name);
+            if dentry.is_dir() {
+                write!(
+                    output,
+                    "{}{name}{}",
+                    AnsiColor::Blue.render_fg(),
+                    Reset.render()
+                )
+                .unwrap();
+            } else {
+                output.push_str(name);
+            }
             // 当前行达到硬上限，但一个名字都没输出；或者达到了软上限。输出后立刻换行
             if this_end >= 120 && curr_col == 0 || this_end >= 80 {
                 output.push('\n');
@@ -174,6 +178,16 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
         }
         println!("{output}");
     }
+}
+
+pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
+    debug!("Init vfs");
+    let root_fs = fat32::new_fat32_fs(
+        &BLOCK_DEVICE,
+        CompactString::from_static_str("/"),
+        CompactString::from_static_str("/dev/mmcblk0"),
+    )
+    .expect("root_fs init failed");
 
     let root_dir = Arc::clone(&root_fs.root_dentry);
     let mount_table = HashMap::from([(DEntry::Dir(Arc::clone(&root_dir)), root_fs)]);
@@ -194,6 +208,7 @@ pub struct FileSystem {
 pub enum FileSystemType {
     VFat,
     Tmpfs,
+    Devfs,
 }
 
 impl FromStr for FileSystemType {
@@ -203,6 +218,7 @@ impl FromStr for FileSystemType {
         match s {
             "vfat" => Ok(FileSystemType::VFat),
             "tmpfs" => Ok(FileSystemType::Tmpfs),
+            "devfs" => Ok(FileSystemType::Devfs),
             _ => Err(errno::ENODEV),
         }
     }
@@ -276,12 +292,12 @@ pub fn find_file(path: &str) -> KResult<DEntry> {
         .ok_or(errno::ENOENT)
 }
 
-pub fn read_file(file: &Arc<DynBytesInode>) -> KResult<Vec<u8>> {
+pub async fn read_file(file: &Arc<DynBytesInode>) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
     let data_len = file.meta().lock_inner_with(|inner| inner.data_len as usize);
     let mut ret = Vec::with_capacity(data_len);
     let buf = unsafe { core::slice::from_raw_parts_mut(ret.as_mut_ptr(), data_len) };
-    let len = file.read_at(buf, 0)?;
+    let len = file.read_at(ReadBuffer::Kernel(buf), 0).await?;
     // SAFETY: `0..len` 在 read_at 中已被初始化
     unsafe { ret.set_len(len) }
     Ok(ret)

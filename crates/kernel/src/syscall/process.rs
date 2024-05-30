@@ -14,6 +14,7 @@ use triomphe::Arc;
 
 use crate::{
     executor,
+    fs::{self, DEntry, InodeMode},
     hart::local_hart,
     memory::UserCheck,
     process::{exit_process, INITPROC},
@@ -146,13 +147,12 @@ pub fn sys_clone(
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0
-pub fn sys_execve(
+pub async fn sys_execve(
     pathname: UserCheck<u8>,
     argv: UserCheck<usize>,
     envp: Option<UserCheck<usize>>,
 ) -> KResult {
-    let pathname = pathname.check_cstr()?;
-    debug!("pathname: {}", &*pathname);
+    debug!("pathname: {}", &*pathname.check_cstr()?);
     // 收集参数列表
     let collect_cstrs = |mut ptr_vec: UserCheck<usize>| -> KResult<Vec<CompactString>> {
         let mut v = Vec::new();
@@ -179,10 +179,18 @@ pub fn sys_execve(
 
     // 执行新进程
 
+    let elf_data = {
+        let DEntry::Bytes(bytes) = fs::find_file(&pathname.check_cstr()?)? else {
+            return Err(errno::EISDIR);
+        };
+        if bytes.inode().meta().mode() != InodeMode::Regular {
+            return Err(errno::EACCES);
+        }
+        fs::read_file(bytes.inode()).await?
+    };
+
     let argc = args.len();
-    local_hart()
-        .curr_process()
-        .exec(CompactString::from(&*pathname), args, envs)?;
+    local_hart().curr_process().exec(&elf_data, args, envs)?;
     Ok(argc as isize)
 }
 
@@ -210,12 +218,12 @@ pub async fn sys_wait4(
 ) -> KResult {
     assert!(
         pid == -1 || pid > 0,
-        "pid < -1 和 pid == 0，也就是等待进程组，目前还不支持"
+        "pid < -1 && pid == 0, i.e. wait process group, not supported yet"
     );
-    assert_eq!(rusage, 0, "目前 rusage 尚不支持，所以必须为 nullptr");
+    assert_eq!(rusage, 0, "rusage not supported, so must be nullptr");
     let options = WaitFlags::from_bits(options as u32).ok_or(errno::EINVAL)?;
     if options.contains(WaitFlags::WIMTRACED) || options.contains(WaitFlags::WCONTINUED) {
-        error!("暂时仅支持 WNOHANG");
+        error!("only support WNOHANG now");
         return Err(errno::UNSUPPORTED);
     }
 
