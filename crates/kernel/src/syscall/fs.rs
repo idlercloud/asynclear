@@ -83,8 +83,7 @@ fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
     }
 }
 
-/// 从 `fd` 指示的文件中读至多 `len`
-/// 字节的数据到用户缓冲区中。成功时返回读入的字节数
+/// 从 `fd` 指示的文件中读至多 `len` 字节的数据到用户缓冲区中。成功时返回读入的字节数
 ///
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`

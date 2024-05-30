@@ -50,7 +50,7 @@ declare_syscall_id!(
     SETPGID,            154,
     GETPGID,            155,
     UNAME,              160,
-    GET_TIME,           169,
+    GET_TIME_OF_DAY,    169,
     GETPID,             172,
     GETPPID,            173,
     GETUID,             174,

@@ -165,6 +165,9 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
         SETPGID => sys_setpgid(args[0], args[1]),
         GETPGID => sys_getpgid(args[0]),
         UNAME => sys_uname(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?),
+        GET_TIME_OF_DAY => {
+            sys_get_time_of_day(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?, args[1])
+        }
         GETPID => sys_getpid(),
         GETPPID => sys_getppid(),
         GETUID | GETEUID | GETGID | GETEGID => Ok(0), // TODO: 目前不实现用户和用户组相关的部分
@@ -180,10 +183,6 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             )
             .await
         }
-        WAIT4 => sys_wait4(args[0] as _, UserCheck::new(args[1] as _), args[2], args[3]).await,
-        GET_TIME => {
-            sys_get_time_of_day(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?, args[1])
-        }
         MMAP => sys_mmap(
             args[0],
             args[1],
@@ -192,6 +191,7 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             args[4] as _,
             args[5],
         ),
+        WAIT4 => sys_wait4(args[0] as _, UserCheck::new(args[1] as _), args[2], args[3]).await,
         _ => {
             error!("Unsupported syscall id: {id}");
             exit_process(&local_hart().curr_process(), -10);

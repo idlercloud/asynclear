@@ -151,7 +151,7 @@ impl dyn BytesInodeBackend {
 
                 // 检查页状态，如有必要则读后备文件
                 if page.state.load(Ordering::SeqCst) == PageState::Invalid {
-                    let mut _guard = block_on(page.state_guard.lock());
+                    let _guard = page.state_guard.lock().await;
                     if page.state.load(Ordering::SeqCst) == PageState::Invalid {
                         self.read_inode_at(
                             ReadBuffer::Kernel(page.inner.frame_mut().as_page_bytes_mut()),
@@ -213,7 +213,7 @@ impl dyn BytesInodeBackend {
 
                 let mut frame;
                 if page.state.load(Ordering::SeqCst) == PageState::Invalid {
-                    let mut _guard = block_on(page.state_guard.lock());
+                    let _guard = page.state_guard.lock().await;
                     frame = page.inner.frame_mut();
                     if page_id <= curr_last_page_id
                         && full_page_range.contains(&page_id)
