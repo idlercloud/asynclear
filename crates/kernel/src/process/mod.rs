@@ -25,7 +25,7 @@ use crate::{
 
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
     Process::from_path(
-        CompactString::from_static_str("/initproc"),
+        "/initproc",
         vec![CompactString::from_static_str("/initproc")],
     )
     .expect("INITPROC Failed.")
@@ -46,17 +46,12 @@ impl Process {
     // TODO: 整理这些函数，抽出共同部分
 
     /// `path` 需要是绝对路径
-    fn from_path(path: CompactString, args: Vec<CompactString>) -> KResult<Arc<Self>> {
+    fn from_path(path: &str, args: Vec<CompactString>) -> KResult<Arc<Self>> {
         let _enter = info_span!("spawn process", path = path, args = args).entered();
-        let mut process_name = path.clone();
-        for arg in args.iter().skip(1) {
-            process_name.push(' ');
-            process_name.push_str(arg);
-        }
 
         let mut memory_space;
         let (elf_end, auxv, elf_entry) = {
-            let DEntry::Bytes(bytes) = fs::find_file(&path)? else {
+            let DEntry::Bytes(bytes) = fs::find_file(path)? else {
                 return Err(errno::EISDIR);
             };
             let elf_data = fs::read_file(bytes.inode())?;
@@ -87,7 +82,6 @@ impl Process {
             status: Atomic::new(ProcessStatus::normal()),
             exit_signal: None,
             inner: SpinMutex::new(ProcessInner {
-                name: process_name,
                 memory_space,
                 heap_range: brk..brk,
                 parent: None,
@@ -138,7 +132,6 @@ impl Process {
                 status: Atomic::new(self.status.load(Ordering::SeqCst)),
                 exit_signal,
                 inner: SpinMutex::new(ProcessInner {
-                    name: inner.name.clone(),
                     memory_space: MemorySpace::from_other(&inner.memory_space),
                     heap_range: inner.heap_range.clone(),
                     parent: Some(Arc::clone(self)),
@@ -249,16 +242,10 @@ impl Process {
             warn!("parse elf error {e}");
             errno::ENOEXEC
         })?;
-        let mut process_name = path;
-        for arg in args.iter().skip(1) {
-            process_name.push(' ');
-            process_name.push_str(arg);
-        }
         let ret = self.lock_inner_with(|inner| {
             // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);
             assert_eq!(inner.children.len(), 0);
-            inner.name = process_name;
             inner.memory_space.recycle_user_pages();
             // TODO: 执行新进程过程中发生错误，该退出还是恢复？
             let (elf_end, auxv, elf_entry) =

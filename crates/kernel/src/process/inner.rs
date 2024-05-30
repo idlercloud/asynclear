@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 use core::ops::Range;
 
 use common::config::LOW_ADDRESS_END;
-use compact_str::CompactString;
 use hashbrown::HashMap;
 use idallocator::RecycleAllocator;
 use memory::{MemorySpace, VirtAddr};
@@ -19,9 +18,6 @@ use crate::{
 pub struct ProcessInner {
     // 这里添加的资源都需要考虑在 `exit_thread` 和 `sys_wait4` 时候释放 */
     // 以及在 `Process:from_path()`、`Process::clone()`、`Process::exec()` 时初始化
-    /// 进程名
-    pub name: CompactString,
-
     /// 地址空间
     pub memory_space: MemorySpace,
     /// 用户堆的范围。
