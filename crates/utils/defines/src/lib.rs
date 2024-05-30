@@ -4,6 +4,8 @@
 #![feature(panic_info_message)]
 #![feature(format_args_nl)]
 
+extern crate alloc;
+
 pub mod error;
 pub mod fs;
 pub mod ioctl;

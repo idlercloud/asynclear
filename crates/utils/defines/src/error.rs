@@ -1,3 +1,6 @@
+use alloc::boxed::Box;
+use core::{future::Future, pin::Pin};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Error(core::ffi::c_int);
 
@@ -8,7 +11,8 @@ impl Error {
     }
 }
 
-pub type KResult<T = isize> = core::result::Result<T, Error>;
+pub type KResult<T = isize> = Result<T, Error>;
+pub type AKResult<'a, T = isize> = Pin<Box<dyn Future<Output = KResult<T>> + Send + 'a>>;
 
 pub mod errno {
     macro_rules! declare_errno {
