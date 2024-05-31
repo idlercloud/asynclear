@@ -5,7 +5,7 @@ use user::{bench_main, chdir, println, sys_getcwd};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let e = chdir(c"ktest");
+    let e = chdir(c"/ktest");
     if e < 0 {
         println!("ERROR chdir: {}", e);
         return -1;
