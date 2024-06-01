@@ -89,9 +89,14 @@ impl DirEntry {
 
 fn fat_date_to_naive_date(date: u16) -> NaiveDate {
     let year = (1980 + (date >> 9)) as i32;
-    let month = (((date >> 5) & 0x0F) - 1) as u32;
-    let day = ((date & 0x1F) - 1) as u32;
-    NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    let month = ((date >> 5) & 0x0F) as u32;
+    let day = (date & 0x1F) as u32;
+    if let Some(ret) = NaiveDate::from_ymd_opt(year, month, day) {
+        ret
+    } else {
+        warn!("invalid date, year: {year}, month: {month}, day: {day}");
+        NaiveDate::default()
+    }
 }
 
 fn fat_time_to_naive_time(time: u16, ten_ms: u8) -> NaiveTime {
@@ -99,7 +104,12 @@ fn fat_time_to_naive_time(time: u16, ten_ms: u8) -> NaiveTime {
     let min = ((time >> 5) & 0x3F) as u32;
     let sec = (time & 0x1F) as u32 * 2 + (ten_ms / 100) as u32;
     let ms = (ten_ms % 100) as u32 * 10;
-    NaiveTime::from_hms_milli_opt(hour, min, sec, ms).unwrap()
+    if let Some(ret) = NaiveTime::from_hms_milli_opt(hour, min, sec, ms) {
+        ret
+    } else {
+        warn!("invalid time, hour: {hour}, min: {min}, sec: {sec}, ms: {ms}");
+        NaiveTime::default()
+    }
 }
 
 bitflags! {
