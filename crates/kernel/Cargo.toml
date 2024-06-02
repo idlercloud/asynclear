@@ -11,7 +11,6 @@ bytemuck.workspace = true
 chrono.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
-goblin.workspace = true
 hashbrown.workspace = true
 bitflags.workspace = true
 sbi-rt.workspace = true
@@ -45,6 +44,7 @@ futures = { version = "0.3", default-features = false, features = [
   "alloc",
   "async-await",
 ] }
+elf = { path = "../utils/elf" }
 cervine = "0.0.6"
 
 [features]

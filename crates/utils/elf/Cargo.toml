@@ -1,0 +1,15 @@
+[package]
+name = "elf"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+goblin = { version = "0.8", default-features = false, features = [
+  "elf32",
+  "elf64",
+  "endian_fd",
+] }
+
+[lints]
+workspace = true

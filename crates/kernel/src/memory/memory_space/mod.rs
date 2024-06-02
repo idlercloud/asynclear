@@ -11,10 +11,7 @@ use defines::{
     error::{errno, KResult},
     misc::{MmapFlags, MmapProt},
 };
-use goblin::elf::{
-    program_header::{PF_R, PF_W, PF_X, PT_INTERP, PT_LOAD},
-    Elf,
-};
+use elf::{Elf, PF_R, PF_W, PF_X, PT_INTERP, PT_LOAD};
 use klocks::Lazy;
 use smallvec::SmallVec;
 use virtio_drivers::PAGE_SIZE;
