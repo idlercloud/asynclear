@@ -1,5 +1,7 @@
 # asynclear
 
+本仓库是队伍编号 T202410145993119，asynclear 队的初赛仓库！误使用了去年的 Gitlab 帐号！
+
 基于 Rust 的异步操作系统内核。可运行在 riscv64imac 环境下。
 
 ## 结构说明
