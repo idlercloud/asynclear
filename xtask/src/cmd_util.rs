@@ -40,11 +40,6 @@ impl Cmd {
         self
     }
 
-    pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>) -> &mut Self {
-        self.0.env(key, val);
-        self
-    }
-
     pub fn envs(
         &mut self,
         vars: impl IntoIterator<Item = (impl AsRef<OsStr>, impl AsRef<OsStr>)>,

@@ -154,7 +154,7 @@ pub fn pack() {
         file.write_all(&elf).unwrap();
     };
     for elf_name in USER_BINS.iter() {
-        let src_path = format!("user/target/{TARGET_ARCH}/release/{elf_name}");
+        let src_path = format!("target/{TARGET_ARCH}/release/{elf_name}");
         if elf_name.starts_with("test_") {
             pack_into(&src_path, &format!("ktest/{elf_name}"));
         } else if elf_name.starts_with("bench_") || elf_name == "_empty" {
@@ -185,13 +185,6 @@ pub fn pack() {
             .collect::<Vec<u8>>();
         pg.write_all(&buf).unwrap();
     }
-}
-
-pub fn clean() {
-    Cmd::parse("cargo clean")
-        .invoke()
-        .args(["--target-dir", "user/target"])
-        .invoke();
 }
 
 pub fn lint() {

@@ -35,14 +35,12 @@ impl BuildArgs {
         println!("Building user apps...");
         Cmd::parse("cargo build --package user --release")
             .args(["--target", TARGET_ARCH])
-            .args(["--target-dir", "user/target"])
-            .env("RUSTFLAGS", "-Clink-arg=-Tuser/src/linker.ld")
             .invoke();
     }
 
     pub fn build_kernel(&self) {
         println!("Building kernel...");
-        Cmd::parse("cargo build --package kernel")
+        Cmd::parse("cargo build --package kernel --timings")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .tap_mut(|cmd| {
@@ -50,7 +48,6 @@ impl BuildArgs {
                     cmd.args(["--features", "profiling"]);
                 }
             })
-            .env("RUSTFLAGS", "-Clink-arg=-Tcrates/kernel/src/linker.ld")
             .envs([
                 ("KERNEL_CLOG", &self.clog),
                 ("KERNEL_FLOG", &self.flog),

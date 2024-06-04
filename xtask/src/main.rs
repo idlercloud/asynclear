@@ -32,8 +32,6 @@ enum Commands {
     Build(BuildArgs),
     Asm(AsmArgs),
     Ktest(KtestArgs),
-    /// 清除内核和用户程序的构建产物
-    Clean,
     /// 对项目进行代码检查
     Lint,
     Qemu(QemuArgs),
@@ -50,7 +48,6 @@ fn main() {
         Build(args) => args.build(),
         Asm(args) => args.dump(),
         Ktest(args) => args.run_test(),
-        Clean => tool::clean(),
         Lint => tool::lint(),
         Qemu(args) => args.run(),
         FatProbe(args) => args.probe(),

@@ -1,7 +1,6 @@
 [alias]
-xtask = "run --package xtask --target-dir xtask/target --"
+xtask = "run --package xtask --"
 xbuild = "xtask build"
-xclean = "xtask clean"
 asm = "xtask asm"
 qemu = "xtask qemu"
 env = "xtask env"

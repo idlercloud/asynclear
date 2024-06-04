@@ -28,7 +28,7 @@
     - defines 包括一些内核和用户空间都会用到的定义
     - idallocator 是用于分配整数（pid、tid）的分配器实现
     - kernel_tracer 是内核的日志系统的基础
-    - klocks 实现自旋锁、关中断自旋锁、睡眠锁等原语
+    - klocks 实现自旋锁、关中断自旋锁等原语
 - deps（这个实际上不包含在 workspace 中，暂时）
     - 一些第三方库，但是需要做一些修改
     - 后期也可能基于它们扩展
@@ -223,7 +223,6 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 - [ ] 支持 GPU 驱动
 - [ ] 支持用户的多线程之后要实现 TLB shootdown
-- [ ] 重写 xtask，改用 python 之类的
 - [ ] compact_str 或许可以改用 arcstr 或者 smol_str
 
 ### 具体任务
