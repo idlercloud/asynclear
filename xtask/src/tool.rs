@@ -1,20 +1,21 @@
 use std::{
-    fs::{self, File},
-    io::{self, Seek, SeekFrom, Write},
+    fs::{self, File, ReadDir},
+    io::{self, Write},
     iter,
     path::PathBuf,
 };
 
+use anyhow::anyhow;
 use clap::Parser;
 use fastrand::Rng;
-use fatfs::{Dir, FileSystem, FsOptions};
+use fatfs::{Dir, FatType, FileSystem, FormatVolumeOptions, FsOptions};
 use tap::Tap;
 
 use crate::{
-    build::{BuildArgs, PTEST_BINS, USER_BINS},
+    build::{BuildArgs, USER_BINS},
     cmd_util::Cmd,
     tool,
-    variables::{FS_IMG_ORIGIN_PATH, FS_IMG_PATH, TARGET_ARCH},
+    variables::{FS_IMG_PATH, TARGET_ARCH},
     KERNEL_BIN_PATH, KERNEL_ELF_PATH,
 };
 
@@ -129,7 +130,6 @@ pub fn prepare_env() {
 // 将一系列 elf 打包入 fat32 镜像中
 pub fn pack() {
     // 复制一个原始镜像
-    let mut origin = File::open(FS_IMG_ORIGIN_PATH).unwrap();
     let mut fs = File::options()
         .read(true)
         .write(true)
@@ -137,10 +137,40 @@ pub fn pack() {
         .truncate(true)
         .open(FS_IMG_PATH)
         .unwrap();
-    std::io::copy(&mut origin, &mut fs).unwrap();
-    fs.seek(SeekFrom::Start(0)).unwrap();
+    fs.set_len(64 * 1024 * 1024).unwrap();
+    fatfs::format_volume(
+        &mut fs,
+        FormatVolumeOptions::new()
+            .bytes_per_cluster(512)
+            .fat_type(FatType::Fat32),
+    )
+    .unwrap();
     let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
     let root_dir = fs.root_dir();
+
+    fn pack_dir(source_dir: ReadDir, target_dir: Dir<'_, File>) -> anyhow::Result<()> {
+        for dir_entry in source_dir {
+            let dir_entry = dir_entry?;
+            let file_type = dir_entry.file_type()?;
+            let name = dir_entry.file_name();
+            let name = name.to_str().expect("should be valid utf8");
+            if file_type.is_dir() {
+                let new_source_dir = fs::read_dir(dir_entry.path())?;
+                let new_target_dir = target_dir.create_dir(name)?;
+                pack_dir(new_source_dir, new_target_dir)?;
+            } else if file_type.is_file() {
+                let mut source_file = File::open(dir_entry.path())?;
+                let mut target_file = target_dir.create_file(name)?;
+                io::copy(&mut source_file, &mut target_file)?;
+            } else {
+                return Err(anyhow!("Unsupported file type: {:?}", file_type));
+            }
+        }
+        Ok(())
+    }
+
+    let rootfs = fs::read_dir("res/rootfs").unwrap();
+    pack_dir(rootfs, fs.root_dir()).unwrap();
 
     let pack_into = |place_in_host: &str, path: &str| {
         let elf = fs::read(place_in_host).expect(place_in_host);
@@ -163,16 +193,6 @@ pub fn pack() {
             pack_into(&src_path, elf_name);
         }
     }
-    for ptest_name in PTEST_BINS.iter() {
-        pack_into(
-            &format!("res/preliminary/{ptest_name}"),
-            &format!("ptest/{ptest_name}"),
-        );
-    }
-    if PTEST_BINS.len() > 0 {
-        pack_into("res/preliminary/text.txt", "ptest/text.txt");
-        pack_into("res/preliminary/mnt/test_mount", "ptest/mnt/test_mount");
-    }
     {
         let mut pg = root_dir
             .open_dir("kbench")
@@ -180,8 +200,8 @@ pub fn pack() {
             .create_file("_playground")
             .unwrap();
         let mut rng = Rng::with_seed(19260817);
-        let buf = iter::repeat_with(|| rng.u8(0..=255))
-            .take(1024 * 1234)
+        let buf = iter::repeat_with(|| rng.u8(..))
+            .take(1234 * 1024)
             .collect::<Vec<u8>>();
         pg.write_all(&buf).unwrap();
     }

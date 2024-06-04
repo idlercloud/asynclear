@@ -40,7 +40,7 @@ impl BuildArgs {
 
     pub fn build_kernel(&self) {
         println!("Building kernel...");
-        Cmd::parse("cargo build --package kernel --timings")
+        Cmd::parse("cargo build --package kernel")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .tap_mut(|cmd| {
@@ -74,22 +74,4 @@ pub static USER_BINS: LazyLock<Vec<String>> = LazyLock::new(|| {
                 .to_owned()
         })
         .collect::<Vec<_>>()
-});
-
-pub static PTEST_BINS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    if let Ok(dir) = fs::read_dir("res/preliminary") {
-        dir.filter_map(|entry| {
-            let entry = entry.expect("Failed reading preliminary bin");
-            let meta = entry.metadata().unwrap();
-            if meta.is_dir() {
-                None
-            } else {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                if name == "text.txt" { None } else { Some(name) }
-            }
-        })
-        .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    }
 });

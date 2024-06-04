@@ -1,9 +1,8 @@
 /target
 /res/*
-!/res/assets
 !/res/rustsbi-qemu.bin
-!/res/fat32_origin.img
 !/res/images
+!/res/rootfs
 /logs
 /.vscode/settings.json
 /justfile

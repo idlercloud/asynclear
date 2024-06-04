@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     io::{BufRead, BufReader, Write},
     ops::Range,
     sync::LazyLock,
@@ -42,7 +41,7 @@ impl KtestArgs {
         let stdin = child.stdin.as_mut().unwrap();
         let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
         // 等待 shell 准备完毕
-        || -> Result<(), Box<dyn Error>> {
+        || -> anyhow::Result<()> {
             loop {
                 let line = lines.next().unwrap()?;
                 if line.contains("Rust user shell") {
