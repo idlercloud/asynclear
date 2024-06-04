@@ -8,14 +8,14 @@ pub fn main() -> i32 {
     bench_main(
         "bench_dup",
         || {
-            for _ in 0..64 {
+            for _ in 0..32 {
                 let ret = sys_dup(1);
                 if ret < 0 {
                     println!("ERROR dup: {}", ret);
                 }
             }
         },
-        64,
+        16,
     );
     0
 }
