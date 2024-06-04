@@ -29,6 +29,8 @@ pub struct FileAllocTable {
     pub(super) block_device: &'static DiskDriver,
 }
 
+const INVALID_ALLOC_META: u32 = 0xFFFFFFFF;
+
 impl FileAllocTable {
     pub fn new(block_device: &'static DiskDriver, bpb: &BiosParameterBlock) -> KResult<Self> {
         let _enter = debug_span!("fat").entered();
@@ -37,6 +39,17 @@ impl FileAllocTable {
         let alloc_meta = FatAllocMeta::new(&buf)?;
         let fat_start_sector_id = bpb.reserved_sector_count;
         let fat_length = bpb.fat32_length;
+        let data_start_sector_id = fat_start_sector_id as u32 + bpb.fat_count as u32 * fat_length;
+        let data_clusters_count =
+            (bpb.total_sector_count - data_start_sector_id) / bpb.sector_per_cluster as u32;
+
+        let entries_capacity = fat_length as usize * (SECTOR_SIZE / FAT_ENTRY_SIZE);
+
+        if data_clusters_count > entries_capacity as u32 {
+            warn!(
+                "Inconsistent meta: data_clusters_count: {data_clusters_count}, entries_capacity: {entries_capacity}"
+            );
+        }
 
         const FAT_ENTRY_SIZE: usize = core::mem::size_of::<u32>();
 
@@ -45,14 +58,12 @@ impl FileAllocTable {
         for sector_id in fat_start_sector_id as u32..fat_start_sector_id as u32 + fat_length {
             block_device.read_blocks(sector_id as usize, &mut buf);
             for &entry in buf.array_chunks::<FAT_ENTRY_SIZE>() {
+                if fat_entries.len() as u32 >= data_clusters_count + RESERVED_FAT_ENTRY_COUNT {
+                    break;
+                }
                 fat_entries.push(u32::from_le_bytes(entry));
             }
         }
-
-        let data_start_sector_id =
-            fat_start_sector_id as u32 + bpb.fat_count as u32 * bpb.fat32_length;
-        let data_clusters_count =
-            (bpb.total_sector_count - data_start_sector_id) / bpb.sector_per_cluster as u32;
 
         let ret = Self {
             count: bpb.fat_count,
@@ -71,12 +82,10 @@ impl FileAllocTable {
     }
 
     fn maintain_alloc_meta(&self) {
-        const INVALID_ALLOC_META: u32 = 0xFFFFFFFF;
-
         let mut meta = self.alloc_meta.lock();
         if meta.free_count == INVALID_ALLOC_META || meta.next_free == INVALID_ALLOC_META {
+            meta.next_free = INVALID_ALLOC_META;
             meta.free_count = 0;
-            meta.next_free = 0;
             let entries = self.fat_entries.read();
             for (cluster_id, entry) in entries
                 .iter()
@@ -86,10 +95,13 @@ impl FileAllocTable {
                 let entry = entry & FAT_ENTRY_MASK;
                 if entry == 0 {
                     meta.free_count += 1;
-                } else {
-                    meta.next_free = cluster_id as u32 + 1;
+                    meta.next_free = meta.next_free.min(cluster_id as u32);
                 }
             }
+        }
+
+        if meta.next_free == INVALID_ALLOC_META {
+            warn!("No spare space");
         }
     }
 
