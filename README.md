@@ -224,6 +224,7 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 - [ ] 支持 GPU 驱动
 - [ ] 支持用户的多线程之后要实现 TLB shootdown
 - [ ] compact_str 或许可以改用 arcstr 或者 smol_str
+- [ ] 处理可能存在的 Arc 循环引用
 
 ### 具体任务
 
