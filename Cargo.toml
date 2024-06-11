@@ -10,7 +10,6 @@ edition = "2021"
 
 [workspace.dependencies]
 async-lock = { version = "3.3", default-features = false }
-riscv = { path = "deps/riscv/riscv" }
 buddy_system_allocator = { path = "deps/buddy_system_allocator" }
 atomic = "0.6"
 bytemuck = { version = "1.15", features = ["derive"] }
@@ -21,6 +20,7 @@ bitflags = "2.5"
 tap = "1.0"
 compact_str = { version = "0.8.0-beta", default-features = false }
 hashbrown = { version = "0.14" }
+riscv = "0.11"
 spin = { version = "0.9", default-features = false, features = [
   "lazy",
   "spin_mutex",

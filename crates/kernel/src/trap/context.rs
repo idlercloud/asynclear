@@ -1,4 +1,4 @@
-use riscv::register::sstatus::{self, Sstatus, SPP};
+use core::arch::asm;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -11,7 +11,7 @@ pub struct TrapContext {
     /// - 当前全局中断使能 (SIE)、trap 发生之前的全局中断使能 (SPIE)。
     /// - trap 之前的权限模式 (SPP)
     /// - 是否允许读取用户数据 (SUM)
-    pub sstatus: Sstatus,
+    pub sstatus: usize,
     /// 发生 trap 时的 pc 值。一般而言从 user trap 返回就是回到它
     pub sepc: usize,
     pub kernel_sp: usize,
@@ -47,18 +47,13 @@ impl TrapContext {
     ///
     /// 从内核返回后，会在指定的 `sp` 上从指定的 `entry` 开始运行
     pub fn app_init_context(entry: usize, sp: usize) -> Self {
-        let mut sstatus = sstatus::read();
-        // 即将返回用户态，因此 `spp` 设为 `SPP::USER`
-        sstatus.set_spp(SPP::User);
-        sstatus.set_sie(false);
-        sstatus.set_spie(true);
         let kernel_tp: usize;
         unsafe {
             core::arch::asm!("mv {}, tp", out(reg) kernel_tp);
         }
         let mut cx = Self {
             user_regs: [0; 31],
-            sstatus,
+            sstatus: app_init_sstatus(),
             sepc: entry,
             // 下面这些内核相关的寄存器会在返回用户态时保存
             kernel_sp: 0,
@@ -69,4 +64,17 @@ impl TrapContext {
         *cx.sp_mut() = sp;
         cx
     }
+}
+
+fn app_init_sstatus() -> usize {
+    let mut sstatus: usize;
+    unsafe { asm!("csrr {}, sstatus", out(reg) sstatus) };
+    // 关闭 SIE，因为在 `__return_to_user` 过程中是关中断的
+    sstatus &= !(1 << 1);
+    // SPIE 设为 1，使 `sret` 后 SIE 为 1。
+    // 其实设不设似乎都一样？riscv-isa-manual 说在用户模式下 SIE 是被忽略的
+    sstatus |= 1 << 5;
+    // SPP 设为 User
+    sstatus &= !(1 << 8);
+    sstatus
 }
