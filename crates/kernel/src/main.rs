@@ -49,7 +49,7 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 pub fn kernel_loop() -> ! {
     info!("Enter kernel loop");
-    executor::run_utils_idle();
+    executor::run_until_shutdown();
 
     info!("Exit kernel loop");
     let _guard = riscv_guard::NoIrqGuard::new();

@@ -47,7 +47,7 @@ where
     })
 }
 
-pub fn run_utils_idle() {
+pub fn run_until_shutdown() {
     loop {
         while let Some(task) = TASK_QUEUE.fetch_task() {
             trace!("Schedule new task");
