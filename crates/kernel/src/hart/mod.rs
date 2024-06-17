@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use core::{
     arch::asm,
     cell::{Cell, Ref, RefCell, SyncUnsafeCell},
+    ptr::NonNull,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
@@ -16,6 +17,7 @@ use crate::{
     fs, memory,
     process::{Process, INITPROC},
     thread::{self, Thread},
+    trap::TrapContext,
 };
 
 core::arch::global_asm!(include_str!("entry.S"));
@@ -64,6 +66,11 @@ impl Hart {
 
     pub fn curr_thread(&self) -> Ref<'_, Thread> {
         Ref::map(self.thread.borrow(), |t| t.as_ref().unwrap().as_ref())
+    }
+
+    /// 辅助方法，相当于 `curr_thread()` 并从中取出 trap context
+    pub fn curr_trap_context(&self) -> NonNull<TrapContext> {
+        NonNull::from(unsafe { &mut self.curr_thread().get_owned().as_mut().trap_context })
     }
 
     pub fn curr_process(&self) -> Ref<'_, Process> {

@@ -1,14 +1,14 @@
 mod inner;
 mod user;
 
-use core::ops::Range;
+use core::{cell::SyncUnsafeCell, ops::Range, ptr::NonNull};
 
 use atomic::{Atomic, Ordering};
 use common::config::{LOW_ADDRESS_END, PAGE_SIZE, USER_STACK_SIZE};
 use klocks::{SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
-use self::inner::ThreadInner;
+use self::inner::{ThreadInner, ThreadOwned};
 pub use self::user::spawn_user_thread;
 use crate::{
     memory::{self, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
@@ -26,8 +26,12 @@ pub struct Thread {
     ///
     /// 如果它是进程中的最后一个线程，则将进程退出码设置为它。
     pub exit_code: Atomic<i8>,
+    /// 所属的进程
     pub process: Arc<Process>,
+    /// 可能被并发访问的可变结构
     inner: SpinMutex<ThreadInner>,
+    /// 不应被并发访问的可变结构
+    owned: SyncUnsafeCell<ThreadOwned>,
 }
 
 impl Thread {
@@ -43,10 +47,12 @@ impl Thread {
             status: Atomic::new(ThreadStatus::Ready),
             process,
             inner: SpinMutex::new(ThreadInner {
-                trap_context,
-                clear_child_tid: 0,
                 signal_mask,
                 pending_signal: KSignalSet::empty(),
+            }),
+            owned: SyncUnsafeCell::new(ThreadOwned {
+                trap_context,
+                clear_child_tid: 0,
             }),
         }
     }
@@ -62,6 +68,11 @@ impl Thread {
     /// 锁 inner 然后进行操作，这是一个便捷方法
     pub fn lock_inner_with<T>(&self, f: impl FnOnce(&mut ThreadInner) -> T) -> T {
         f(&mut self.inner.lock())
+    }
+
+    /// 获取线程私有的值，只应由当前运行该线程的 hart 访问
+    pub fn get_owned(&self) -> NonNull<ThreadOwned> {
+        unsafe { NonNull::new_unchecked(self.owned.get()) }
     }
 
     /// 分配用户栈，一般用于创建新线程。返回用户栈范围

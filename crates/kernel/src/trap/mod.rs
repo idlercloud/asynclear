@@ -1,7 +1,7 @@
 mod context;
 mod kernel_trap;
 
-use core::ops::ControlFlow;
+use core::{ops::ControlFlow, ptr::NonNull};
 
 pub use context::TrapContext;
 use defines::{error::errno, signal::SignalActionFlags};
@@ -43,21 +43,20 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             let (syscall_id, syscall_args) = {
-                local_hart().curr_thread().lock_inner_with(|inner| {
-                    // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
-                    inner.trap_context.sepc += 4;
-                    let user_regs = &mut inner.trap_context.user_regs;
-                    let syscall_id = user_regs[16];
-                    let syscall_args = [
-                        user_regs[9],
-                        user_regs[10],
-                        user_regs[11],
-                        user_regs[12],
-                        user_regs[13],
-                        user_regs[14],
-                    ];
-                    (syscall_id, syscall_args)
-                })
+                let trap_context = unsafe { local_hart().curr_trap_context().as_mut() };
+                // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
+                trap_context.sepc += 4;
+                let user_regs = &mut trap_context.user_regs;
+                let syscall_id = user_regs[16];
+                let syscall_args = [
+                    user_regs[9],
+                    user_regs[10],
+                    user_regs[11],
+                    user_regs[12],
+                    user_regs[13],
+                    user_regs[14],
+                ];
+                (syscall_id, syscall_args)
             };
             let result = syscall::syscall(syscall_id, syscall_args)
                 .instrument(info_span!(
@@ -70,8 +69,9 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             if result == errno::BREAK.as_isize() {
                 ControlFlow::Break(())
             } else {
-                let thread = local_hart().curr_thread();
-                thread.lock_inner_with(|inner| inner.trap_context.user_regs[9] = result as usize);
+                unsafe {
+                    *local_hart().curr_trap_context().as_mut().a0_mut() = result as usize;
+                }
                 ControlFlow::Continue(())
             }
         }
@@ -93,30 +93,26 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             if ok {
                 ControlFlow::Continue(())
             } else {
-                {
-                    let inner = thread.lock_inner();
-                    info!("regs: {:x?}", inner.trap_context.user_regs);
-                    error!(
-                        "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
-                        scause.cause(),
-                        stval,
-                        inner.trap_context.sepc,
-                    );
-                };
+                let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
+                info!("regs: {:x?}", trap_context.user_regs);
+                error!(
+                    "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
+                    scause.cause(),
+                    stval,
+                    trap_context.sepc,
+                );
                 process::exit_process(&thread.process, -2);
                 ControlFlow::Break(())
             }
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             let thread = local_hart().curr_thread();
-            {
-                let inner = thread.lock_inner();
-                info!("regs: {:x?}", inner.trap_context.user_regs);
-                error!(
-                    "IllegalInstruction(pc={:#x}) in application, core dumped.",
-                    inner.trap_context.sepc,
-                );
-            }
+            let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
+            info!("regs: {:x?}", trap_context.user_regs);
+            error!(
+                "IllegalInstruction(pc={:#x}) in application, core dumped.",
+                trap_context.sepc,
+            );
             process::exit_process(&thread.process, -3);
             ControlFlow::Break(())
         }
@@ -147,7 +143,9 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
 /// 从用户任务的内核态返回到用户态。
 ///
 /// 注意：会切换控制流和栈
-pub fn trap_return(trap_context: *mut TrapContext) {
+pub fn trap_return(trap_context: NonNull<TrapContext>) {
+    check_signal(&local_hart().curr_thread());
+
     // 因为 trap entry 要切换为用户的，在回到用户态之前不能触发中断
     unsafe {
         sstatus::clear_sie();
@@ -155,10 +153,8 @@ pub fn trap_return(trap_context: *mut TrapContext) {
     trace!("enter user mode");
     set_user_trap_entry();
 
-    check_signal(&local_hart().curr_thread());
-
     extern "C" {
-        fn __return_to_user(cx: *mut TrapContext);
+        fn __return_to_user(cx: NonNull<TrapContext>);
     }
 
     unsafe {
@@ -214,26 +210,25 @@ pub fn check_signal(thread: &Thread) -> bool {
         handler => handler,
     };
 
-    let (old_mask, old_trap_context) = thread.lock_inner_with(|inner| {
+    let old_mask = thread.lock_inner_with(|inner| {
         let old_mask = inner.signal_mask;
-        let old_trap_context = inner.trap_context.clone();
         inner.signal_mask.insert(action.kmask());
         if !action.flags.contains(SignalActionFlags::SA_NODEFER) {
             inner.signal_mask.set(KSignalSet::from(first_pending), true);
         }
-        let trap_context = &mut inner.trap_context;
-        trap_context.sepc = handler;
-        *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
-        *trap_context.ra_mut() = action.restorer;
-        *trap_context.a0_mut() = first_pending.to_user() as usize;
-
-        (old_mask, old_trap_context)
+        old_mask
     });
+    let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
 
     let signal_context = SignalContext {
         old_mask,
-        old_trap_context,
+        old_trap_context: trap_context.clone(),
     };
+
+    trap_context.sepc = handler;
+    *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
+    *trap_context.ra_mut() = action.restorer;
+    *trap_context.a0_mut() = first_pending.to_user() as usize;
 
     let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
     let user_ptr = (|| unsafe {

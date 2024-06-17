@@ -120,8 +120,9 @@ impl Process {
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             let parent_main_thread = inner.main_thread();
-            let (mut trap_context, signal_mask) = parent_main_thread
-                .lock_inner_with(|inner| (inner.trap_context.clone(), inner.signal_mask));
+            let signal_mask = parent_main_thread.lock_inner_with(|inner| inner.signal_mask);
+            let mut trap_context =
+                unsafe { parent_main_thread.get_owned().as_mut().trap_context.clone() };
             if let Some(stack) = stack {
                 *trap_context.sp_mut() = stack.get();
             }
@@ -256,11 +257,13 @@ impl Process {
             let (user_sp, argv_base) = inner.memory_space.init_stack(0, args, envs, auxv);
             memory::flush_tlb(None);
 
-            inner.main_thread().lock_inner_with(|inner| {
-                inner.trap_context = TrapContext::app_init_context(elf_entry, user_sp);
-                *inner.trap_context.a0_mut() = argc;
-                *inner.trap_context.a1_mut() = argv_base;
-            });
+            // TODO: [low] 也许可以直接原地修改？
+            let trap_context =
+                unsafe { &mut inner.main_thread().get_owned().as_mut().trap_context };
+
+            *trap_context = TrapContext::app_init_context(elf_entry, user_sp);
+            *trap_context.a0_mut() = argc;
+            *trap_context.a1_mut() = argv_base;
             Ok(())
         });
         if ret.is_err() {

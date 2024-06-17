@@ -36,13 +36,10 @@ fn user_thread_loop() -> UserThreadFuture {
         loop {
             // 返回用户态
             // 注意切换了控制流，但是之后回到内核态还是在这里
-            let trap_context = local_hart()
-                .curr_thread()
-                .lock_inner_with(|inner| &mut inner.trap_context as _);
             trace!("enter user mode");
-            trap::trap_return(trap_context);
-
+            trap::trap_return(local_hart().curr_trap_context());
             trace!("enter kernel mode");
+
             // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
             let next_op = trap::user_trap_handler().await;
 

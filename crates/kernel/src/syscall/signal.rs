@@ -106,8 +106,8 @@ pub fn sys_rt_sigprocmask(
 pub fn sys_rt_sigreturn() -> KResult {
     debug!("sigreturn called");
     let thread = local_hart().curr_thread();
-    let sp = thread.lock_inner_with(|inner| inner.trap_context.sp());
-    let Ok(old_ctx) = UserCheck::new(sp as *mut SignalContext)
+    let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
+    let Ok(old_ctx) = UserCheck::new(trap_context.sp() as *mut SignalContext)
         .ok_or(errno::EINVAL)?
         .check_ptr()
     else {
@@ -117,10 +117,8 @@ pub fn sys_rt_sigreturn() -> KResult {
     };
     let old_ctx = old_ctx.read();
 
-    thread.lock_inner_with(|inner| {
-        inner.signal_mask = old_ctx.old_mask;
-        inner.trap_context = old_ctx.old_trap_context;
-    });
+    thread.lock_inner_with(|inner| inner.signal_mask = old_ctx.old_mask);
+    *trap_context = old_ctx.old_trap_context;
 
     Ok(0)
 }

@@ -284,7 +284,7 @@ pub fn sys_setpriority(_prio: isize) -> KResult {
 ///   - 这里设置为 i32，是参考 libc crate 设置 `c_int` 为 i32
 pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
     let thread = local_hart().curr_thread();
-    thread.lock_inner_with(|inner| inner.clear_child_tid = tidptr as usize);
+    unsafe { thread.get_owned().as_mut().clear_child_tid = tidptr as usize };
     Ok(thread.tid() as isize)
 }
 
