@@ -75,14 +75,15 @@ impl ProcessInner {
 
     /// 挑选一个合适的线程让其处理信号
     pub fn receive_signal(&mut self, signal: Signal) {
+        let signal = KSignalSet::from(signal);
         for thread in self.threads.values() {
             let mut inner = thread.lock_inner();
-            let signal = KSignalSet::from(signal);
             if !inner.signal_mask.contains(signal) && !inner.pending_signal.contains(signal) {
                 debug!("thread {} receive signal {signal:?}", thread.tid());
                 inner.pending_signal.insert(signal);
                 break;
             }
         }
+        // FIXME: 如果找不到合适的线程的话，是否要随机挑一个呢？
     }
 }

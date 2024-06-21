@@ -100,6 +100,9 @@ fn exit_thread(thread: &Thread) {
                     initproc_inner.children.push(child);
                 }
             });
+            // FIXME: 应该需要通知 INITPROC 的，否则有可能子进程已经是僵尸了而 INITPROC 不知道
+            // 下面这个应该够了？但是不完全确定，需要仔细思考各种并发的情况
+            // INITPROC.wait4_event.notify(1);
         }
 
         // 通知父进程自己退出了
@@ -158,10 +161,10 @@ impl Future for UserThreadWrapperFuture {
         }
 
         // NOTE: 一定要切换页表。否则进程页表被回收立刻导致内核异常
+        // 但可以不刷新 tlb。因为内核中只会用到共享的、永远映射的内核高地址空间
         unsafe {
             KERNEL_SPACE.activate_no_tlb();
         }
-        // 进程状态的切换由 `user_thread_loop()` 里的操作完成
         trace!("User task deactivate");
         local_hart().replace_thread(None);
 

@@ -60,6 +60,7 @@ impl Hart {
         self.hart_id
     }
 
+    // TODO: [low] 或许可以通过使 `replace_thread()` unsafe 来避免 `RefCell` 的开销
     pub fn replace_thread(&self, new_thread: Option<Arc<Thread>>) -> Option<Arc<Thread>> {
         core::mem::replace(&mut self.thread.borrow_mut(), new_thread)
     }
