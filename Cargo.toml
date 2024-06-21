@@ -83,7 +83,6 @@ match_on_vec_items = "warn"
 match_same_arms = "warn"
 match_wild_err_arm = "warn"
 match_wildcard_for_single_variants = "warn"
-mismatched_target_os = "warn"
 missing_enforced_import_renames = "warn"
 missing_safety_doc = "warn"
 mut_mut = "warn"
@@ -121,6 +120,7 @@ not_unsafe_ptr_arg_deref = "deny"
 future_incompatible = { level = "warn", priority = -1 }
 nonstandard_style = { level = "warn", priority = -1 }
 rust_2018_idioms = { level = "warn", priority = -1 }
+unexpected_cfgs = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 
 unreachable_patterns = "deny"

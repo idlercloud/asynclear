@@ -93,7 +93,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             if ok {
                 ControlFlow::Continue(())
             } else {
-                let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
+                let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
                 info!("regs: {:x?}", trap_context.user_regs);
                 error!(
                     "{:?} in application, bad addr = {:#x}, bad inst pc = {:#x}, core dumped.",
@@ -107,7 +107,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             let thread = local_hart().curr_thread();
-            let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
+            let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
             info!("regs: {:x?}", trap_context.user_regs);
             error!(
                 "IllegalInstruction(pc={:#x}) in application, core dumped.",
@@ -218,7 +218,7 @@ pub fn check_signal(thread: &Thread) -> bool {
         }
         old_mask
     });
-    let trap_context = unsafe { &mut (*thread.get_owned().as_mut()).trap_context };
+    let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
 
     let signal_context = SignalContext {
         old_mask,

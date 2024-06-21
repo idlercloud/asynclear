@@ -1,5 +1,3 @@
-#![feature(lazy_cell)]
-
 mod build;
 mod cmd_util;
 mod ktest;

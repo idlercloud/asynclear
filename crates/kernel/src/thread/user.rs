@@ -17,34 +17,40 @@ use crate::{
     memory::KERNEL_SPACE,
     process::{ProcessStatus, INITPROC},
     thread::ThreadStatus,
-    trap, SHUTDOWN,
+    SHUTDOWN,
 };
 
 pub fn spawn_user_thread(thread: Arc<Thread>) {
     let (runnable, task) = executor::spawn_with(
-        UserThreadWrapperFuture::new(Arc::clone(&thread), user_thread_loop()),
+        UserThreadWrapperFuture::new(Arc::clone(&thread), user_thread_loop::user_thread_loop()),
         move || thread.set_status(ThreadStatus::Ready),
     );
     runnable.schedule();
     task.detach();
 }
 
-type UserThreadFuture = impl Future<Output = ()> + Send;
+mod user_thread_loop {
+    use futures::Future;
 
-fn user_thread_loop() -> UserThreadFuture {
-    async {
-        loop {
-            // 返回用户态
-            // 注意切换了控制流，但是之后回到内核态还是在这里
-            trace!("enter user mode");
-            trap::trap_return(local_hart().curr_trap_context());
-            trace!("enter kernel mode");
+    use crate::{hart::local_hart, trap};
 
-            // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
-            let next_op = trap::user_trap_handler().await;
+    pub type UserThreadFuture = impl Future<Output = ()> + Send;
 
-            if next_op.is_break() || local_hart().curr_process().is_exited() {
-                break;
+    pub fn user_thread_loop() -> UserThreadFuture {
+        async {
+            loop {
+                // 返回用户态
+                // 注意切换了控制流，但是之后回到内核态还是在这里
+                trace!("enter user mode");
+                trap::trap_return(local_hart().curr_trap_context());
+                trace!("enter kernel mode");
+
+                // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
+                let next_op = trap::user_trap_handler().await;
+
+                if next_op.is_break() || local_hart().curr_process().is_exited() {
+                    break;
+                }
             }
         }
     }
@@ -121,13 +127,13 @@ fn exit_thread(thread: &Thread) {
 #[pin_project::pin_project]
 struct UserThreadWrapperFuture {
     #[pin]
-    future: UserThreadFuture,
+    future: user_thread_loop::UserThreadFuture,
     thread: Arc<Thread>,
 }
 
 impl UserThreadWrapperFuture {
     #[inline]
-    fn new(thread: Arc<Thread>, future: UserThreadFuture) -> Self {
+    fn new(thread: Arc<Thread>, future: user_thread_loop::UserThreadFuture) -> Self {
         Self { thread, future }
     }
 }

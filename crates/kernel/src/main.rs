@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(format_args_nl)]
-#![feature(const_binary_heap_constructor, btree_cursors)]
+#![feature(btree_cursors)]
 #![feature(arbitrary_self_types)]
 #![feature(decl_macro)]
 #![feature(step_trait)]
