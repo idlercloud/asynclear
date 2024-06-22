@@ -41,7 +41,7 @@ const PRELIMINARY_TESTS: [&CStr; 32] = [
     c"yield",
 ];
 
-const KTESTS: [&CStr; 10] = [
+const KTESTS: [&CStr; 11] = [
     c"test_echo",
     c"test_fork",
     c"test_lazy_stack",
@@ -52,6 +52,7 @@ const KTESTS: [&CStr; 10] = [
     c"test_should_fail_bad_register",
     c"test_syscall_efault",
     c"test_yield",
+    c"test_float_ctx",
 ];
 
 #[no_mangle]
