@@ -164,6 +164,7 @@ impl FdTable {
         }
         while n_ok < N {
             self.files.insert(new_fd, descs.next().unwrap());
+            ret[n_ok] = new_fd;
             n_ok += 1;
             new_fd += 1;
         }
