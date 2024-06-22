@@ -1,6 +1,6 @@
 # asynclear
 
-基于 Rust 的异步操作系统内核。可运行在 riscv64imac 环境下。
+基于 Rust 的异步操作系统内核。可运行在 riscv64gc 环境下。
 
 ## 结构说明
 
@@ -76,7 +76,7 @@ sudo make install
     "--message-format=json",
     /* for kernel and user apps */
     "--target",
-    "riscv64imac-unknown-none-elf",
+    "riscv64gc-unknown-none-elf",
     "--package",
     "kernel",
     "--features",
@@ -184,7 +184,7 @@ sudo make install
 命令行调试过程如下：
 
 1. 运行 `cargo qemu` 或 `cargo ktest` 时，多加一个参数 `--debug`
-2. 另外开启一个终端并切换到 asynclear 目录，执行 `riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'`
+2. 另外开启一个终端并切换到 asynclear 目录，执行 `riscv64-unknown-elf-gdb -ex 'file target/riscv64gc-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'`
 
 vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中，需要在 `.vscode/launch.json` 中配置它的路径。过程如下：
 

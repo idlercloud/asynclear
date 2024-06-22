@@ -8,7 +8,9 @@ use defines::{error::errno, signal::SignalActionFlags};
 use kernel_tracer::Instrument;
 use riscv::register::{
     scause::{self, Exception, Interrupt, Trap},
-    sie, sstatus, stval,
+    sie,
+    sstatus::{self, FS},
+    stval,
     stvec::{self, TrapMode},
 };
 
@@ -220,10 +222,20 @@ pub fn check_signal(thread: &Thread) -> bool {
     });
     let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
 
-    let signal_context = SignalContext {
+    let mut signal_context = SignalContext {
         old_mask,
         old_trap_context: trap_context.clone(),
     };
+
+    // 任何信号处理都可以视作一个新的任务，因此需要单独记录浮点数的使用
+    trap_context.user_float_ctx.valid = false;
+    if trap_context.fs() == FS::Dirty {
+        debug!("save float ctx");
+        // 进入信号处理前需要保存当前线程的浮点数上下文以便信号处理完成后恢复
+        signal_context.old_trap_context.user_float_ctx.save();
+        signal_context.old_trap_context.user_float_ctx.valid = true;
+        trap_context.set_fs(FS::Clean);
+    }
 
     trap_context.sepc = handler;
     *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();

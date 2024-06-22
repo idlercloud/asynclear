@@ -10,6 +10,7 @@ use common::config::{HART_START_ADDR, MAX_HART_NUM};
 use crossbeam_utils::CachePadded;
 use kernel_tracer::SpanId;
 use memory::KERNEL_SPACE;
+use riscv::register::sstatus::{self, FS};
 use triomphe::Arc;
 
 use crate::{
@@ -104,6 +105,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         drivers::init();
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
+        enable_float();
         memory::log_kernel_sections();
 
         fs::init();
@@ -127,6 +129,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
             set_local_hart(hart_id);
         }
         KERNEL_SPACE.activate();
+        enable_float();
         info!("Hart {hart_id} started");
     }
 
@@ -184,5 +187,21 @@ pub fn local_hart<'a>() -> &'a Hart {
     unsafe {
         asm!("mv {}, tp", out(reg) tp);
         &*(tp as *const Hart)
+    }
+}
+
+pub const DEFAULT_FCSR: u32 = {
+    // exception when NV(invalid operation)
+    let fflags: u32 = 0b10000;
+    let round_mode: u32 = 0;
+    round_mode << 4 | fflags
+};
+
+fn enable_float() {
+    unsafe {
+        sstatus::set_fs(FS::Clean);
+        asm!("csrw fcsr, {}", in(reg) DEFAULT_FCSR);
+        // 修改 `fcsr` 需要不为 `FS::Off`，且也会导致 `FS::Dirty`
+        sstatus::set_fs(FS::Clean);
     }
 }

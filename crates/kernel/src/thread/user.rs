@@ -7,6 +7,7 @@ use core::{
 };
 
 use hashbrown::HashMap;
+use riscv::register::sstatus::FS;
 use triomphe::Arc;
 
 use super::Thread;
@@ -148,6 +149,10 @@ impl Future for UserThreadWrapperFuture {
         let pid = process.pid();
         let tid = self.thread.tid;
         let _enter = info_span!("task", pid = pid, tid = tid).entered();
+        let trap_context = unsafe { &mut self.thread.get_owned().as_mut().trap_context };
+        if trap_context.user_float_ctx.valid {
+            trap_context.user_float_ctx.restore();
+        }
         trace!("User task running");
         let prev_status = self
             .thread
@@ -162,8 +167,17 @@ impl Future for UserThreadWrapperFuture {
 
         if ret.is_ready() {
             exit_thread(project.thread);
-        } else if project.thread.status.load(Ordering::SeqCst) != ThreadStatus::Ready {
-            project.thread.set_status(ThreadStatus::Blocking);
+        } else {
+            if project.thread.status.load(Ordering::SeqCst) != ThreadStatus::Ready {
+                project.thread.set_status(ThreadStatus::Blocking);
+            }
+            let trap_context = unsafe { &mut project.thread.get_owned().as_mut().trap_context };
+            if trap_context.fs() == FS::Dirty {
+                // 进入信号处理前需要保存当前线程的浮点数上下文以便信号处理完成后恢复
+                trap_context.user_float_ctx.save();
+                trap_context.user_float_ctx.valid = true;
+                trap_context.set_fs(FS::Clean);
+            }
         }
 
         // NOTE: 一定要切换页表。否则进程页表被回收立刻导致内核异常
