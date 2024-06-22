@@ -193,9 +193,9 @@ pub fn sys_dup(fd: usize) -> isize {
     syscall3(DUP, [fd, 0, 0])
 }
 
-// pub fn sys_pipe(pipe: &mut [usize]) -> isize {
-//     syscall3(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
-// }
+pub fn sys_pipe(pipe_fd: &mut [i32; 2], flags: u32) -> isize {
+    syscall3(PIPE2, [pipe_fd.as_mut_ptr() as usize, flags as usize, 0])
+}
 
 pub fn sys_gettid() -> isize {
     syscall3(GETTID, [0; 3])

@@ -282,6 +282,10 @@ pub fn gettime() -> TimeSpec {
     ts
 }
 
+pub fn pipe(pipe_fd: &mut [i32; 2]) -> isize {
+    sys_pipe(pipe_fd, 0)
+}
+
 pub fn test_main(name: &str, f: impl FnOnce()) {
     println!("----{} begins----", name);
     f();
