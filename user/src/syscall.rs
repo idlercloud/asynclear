@@ -69,20 +69,23 @@ pub fn sys_openat(dirfd: usize, path: &CStr, flags: u32, mode: u32) -> isize {
     )
 }
 
-pub fn sys_close(fd: usize) -> isize {
-    syscall3(CLOSE, [fd, 0, 0])
+pub fn sys_close(fd: i32) -> isize {
+    syscall3(CLOSE, [fd as usize, 0, 0])
 }
 
-pub fn sys_lseek(fd: usize, offset: i64, whence: usize) -> isize {
-    syscall3(LSEEK, [fd, offset as usize, whence])
+pub fn sys_lseek(fd: i32, offset: i64, whence: usize) -> isize {
+    syscall3(LSEEK, [fd as usize, offset as usize, whence])
 }
 
-pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {
-    syscall3(READ, [fd, buffer.as_mut_ptr() as usize, buffer.len()])
+pub fn sys_read(fd: i32, buffer: &mut [u8]) -> isize {
+    syscall3(
+        READ,
+        [fd as usize, buffer.as_mut_ptr() as usize, buffer.len()],
+    )
 }
 
-pub fn sys_write(fd: usize, buffer: *const u8, len: usize) -> isize {
-    syscall3(WRITE, [fd, buffer as usize, len])
+pub fn sys_write(fd: i32, buffer: *const u8, len: usize) -> isize {
+    syscall3(WRITE, [fd as usize, buffer as usize, len])
 }
 
 // pub fn sys_linkat(

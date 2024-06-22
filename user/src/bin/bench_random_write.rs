@@ -7,12 +7,11 @@ use user::{bench_main, lseek, open, println, write_all};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let fd = open(c"_playground", OpenFlags::RDWR);
+    let fd = open(c"_playground", OpenFlags::RDWR) as i32;
     if fd < 0 {
         println!("open file for read failed, {}", fd);
         return -1;
     }
-    let fd = fd as usize;
     let mut rng = Rng::with_seed(19260817);
     let mut buf = [0; 4096];
     bench_main(

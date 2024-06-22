@@ -147,26 +147,26 @@ pub fn open(path: &CStr, flags: OpenFlags) -> isize {
     sys_openat(AT_FDCWD, path, flags.bits(), 0)
 }
 
-pub fn close(fd: usize) -> isize {
+pub fn close(fd: i32) -> isize {
     if fd == STDOUT {
         console::flush();
     }
     sys_close(fd)
 }
 
-pub fn lseek(fd: usize, offset: i64, whence: usize) -> isize {
+pub fn lseek(fd: i32, offset: i64, whence: usize) -> isize {
     sys_lseek(fd, offset, whence)
 }
 
-pub fn read(fd: usize, buf: &mut [u8]) -> isize {
+pub fn read(fd: i32, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
 }
 
-pub fn write(fd: usize, buf: &[u8]) -> isize {
+pub fn write(fd: i32, buf: &[u8]) -> isize {
     sys_write(fd, buf.as_ptr(), buf.len())
 }
 
-pub fn write_all(fd: usize, buf: &[u8]) -> isize {
+pub fn write_all(fd: i32, buf: &[u8]) -> isize {
     let mut n_write = 0;
     while n_write < buf.len() {
         let ret = write(fd, buf);

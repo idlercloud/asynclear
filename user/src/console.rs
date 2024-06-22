@@ -3,8 +3,8 @@ use core::fmt::{self, Write};
 
 use spin::{mutex::Mutex, Lazy};
 
-pub const STDIN: usize = 0;
-pub const STDOUT: usize = 1;
+pub const STDIN: i32 = 0;
+pub const STDOUT: i32 = 1;
 
 const CONSOLE_BUFFER_SIZE: usize = 256 * 10;
 
