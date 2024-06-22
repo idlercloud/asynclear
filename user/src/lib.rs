@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
 #![feature(naked_functions)]
+#![feature(never_type)]
 
 #[macro_use]
 pub mod console;
@@ -301,4 +302,12 @@ pub fn bench_main(name: &str, mut f: impl FnMut(), time: usize) {
     let end = Duration::try_from(gettime()).unwrap();
     let elasped = end - begin;
     println!("===={} ends {}ms ====", name, elasped.as_millis());
+}
+
+pub fn check_syscall_ret(desc: &str, ret: isize) -> Result<usize, !> {
+    if ret < 0 {
+        println!("ERROR {}: {}", desc, ret);
+        exit(ret as i32);
+    }
+    Ok(ret as usize)
 }
