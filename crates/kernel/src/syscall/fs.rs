@@ -198,7 +198,11 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
     };
-    info!("oepnat flags {flags:?}");
+    if dir_fd == AT_FDCWD {
+        info!("oepnat {} in cwd, flags {flags:?}", &*path);
+    } else {
+        info!("openat {} from fd {dir_fd}, flags {flags:?}", &*path);
+    }
 
     // TODO: [low] OpenFlags::DIRECT 目前是被忽略的
     // TODO: [low] 暂时未支持 mode
@@ -672,15 +676,10 @@ pub fn sys_ppoll(
             poll_fd.write(poll_fd_val);
             continue;
         }
-        debug!(
-            "poll fd {}, events: {:b}",
-            poll_fd_val.fd, poll_fd_val.events
-        );
         if let Some(fd) = inner.fd_table.get(poll_fd_val.fd as usize) {
             let Some(events) = PollEvents::from_bits(poll_fd_val.events) else {
                 todo!("[low] unsupported poll events: {:#b}", poll_fd_val.events);
             };
-            debug!("poll events {:?}", events);
             match &**fd {
                 // TODO: `stream` 应该建立起合适的轮询机制用以支持 ppoll
                 File::Stream(_) | File::Dir(_) | File::Seekable(_) => {

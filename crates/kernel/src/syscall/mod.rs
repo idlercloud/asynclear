@@ -20,30 +20,52 @@ use crate::{hart::local_hart, memory::UserCheck, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     // 读入标准输入、写入标准输出、写入标准错误都不关心
-    if (id == READ || id == READV) && args[0] == 0
+    // busybox sh 会频繁调用 PPOLL
+    // 一些特别简单基本不太会维护的也可以不关心
+    let is_trace = (id == READ || id == READV) && args[0] == 0
         || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
-    {
-        trace!("args {args:x?}",);
-    } else {
-        info!("args {args:x?}",);
-    }
+        || (id == PPOLL && args[1] == 1)
+        || [
+            GETPGID, GETPID, GETPPID, GETUID, GETUID, SETPGID, GETEUID, UNAME, EXIT, EXIT_GROUP,
+            GETTID,
+        ]
+        .contains(&id);
+    // 一些比较成熟的 syscall 也可以适当降低日志等级
+    let is_debug = [
+        NEWFSTATAT,
+        IOCTL,
+        WAIT4,
+        BRK,
+        GETCWD,
+        RT_SIGACTION,
+        RT_SIGPROCMASK,
+        RT_SIGRETURN,
+        FCNTL64,
+        OPENAT,
+        CLOSE,
+    ]
+    .contains(&id);
     let ret = syscall_impl(id, args).await;
     match ret {
         Ok(ret) => {
-            // 读入标准输入、写入标准输出、写入标准错误都不关心
-            if (id == READ || id == READV) && args[0] == 0
-                || (id == WRITE || id == WRITEV) && (args[0] == 1 || args[0] == 2)
-            {
-                trace!("return {ret} = {ret:#x}");
+            if is_trace {
+                trace!("args {args:x?}. return {ret} = {ret:#x}");
+            } else if is_debug {
+                debug!("args {args:x?}. return {ret} = {ret:#x}");
             } else {
-                info!("return {ret} = {ret:#x}",);
+                info!("args {args:x?}. return {ret} = {ret:#x}");
             }
             ret
         }
         Err(err) => {
-            // 等待进程的 EAGAIN 可以忽视
-            if !((id == WAIT4 && err == errno::EAGAIN) || err == errno::BREAK) {
-                warn!("return {err:?}, {}", errno::error_info(err.as_isize()),);
+            // 等待进程的 EAGAIN 和 ECHILD 可以忽视
+            if !((id == WAIT4 && (err == errno::EAGAIN || err == errno::ECHILD))
+                || err == errno::BREAK)
+            {
+                warn!(
+                    "args {args:x?}. return {err:?}, {}",
+                    errno::error_info(err.as_isize()),
+                );
             }
             err.as_isize()
         }

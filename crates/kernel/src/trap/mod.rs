@@ -84,6 +84,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             | Exception::InstructionPageFault
             | Exception::LoadPageFault),
         ) => {
+            let _enter = info_span!("pagefault").entered();
             let thread = local_hart().curr_thread();
 
             let ok = thread.process.lock_inner_with(|inner| {
