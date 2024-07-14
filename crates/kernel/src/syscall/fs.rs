@@ -22,7 +22,7 @@ use crate::{
     memory::UserCheck,
 };
 
-/// 操纵某个特殊文件的底层设备，尤其是字符特殊文件。目前只进行错误检验
+/// 操纵某个特殊文件的底层设备，尤其是字符特殊文件
 ///
 /// 参数：
 /// - `fd` 文件描述符
@@ -39,7 +39,6 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
         return Err(errno::EBADF);
     };
 
-    // TODO: [mid] 实现 `sys_ioctl` 的逻辑
     desc.ioctl(request, argp)
 }
 
@@ -646,7 +645,7 @@ pub fn sys_ppoll(
     signal_mask: Option<UserCheck<u64>>,
     sig_set_size: usize,
 ) -> KResult {
-    let _enter = trace_span!("sys_ppoll");
+    let _enter = trace_span!("sys_ppoll").entered();
 
     // TODO: [mid] ppoll 要考虑 `timeout`
     let _timeout = if let Some(timeout) = timeout {
