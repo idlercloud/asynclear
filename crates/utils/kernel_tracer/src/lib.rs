@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(format_args_nl)]
 #![feature(negative_impls)]
+#![feature(decl_macro)]
 
 extern crate alloc;
 
@@ -12,6 +13,7 @@ mod span;
 
 use klocks::Once;
 pub use level::{Level, CLOG, FLOG, SLOG};
+pub use macros::{log, log_enabled};
 pub use record::Record;
 pub use span::{instrument::Instrument, Span, SpanAttr, SpanId};
 
