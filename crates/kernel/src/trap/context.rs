@@ -2,6 +2,9 @@ use core::arch::asm;
 
 use riscv::register::sstatus::FS;
 
+// TODO: [mid] `TrapContext` 中的某些字段如 `kernel_s` 之类的其实不应该存在这里
+// 目前的想法是可以单独分出来放到 `Hart` 结构中
+
 #[repr(C)]
 #[derive(Clone)]
 /// 该结构体保存了通用寄存器、sstatus、sepc 等
