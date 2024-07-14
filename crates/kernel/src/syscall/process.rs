@@ -218,10 +218,11 @@ pub async fn sys_wait4(
     );
     assert_eq!(rusage, 0, "rusage not supported, so must be nullptr");
     let options = WaitFlags::from_bits(options as u32).ok_or(errno::EINVAL)?;
-    if options.contains(WaitFlags::WIMTRACED) || options.contains(WaitFlags::WCONTINUED) {
-        error!("only support WNOHANG now");
-        return Err(errno::UNSUPPORTED);
-    }
+    // TODO: [low] 信号的暂停和继续其实没实现，所以这里先不管
+    // if options.contains(WaitFlags::WIMTRACED) || options.contains(WaitFlags::WCONTINUED) {
+    //     error!("only support WNOHANG now: {options:?}");
+    //     return Err(errno::UNSUPPORTED);
+    // }
 
     // 尝试找到一个符合条件，且已经是僵尸的子进程
     let process = Arc::clone(&*local_hart().curr_process_arc());
