@@ -37,6 +37,10 @@ unsize = "1.1"
 [profile.dev]
 opt-level = 1
 
+[profile.dev.package."*"]
+opt-level = 3
+debug = "limited"
+
 [profile.release]
 codegen-units = 1
 lto = "fat"
