@@ -151,44 +151,56 @@ pub async fn sys_execve(
     argv: UserCheck<usize>,
     envp: Option<UserCheck<usize>>,
 ) -> KResult {
-    debug!("pathname: {}", &*pathname.check_cstr()?);
-    // 收集参数列表
-    let collect_cstrs = |mut ptr_vec: UserCheck<usize>| -> KResult<Vec<CompactString>> {
-        let mut v = Vec::new();
-        loop {
-            // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
-            let arg_str_ptr = ptr_vec.check_ptr()?.read();
-            if arg_str_ptr == 0 {
-                break;
+    let (bytes, args, envs) = {
+        let pathname = pathname.check_cstr()?;
+        let mut pathname = &*pathname;
+        debug!("pathname: {}", pathname);
+        // 收集参数列表
+        let collect_cstrs = |mut v: Vec<CompactString>,
+                             mut ptr_vec: UserCheck<usize>|
+         -> KResult<Vec<CompactString>> {
+            loop {
+                // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
+                let arg_str_ptr = ptr_vec.check_ptr()?.read();
+                if arg_str_ptr == 0 {
+                    break;
+                }
+                let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
+                    .ok_or(errno::EINVAL)?
+                    .check_cstr()?;
+                v.push(CompactString::from(&*arg_str));
+                ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
             }
-            let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
-                .ok_or(errno::EINVAL)?
-                .check_cstr()?;
-            v.push(CompactString::from(&*arg_str));
-            ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
+            Ok(v)
+        };
+
+        let mut args = Vec::new();
+        // FIXME: [low] hack: 实际上应该检查 shebang，这里简化认为 .sh 都应该以 busybox 执行
+        if pathname.ends_with(".sh") {
+            pathname = "/busybox";
+            args.push(CompactString::from_static_str("busybox"));
+            args.push(CompactString::from_static_str("sh"));
         }
-        Ok(v)
-    };
-    let args = collect_cstrs(argv)?;
-    let envs = if let Some(envp) = envp {
-        collect_cstrs(envp)?
-    } else {
-        Vec::new()
-    };
+        args = collect_cstrs(args, argv)?;
+        let envs = if let Some(envp) = envp {
+            collect_cstrs(Vec::new(), envp)?
+        } else {
+            Vec::new()
+        };
 
-    // 执行新进程
+        // 执行新进程
 
-    let elf_data = {
-        let DEntry::Bytes(bytes) = fs::find_file(&pathname.check_cstr()?)? else {
+        let DEntry::Bytes(bytes) = fs::find_file(&pathname)? else {
             return Err(errno::EISDIR);
         };
         if bytes.inode().meta().mode() != InodeMode::Regular {
             return Err(errno::EACCES);
         }
-        fs::read_file(bytes.inode()).await?
+        (bytes, args, envs)
     };
 
     let argc = args.len();
+    let elf_data = fs::read_file(bytes.inode()).await?;
     local_hart().curr_process().exec(&elf_data, args, envs)?;
     Ok(argc as isize)
 }
