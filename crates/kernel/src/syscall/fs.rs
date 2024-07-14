@@ -681,14 +681,19 @@ pub fn sys_ppoll(
                 todo!("[low] unsupported poll events: {:#b}", poll_fd_val.events);
             };
             match &**fd {
-                // TODO: `stream` 应该建立起合适的轮询机制用以支持 ppoll
-                File::Stream(_) | File::Dir(_) | File::Seekable(_) => {
+                // 目录、常规文件和块设备没有合理的轮询语义，因此直接返回
+                File::Dir(_) | File::Seekable(_) => {
                     poll_fd_val.revents =
                         (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
+                    ret += 1;
                 }
-                File::Pipe(_) => todo!("[mid] impl other ppoll target"),
+                // TODO: 轮询机制尚未实现，一律返回 ok
+                File::Stream(_) | File::Pipe(_) => {
+                    poll_fd_val.revents =
+                        (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
+                    ret += 1;
+                }
             }
-            ret += 1;
         } else {
             poll_fd_val.revents = PollEvents::POLLNVAL.bits();
         }
