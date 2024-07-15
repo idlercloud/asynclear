@@ -270,8 +270,6 @@ impl FileDescriptor {
 
     pub async fn seek(&self, pos: SeekFrom) -> KResult<usize> {
         match &self.file {
-            File::Stream(_) | File::Pipe(_) => Err(errno::ESPIPE),
-            File::Dir(_) => todo!("[low] what does dir seek mean?"),
             File::Seekable(seekable) => {
                 let ret = match pos {
                     SeekFrom::Start(pos) => {
@@ -297,6 +295,8 @@ impl FileDescriptor {
                 };
                 Ok(ret)
             }
+            File::Stream(_) | File::Pipe(_) => Err(errno::ESPIPE),
+            File::Dir(_) => todo!("[low] what does dir seek mean?"),
         }
     }
 

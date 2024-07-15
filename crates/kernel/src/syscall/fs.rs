@@ -678,15 +678,16 @@ pub fn sys_ppoll(
             let Some(events) = PollEvents::from_bits(poll_fd_val.events) else {
                 todo!("[low] unsupported poll events: {:#b}", poll_fd_val.events);
             };
+            #[expect(clippy::match_same_arms, reason = "现在只是暂未实现，以后会不同的")]
             match &**fd {
-                // 目录、常规文件和块设备没有合理的轮询语义，因此直接返回
-                File::Dir(_) | File::Seekable(_) => {
+                // TODO: 轮询机制尚未实现，一律返回 ok
+                File::Stream(_) | File::Pipe(_) => {
                     poll_fd_val.revents =
                         (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                     ret += 1;
                 }
-                // TODO: 轮询机制尚未实现，一律返回 ok
-                File::Stream(_) | File::Pipe(_) => {
+                // 目录、常规文件和块设备没有合理的轮询语义，因此直接返回
+                File::Dir(_) | File::Seekable(_) => {
                     poll_fd_val.revents =
                         (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                     ret += 1;

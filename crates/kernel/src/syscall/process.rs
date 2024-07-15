@@ -190,7 +190,7 @@ pub async fn sys_execve(
 
         // 执行新进程
 
-        let DEntry::Bytes(bytes) = fs::find_file(&pathname)? else {
+        let DEntry::Bytes(bytes) = fs::find_file(pathname)? else {
             return Err(errno::EISDIR);
         };
         if bytes.inode().meta().mode() != InodeMode::Regular {
