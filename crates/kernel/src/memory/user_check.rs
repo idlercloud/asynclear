@@ -117,9 +117,7 @@ impl<T> UserCheck<[T]> {
         if range.end > self.len() || range.start > range.end {
             return None;
         }
-        let first = UserCheck {
-            ptr: self.ptr.as_non_null_ptr(),
-        };
+        let first = self.as_user_check().add(range.start)?;
         Some(UserCheck {
             ptr: NonNull::slice_from_raw_parts(first.ptr, range.end - range.start),
         })
