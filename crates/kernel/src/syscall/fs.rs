@@ -649,8 +649,6 @@ pub fn sys_ppoll(
     signal_mask: Option<UserCheck<u64>>,
     sig_set_size: usize,
 ) -> KResult {
-    let _enter = trace_span!("sys_ppoll").entered();
-
     // TODO: [mid] ppoll 要考虑 `timeout`
     let _timeout = if let Some(timeout) = timeout {
         let timeout = timeout.check_ptr()?.read();

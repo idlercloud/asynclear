@@ -153,7 +153,6 @@ pub fn trap_return(trap_context: NonNull<TrapContext>) {
     unsafe {
         sstatus::clear_sie();
     }
-    trace!("enter user mode");
     set_user_trap_entry();
 
     extern "C" {

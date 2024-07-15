@@ -104,7 +104,6 @@ pub fn sys_rt_sigprocmask(
 }
 
 pub fn sys_rt_sigreturn() -> KResult {
-    debug!("sigreturn called");
     let thread = local_hart().curr_thread();
     let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
     let Ok(old_ctx) = UserCheck::new(trap_context.sp() as *mut SignalContext)
