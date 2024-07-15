@@ -12,7 +12,7 @@ use triomphe::Arc;
 use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
     fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
-    memory::{ReadBuffer, UserCheck},
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
     time,
 };
 
@@ -92,7 +92,7 @@ impl BytesInodeBackend for FatFile {
         }
     }
 
-    fn write_inode_at(&self, buf: UserCheck<[u8]>, offset: u64) -> AKResult<'_, usize> {
+    fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, offset: u64) -> AKResult<'a, usize> {
         todo!("[high] impl write_page for FatFile")
     }
 }

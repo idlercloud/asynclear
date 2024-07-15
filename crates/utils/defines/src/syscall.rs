@@ -32,6 +32,7 @@ declare_syscall_id!(
     WRITE,              64,
     READV,              65,
     WRITEV,             66,
+    SENDFILE64,         71,
     PPOLL,              73,
     NEWFSTATAT,         79,
     NEWFSTAT,           80,

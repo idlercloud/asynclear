@@ -15,7 +15,7 @@ use super::{
     pipe::Pipe,
     DEntry, DEntryBytes, DEntryDir, DynBytesInode,
 };
-use crate::memory::{ReadBuffer, UserCheck};
+use crate::memory::{ReadBuffer, UserCheck, WriteBuffer};
 
 #[derive(Clone)]
 pub enum File {
@@ -235,25 +235,35 @@ impl FileDescriptor {
         self.flags.read_write().1
     }
 
-    pub async fn read(&self, mut buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn read(&self, mut buf: ReadBuffer<'_>) -> KResult<usize> {
         match &self.file {
             File::Dir(_) => Err(errno::EBADF),
             File::Pipe(pipe) => pipe.read(buf).await,
             File::Seekable(seekable) => {
                 let inode = seekable.inode();
                 let mut offset = seekable.offset.lock().await;
-                let nread = inode.read_at(ReadBuffer::User(buf), *offset).await?;
+                let nread = inode.read_at(buf, *offset).await?;
                 *offset += nread as u64;
                 Ok(nread)
             }
-            File::Stream(stream) => stream.inode().read_at(ReadBuffer::User(buf), 0).await,
+            File::Stream(stream) => stream.inode().read_at(buf, 0).await,
         }
     }
 
-    pub async fn write(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn read_at(&self, mut buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         match &self.file {
+            File::Seekable(seekable) => {
+                let inode = seekable.inode();
+                let nread = inode.read_at(buf, offset).await?;
+                Ok(nread)
+            }
             File::Dir(_) => Err(errno::EBADF),
-            File::Pipe(pipe) => pipe.write(buf).await,
+            File::Stream(_) | File::Pipe(_) => Err(errno::ESPIPE),
+        }
+    }
+
+    pub async fn write(&self, buf: WriteBuffer<'_>) -> KResult<usize> {
+        match &self.file {
             File::Seekable(seekable) => {
                 let inode = seekable.inode();
                 let mut offset = seekable.offset.lock().await;
@@ -265,6 +275,8 @@ impl FileDescriptor {
                 Ok(nwrite)
             }
             File::Stream(stream) => stream.inode().write_at(buf, 0).await,
+            File::Pipe(pipe) => pipe.write(buf).await,
+            File::Dir(_) => Err(errno::EBADF),
         }
     }
 

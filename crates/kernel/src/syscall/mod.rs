@@ -148,6 +148,7 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             )
             .await
         }
+        SENDFILE64 => sys_sendfile64(args[0], args[1], UserCheck::new(args[2] as _), args[3]).await,
         PPOLL => sys_ppoll(
             UserCheck::new_slice(args[0] as _, args[1]).ok_or(errno::EINVAL)?,
             UserCheck::new(args[2] as _),

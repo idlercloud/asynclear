@@ -16,7 +16,8 @@ use scopeguard::defer;
 
 use crate::hart::local_hart;
 
-/// 内核有时也会有读文件的需求
+// 内核有时也有读写文件的需求，比如 sendfile 的实现
+
 pub enum ReadBuffer<'a> {
     Kernel(&'a mut [u8]),
     User(UserCheck<[u8]>),
@@ -27,6 +28,32 @@ impl ReadBuffer<'_> {
         match self {
             ReadBuffer::Kernel(buf) => buf.len(),
             ReadBuffer::User(buf) => buf.len(),
+        }
+    }
+}
+
+pub enum WriteBuffer<'a> {
+    Kernel(&'a [u8]),
+    User(UserCheck<[u8]>),
+}
+
+impl WriteBuffer<'_> {
+    pub fn len(&self) -> usize {
+        match self {
+            WriteBuffer::Kernel(buf) => buf.len(),
+            WriteBuffer::User(buf) => buf.len(),
+        }
+    }
+}
+
+impl<'a> WriteBuffer<'a> {
+    pub fn slice(&self, range: Range<usize>) -> Option<WriteBuffer<'a>> {
+        if range.end > self.len() || range.start > range.end {
+            return None;
+        }
+        match self {
+            WriteBuffer::Kernel(buf) => Some(WriteBuffer::Kernel(buf.get(range)?)),
+            WriteBuffer::User(buf) => Some(WriteBuffer::User(buf.slice(range)?)),
         }
     }
 }
@@ -102,6 +129,12 @@ impl<T> UserCheck<[T]> {
             ptr: self.ptr,
             _access_user_guard,
         })
+    }
+
+    pub fn as_user_check(&self) -> UserCheck<T> {
+        UserCheck {
+            ptr: self.ptr.as_non_null_ptr(),
+        }
     }
 
     pub fn into_raw_parts(self) -> (UserCheck<T>, usize) {

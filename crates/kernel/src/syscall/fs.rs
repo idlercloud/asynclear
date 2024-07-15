@@ -11,6 +11,7 @@ use defines::{
     misc::TimeSpec,
 };
 use kernel_tracer::Instrument;
+use smallvec::SmallVec;
 use triomphe::Arc;
 
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
         InodeMode, SeekFrom, SeekableFile, VFS,
     },
     hart::local_hart,
-    memory::UserCheck,
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
 };
 
 /// 操纵某个特殊文件的底层设备，尤其是字符特殊文件
@@ -96,7 +97,7 @@ pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 
     let file = prepare_io::<true>(fd)?;
     let nread = file
-        .read(buf)
+        .read(ReadBuffer::User(buf))
         .instrument(debug_span!("read_fd", fd = fd))
         .await?;
     Ok(nread)
@@ -140,7 +141,7 @@ pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> K
         let iov = iovec.check_ptr()?.read();
         if iov.iov_len != 0 {
             let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
-            let nread = file.read(buf).await?;
+            let nread = file.read(ReadBuffer::User(buf)).await?;
             if nread == 0 {
                 break;
             }
@@ -172,7 +173,7 @@ pub async fn sys_writev(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> 
         let iov = iovec.check_ptr()?.read();
         if iov.iov_len != 0 {
             let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
-            let nwrite = file.write(buf).await?;
+            let nwrite = file.write(WriteBuffer::User(buf)).await?;
             total_write += nwrite;
         }
         iovec = iovec.add(1).ok_or(errno::EINVAL)?;
@@ -698,5 +699,48 @@ pub fn sys_ppoll(
         }
         poll_fd.write(poll_fd_val);
     }
+    Ok(ret)
+}
+
+/// 将数据从 `in_fd` 指向的文件复制到 `out_fd` 指向的文件，传输成功则返回写入的字节数（同 `read`、`write`，可能少于请求的字节数）
+///
+/// 参数：
+/// - `in_fd` 复制的源
+/// - `out_fd` 复制的目的文件
+/// - `offset_ptr`
+///     - 若不为 None，则将从 `in_fd` 的该偏移量开始读数据，且不会修改起文件偏移量。调用完成后，它将增加读取的字节数
+///     - 若为 None，则从当前文件偏移量开始读取，并且修改文件偏移量
+/// - `count` 指定复制的字节数
+pub async fn sys_sendfile64(
+    out_fd: usize,
+    in_fd: usize,
+    offset_ptr: Option<UserCheck<u64>>,
+    count: usize,
+) -> KResult {
+    let source = prepare_io::<true>(in_fd)?;
+    let target = prepare_io::<false>(out_fd)?;
+
+    let mut buf = SmallVec::<[u8; 32]>::with_capacity(count);
+    let buf_slice = unsafe { core::slice::from_raw_parts_mut(buf.as_mut_ptr(), count) };
+
+    let n_read = match offset_ptr {
+        Some(offset_ptr) => {
+            let offset = offset_ptr.check_ptr()?.read();
+            let n_read = source
+                .read_at(ReadBuffer::Kernel(buf_slice), offset)
+                .await?;
+            unsafe { offset_ptr.check_ptr_mut()?.write(offset + n_read as u64) }
+            n_read
+        }
+        None => source.read(ReadBuffer::Kernel(buf_slice)).await?,
+    };
+    // SAFETY: read 函数的实现保证前 `n_read` 字节已被初始化
+    unsafe {
+        buf.set_len(n_read);
+    }
+
+    debug!("read {n_read} bytes from in_fd");
+    let ret = target.write(WriteBuffer::Kernel(&buf)).await?;
+
     Ok(ret)
 }

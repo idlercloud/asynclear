@@ -3,7 +3,10 @@ use defines::error::{errno, KResult};
 use triomphe::Arc;
 
 use super::{inode::InodeMeta, InodeMode};
-use crate::{memory::UserCheck, time};
+use crate::{
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
+    time,
+};
 
 // TODO: [low] pipe 的实现可以优化
 
@@ -16,19 +19,27 @@ pub struct Pipe {
 }
 
 impl Pipe {
-    pub async fn read(&self, buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn read(&self, mut buf: ReadBuffer<'_>) -> KResult<usize> {
         let PipeInner::ReadEnd(receiver) = &self.inner else {
             return Err(errno::EBADF);
         };
-        let (mut curr, len) = buf.into_raw_parts();
+        let len = buf.len();
         let mut n_read = 0;
 
         while n_read < len {
             let Ok(byte) = receiver.recv().await else {
                 break;
             };
-            unsafe { curr.check_ptr_mut()? }.write(byte);
-            curr = curr.add(1).ok_or(errno::EINVAL)?;
+            match &mut buf {
+                ReadBuffer::Kernel(buf) => buf[n_read] = byte,
+                ReadBuffer::User(buf) => unsafe {
+                    buf.as_user_check()
+                        .add(n_read)
+                        .ok_or(errno::EINVAL)?
+                        .check_ptr_mut()?
+                        .write(byte);
+                },
+            }
             n_read += 1;
         }
         let curr_time = time::curr_time_spec();
@@ -37,7 +48,7 @@ impl Pipe {
         Ok(n_read)
     }
 
-    pub async fn write(&self, mut buf: UserCheck<[u8]>) -> KResult<usize> {
+    pub async fn write(&self, mut buf: WriteBuffer<'_>) -> KResult<usize> {
         let PipeInner::WriteEnd(sender) = &self.inner else {
             return Err(errno::EBADF);
         };
@@ -47,7 +58,10 @@ impl Pipe {
         'out: loop {
             let mut this_n_write = 0;
             let last_byte = {
-                let slice = buf.check_slice()?;
+                let slice = match &buf {
+                    WriteBuffer::Kernel(buf) => *buf,
+                    WriteBuffer::User(buf) => &buf.check_slice()?,
+                };
                 for &byte in slice.iter() {
                     if let Err(err) = sender.try_send(byte) {
                         this_n_write += 1;

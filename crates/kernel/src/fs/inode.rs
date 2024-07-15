@@ -15,7 +15,7 @@ use super::{dentry::DEntryDir, page_cache::PageCache};
 use crate::{
     executor::block_on,
     fs::page_cache::PageState,
-    memory::{ReadBuffer, UserCheck},
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
     time,
 };
 
@@ -119,7 +119,7 @@ pub trait DirInodeBackend: Send + Sync {
 pub trait BytesInodeBackend: Send + Sync + 'static {
     fn meta(&self) -> &InodeMeta;
     fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, _offset: u64) -> AKResult<'_, usize>;
-    fn write_inode_at(&self, buf: UserCheck<[u8]>, offset: u64) -> AKResult<'_, usize>;
+    fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, offset: u64) -> AKResult<'_, usize>;
     fn ioctl(&self, request: usize, argp: usize) -> KResult {
         Err(errno::ENOTTY)
     }
@@ -187,13 +187,13 @@ impl dyn BytesInodeBackend {
         }
     }
 
-    pub async fn write_at(&self, buf: UserCheck<[u8]>, offset: u64) -> KResult<usize> {
+    pub async fn write_at(&self, buf: WriteBuffer<'_>, offset: u64) -> KResult<usize> {
         self.write_at_impl(buf, offset)
             .instrument(debug_span!("write_at", offset = offset))
             .await
     }
 
-    async fn write_at_impl(&self, buf: UserCheck<[u8]>, offset: u64) -> KResult<usize> {
+    async fn write_at_impl(&self, buf: WriteBuffer<'_>, offset: u64) -> KResult<usize> {
         let meta = self.meta();
         if meta.mode() == InodeMode::Regular {
             let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
@@ -231,11 +231,15 @@ impl dyn BytesInodeBackend {
                 }
 
                 let copy_len = usize::min(buf.len() - nwrite, PAGE_SIZE - page_offset);
-                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len].copy_from_slice(
-                    &buf.slice(nwrite..nwrite + copy_len)
-                        .expect("should not panic")
-                        .check_slice()?,
-                );
+                let buf_slice = match buf
+                    .slice(nwrite..nwrite + copy_len)
+                    .expect("should not panic")
+                {
+                    WriteBuffer::Kernel(buf) => buf,
+                    WriteBuffer::User(buf) => &*buf.check_slice()?,
+                };
+                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len]
+                    .copy_from_slice(buf_slice);
                 nwrite += copy_len;
             }
             let curr_time = time::curr_time_spec();

@@ -23,7 +23,7 @@ use crate::{
         inode::{BytesInodeBackend, InodeMeta},
         DynBytesInode, InodeMode,
     },
-    memory::{ReadBuffer, UserCheck},
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
     time,
     uart_console::print,
 };
@@ -102,18 +102,19 @@ impl BytesInodeBackend for TtyInode {
         Box::pin(TtyFuture::new(buf).instrument(trace_span!("read_tty")))
     }
 
-    fn write_inode_at(&self, buf: UserCheck<[u8]>, _offset: u64) -> AKResult<'_, usize> {
+    fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'a, usize> {
         let _entered = trace_span!("write_tty").entered();
         let curr_time = time::curr_time_spec();
         self.meta
             .lock_inner_with(|inner| inner.modify_time = curr_time);
 
         Box::pin(async move {
-            {
-                let buf = buf.check_slice()?;
-                let s = core::str::from_utf8(&buf).unwrap();
-                print!("{s}");
-            }
+            let buf = match &buf {
+                WriteBuffer::Kernel(buf) => *buf,
+                WriteBuffer::User(buf) => &buf.check_slice()?,
+            };
+            let s = core::str::from_utf8(buf).unwrap();
+            print!("{s}");
             Ok(buf.len())
         })
     }
