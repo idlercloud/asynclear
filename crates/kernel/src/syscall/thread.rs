@@ -10,5 +10,5 @@ use crate::hart::local_hart;
 ///
 /// <https://man7.org/linux/man-pages/man2/gettid.2.html>
 pub fn sys_gettid() -> KResult {
-    Ok(local_hart().curr_thread().tid() as isize)
+    Ok(local_hart().curr_thread().tid())
 }

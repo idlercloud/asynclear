@@ -11,7 +11,7 @@ impl Error {
     }
 }
 
-pub type KResult<T = isize> = Result<T, Error>;
+pub type KResult<T = usize> = Result<T, Error>;
 pub type AKResult<'a, T = isize> = Pin<Box<dyn Future<Output = KResult<T>> + Send + 'a>>;
 
 pub mod errno {

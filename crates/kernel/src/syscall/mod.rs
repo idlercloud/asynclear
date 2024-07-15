@@ -55,7 +55,7 @@ pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
             } else {
                 info!("args {args:x?}. return {ret} = {ret:#x}");
             }
-            ret
+            ret as isize
         }
         Err(err) => {
             // 等待进程的 EAGAIN 和 ECHILD 可以忽视

@@ -44,7 +44,7 @@ pub async fn sys_sched_yield() -> KResult {
 
 /// 返回当前进程 id，永不失败
 pub fn sys_getpid() -> KResult {
-    let pid = local_hart().curr_process().pid() as isize;
+    let pid = local_hart().curr_process().pid();
     Ok(pid)
 }
 
@@ -53,7 +53,7 @@ pub fn sys_getppid() -> KResult {
     // INITPROC(pid=1) 没有父进程，返回 0
     let ppid = local_hart()
         .curr_process()
-        .lock_inner_with(|inner| inner.parent.as_ref().map_or(0, |p| p.pid()) as isize);
+        .lock_inner_with(|inner| inner.parent.as_ref().map_or(0, |p| p.pid()));
     Ok(ppid)
 }
 
@@ -136,7 +136,7 @@ pub fn sys_clone(
             .curr_thread()
             .process
             .fork(user_stack, exit_signal);
-        Ok(new_process.pid() as isize)
+        Ok(new_process.pid())
     }
 }
 
@@ -202,7 +202,7 @@ pub async fn sys_execve(
     let argc = args.len();
     let elf_data = fs::read_file(bytes.inode()).await?;
     local_hart().curr_process().exec(&elf_data, args, envs)?;
-    Ok(argc as isize)
+    Ok(argc)
 }
 
 /// 挂起本线程，等待子进程改变状态（终止、或信号处理）。默认而言，会阻塞式等待子进程终止
@@ -270,7 +270,7 @@ pub async fn sys_wait4(
                     // *wstatus 的构成，可能要参考 WEXITSTATUS 那几个宏
                     wstatus.write((exit_code as u8 as i32) << 8);
                 }
-                return Ok(found_pid as isize);
+                return Ok(found_pid);
             }
 
             // 否则视 `options` 而定
@@ -298,7 +298,7 @@ pub fn sys_setpriority(_prio: isize) -> KResult {
 pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
     let thread = local_hart().curr_thread();
     unsafe { thread.get_owned().as_mut().clear_child_tid = tidptr as usize };
-    Ok(thread.tid() as isize)
+    Ok(thread.tid())
 }
 
 /// 返回系统信息，返回值为 0
@@ -313,7 +313,7 @@ pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
 /// TODO: 暂时未实现
 pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
     debug!("set pgid of {_pid} to {_pgid}");
-    Ok(INITPROC.pid() as isize)
+    Ok(INITPROC.pid())
 }
 
 /// 返回进程组号
@@ -321,5 +321,5 @@ pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
 /// TODO: 暂时未实现，仅返回 INITPROC 的 pid
 pub fn sys_getpgid(_pid: usize) -> KResult {
     debug!("get pgid of {_pid}");
-    Ok(INITPROC.pid() as isize)
+    Ok(INITPROC.pid())
 }

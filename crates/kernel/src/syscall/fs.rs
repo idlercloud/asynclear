@@ -68,7 +68,7 @@ pub async fn sys_lseek(fd: usize, offset: i64, whence: usize) -> KResult {
         SEEK_CUR => SeekFrom::Current(offset),
         _ => return Err(errno::EINVAL),
     };
-    Ok(file.seek(pos).await? as isize)
+    file.seek(pos).await
 }
 
 fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
@@ -99,7 +99,7 @@ pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
         .read(buf)
         .instrument(debug_span!("read_fd", fd = fd))
         .await?;
-    Ok(nread as isize)
+    Ok(nread)
 }
 
 /// 向 fd 指示的文件中写入至多 `len` 字节的数据。成功时返回写入的字节数
@@ -115,8 +115,8 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     }
 
     let file = prepare_io::<false>(fd)?;
-    let nwrite = file.write(buf).await?;
-    Ok(nwrite as isize)
+    let nwrite = file.write(WriteBuffer::User(buf)).await?;
+    Ok(nwrite)
 }
 
 /// 从 fd 中读入数据，写入多个用户缓冲区中。
@@ -148,7 +148,7 @@ pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> K
         }
         iovec = iovec.add(1).ok_or(errno::EINVAL)?;
     }
-    Ok(tot_read as isize)
+    Ok(tot_read)
 }
 
 /// 向 fd 中写入数据，数据来自多个用户缓冲区。
@@ -177,7 +177,7 @@ pub async fn sys_writev(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> 
         }
         iovec = iovec.add(1).ok_or(errno::EINVAL)?;
     }
-    Ok(total_write as isize)
+    Ok(total_write)
 }
 
 /// 打开指定的文件。返回非负的文件描述符，这个文件描述符一定是当前进程尚未打开的最小的那个
@@ -262,7 +262,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
         .curr_process()
         .lock_inner_with(|inner| inner.fd_table.add(FileDescriptor::new(new_file, flags)))
         .ok_or(errno::EMFILE)?;
-    Ok(ret_fd as isize)
+    Ok(ret_fd)
 }
 
 pub fn sys_close(fd: usize) -> KResult {
@@ -312,7 +312,7 @@ pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     };
     let mut buf = unsafe { buf.check_slice_mut()? };
     let ret = dir.getdirents(buf.as_bytes_mut())?;
-    Ok(ret as isize)
+    Ok(ret)
 }
 
 /// 操控文件描述符
@@ -358,7 +358,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
                 inner.fd_table.get(new_fd).unwrap().debug_name(),
                 cmd == F_DUPFD_CLOEXEC
             );
-            Ok(new_fd as isize)
+            Ok(new_fd)
         }
         F_GETFD => {
             let desc = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
@@ -394,7 +394,7 @@ pub fn sys_dup(old_fd: usize) -> KResult {
         return Err(errno::EBADF);
     };
     let new_fd = inner.fd_table.add(new_desc).ok_or(errno::EMFILE)?;
-    Ok(new_fd as isize)
+    Ok(new_fd)
 }
 
 /// 复制文件描述符 `old_fd` 到指定描述符 `new_fd`
@@ -424,7 +424,7 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
         new_desc.set_close_on_exec(true);
     }
     inner.fd_table.insert(new_fd, new_desc);
-    Ok(new_fd as isize)
+    Ok(new_fd)
 }
 
 /// 获取一个文件的信息
@@ -585,7 +585,7 @@ pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
 /// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
 /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
 pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
-    let ret = buf.addr().get() as isize;
+    let ret = buf.addr().get();
     let cwd = local_hart()
         .curr_process()
         .lock_inner_with(|inner| Arc::clone(&inner.cwd));

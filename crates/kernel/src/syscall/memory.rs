@@ -82,7 +82,7 @@ pub fn sys_mmap(
             todo!("[mid] impl private file mapping");
         }
     };
-    Ok(vpn.page_start().0 as isize)
+    Ok(vpn.page_start().0)
 }
 
 /// 私有匿名映射，没有底层文件。内容全部初始化为 0
@@ -177,5 +177,5 @@ pub fn sys_munmap(addr: usize, len: usize) -> KResult {
 pub fn sys_brk(brk: usize) -> KResult {
     let process = local_hart().curr_process();
     let mut inner = process.lock_inner();
-    Ok(inner.set_user_brk(VirtAddr(brk)).0 as isize)
+    Ok(inner.set_user_brk(VirtAddr(brk)).0)
 }

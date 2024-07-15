@@ -120,5 +120,5 @@ pub fn sys_rt_sigreturn() -> KResult {
     thread.lock_inner_with(|inner| inner.signal_mask = old_ctx.old_mask);
     *trap_context = old_ctx.old_trap_context;
 
-    Ok(trap_context.a0() as isize)
+    Ok(trap_context.a0())
 }
