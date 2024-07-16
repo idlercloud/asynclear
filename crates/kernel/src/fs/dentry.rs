@@ -5,6 +5,7 @@ use cervine::Cow;
 use compact_str::CompactString;
 use defines::error::{errno, KResult};
 use klocks::{SpinMutex, SpinMutexGuard};
+use smallvec::SmallVec;
 use triomphe::Arc;
 
 use super::inode::{DynBytesInode, DynDirInode, DynInode, InodeMeta, InodeMode};
@@ -189,6 +190,32 @@ impl DEntryDir {
 
     pub fn inode(&self) -> &Arc<DynDirInode> {
         &self.inode
+    }
+
+    pub fn path(&self) -> CompactString {
+        let mut dirs = SmallVec::<[&DEntryDir; 4]>::new();
+        let mut dir = self;
+        // 根目录 `/` 和 `\0`
+        loop {
+            let Some(parent) = dir.parent() else {
+                break;
+            };
+            dirs.push(dir);
+            dir = parent;
+        }
+
+        let mut path = CompactString::from_static_str("/");
+
+        for component in dirs
+            .into_iter()
+            .rev()
+            .map(|dir| dir.name())
+            .intersperse("/")
+        {
+            path.push_str(component);
+        }
+
+        path
     }
 }
 

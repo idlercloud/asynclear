@@ -1,3 +1,5 @@
+use core::fmt::Display;
+
 use bitflags::bitflags;
 
 use crate::misc::TimeSpec;
@@ -111,6 +113,22 @@ bitflags! {
         // const UMOUNT_NOFOLLOW   =   1 << 3;
     }
 
+    #[derive(Debug)]
+    pub struct StatFsFlags: u32 {
+        // /// This filesystem is mounted read-only.
+        // const ST_RDONLY         = 1 << 0;
+        // /// The set-user-ID and set-group-ID bits are ignored by exec(3) for executable files on this filesystem.
+        // const ST_NOSUID         = 1 << 1;
+        // /// Disallow access to device special files on this filesystem.
+        // const ST_NODEV          = 1 << 2;
+        // /// Execution of programs is disallowed on this filesystem.
+        // const ST_NOEXEC         = 1 << 3;
+        // /// Writes are synched to the filesystem immediately (see the description of O_SYNC in open(2)).
+        // const ST_SYNCHRONOUS    = 1 << 4;
+        // /// Mandatory locking is permitted on the filesystem.
+        // const ST_MANDLOCK       = 1 << 6;
+    }
+
     /// 注意低 2 位指出文件的打开模式
     /// 0、1、2 分别对应只读、只写、可读可写。3 为错误。
     #[derive(Clone, Copy, Debug)]
@@ -151,6 +169,12 @@ bitflags! {
         // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
         // FIXME: 初赛误把 `O_DIRECTORY` 定义成了 `O_PATH`，这里暂时开启以便通过测试，实际未支持
         const PATH        = 1 << 21;
+    }
+}
+
+impl Display for StatFsFlags {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "rw")
     }
 }
 

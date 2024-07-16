@@ -14,7 +14,10 @@ mod fat;
 mod file;
 
 use compact_str::CompactString;
-use defines::error::{errno, KResult};
+use defines::{
+    error::{errno, KResult},
+    fs::StatFsFlags,
+};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
@@ -36,6 +39,7 @@ pub fn new_fat32_fs(
     block_device: &'static DiskDriver,
     name: CompactString,
     device_path: CompactString,
+    flags: StatFsFlags,
 ) -> KResult<FileSystem> {
     let _enter = debug_span!("fat32_fs_init").entered();
     let bpb = {
@@ -58,10 +62,13 @@ pub fn new_fat32_fs(
     let fat = Arc::new(FileAllocTable::new(block_device, &bpb)?);
     let root_dir = Arc::new(FatDir::new_root(fat, bpb.root_cluster)).unsize(DynDirInodeCoercion!());
     let root_dentry = Arc::new(DEntryDir::new(None, name, root_dir));
+    let mount_point = root_dentry.path();
     Ok(FileSystem {
         root_dentry,
         device_path,
         fs_type: crate::fs::FileSystemType::VFat,
         mounted_dentry: None,
+        mount_point,
+        flags,
     })
 }

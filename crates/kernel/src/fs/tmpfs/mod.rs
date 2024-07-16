@@ -1,5 +1,5 @@
 use compact_str::CompactString;
-use defines::error::KResult;
+use defines::{error::KResult, fs::StatFsFlags};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
@@ -18,15 +18,19 @@ pub fn new_tmp_fs(
     parent: Arc<DEntryDir>,
     name: CompactString,
     device_path: CompactString,
+    flags: StatFsFlags,
 ) -> KResult<FileSystem> {
     let root_dir = Arc::new(TmpDir::new()).unsize(DynDirInodeCoercion!());
     let root_dentry = Arc::new(DEntryDir::new(Some(parent), name, root_dir));
+    let mount_point = root_dentry.path();
 
     Ok(FileSystem {
         root_dentry,
         device_path,
         fs_type: crate::fs::FileSystemType::Tmpfs,
         mounted_dentry: None,
+        mount_point,
+        flags,
     })
 }
 

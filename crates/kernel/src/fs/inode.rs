@@ -125,6 +125,8 @@ pub trait BytesInodeBackend: Send + Sync + 'static {
     }
 }
 
+// TODO: [low] 对于伪文件系统中的某些常规文件，比如 /proc/mounts，其实不需要也不应该走页缓存。另一方面，tmpfs 又是完全依据页缓存实现的
+
 impl dyn BytesInodeBackend {
     pub async fn read_at(&self, buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         self.read_at_impl(buf, offset)
@@ -135,6 +137,7 @@ impl dyn BytesInodeBackend {
     async fn read_at_impl(&self, mut buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         let meta = self.meta();
         let data_len = meta.lock_inner_with(|inner| inner.data_len);
+        debug!("read at offset {offset}");
 
         if offset > data_len {
             return Ok(0);

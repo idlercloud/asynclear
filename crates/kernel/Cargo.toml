@@ -9,6 +9,7 @@ atomic.workspace = true
 async-lock.workspace = true
 bytemuck.workspace = true
 chrono.workspace = true
+derive_more.workspace = true
 riscv.workspace = true
 compact_str.workspace = true
 hashbrown.workspace = true
@@ -46,6 +47,7 @@ futures = { version = "0.3", default-features = false, features = [
 ] }
 elf = { path = "../utils/elf" }
 cervine = "0.0.6"
+
 
 [features]
 default = []

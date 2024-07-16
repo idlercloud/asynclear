@@ -8,18 +8,21 @@ mod file;
 mod inode;
 mod page_cache;
 mod pipe;
+mod procfs;
 mod tmpfs;
 
 use alloc::{string::String, vec::Vec};
 use core::{fmt::Write, str::FromStr};
 
 use anstyle::{AnsiColor, Reset};
+use bitflags::Flags;
 use cervine::Cow;
 use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
-    fs::{MountFlags, Stat, StatMode, UnmountFlags, AT_FDCWD},
+    fs::{MountFlags, Stat, StatFsFlags, StatMode, UnmountFlags, AT_FDCWD},
 };
+use derive_more::Display;
 use hashbrown::HashMap;
 use klocks::{Lazy, SpinMutex};
 use triomphe::Arc;
@@ -40,7 +43,9 @@ use crate::{
 
 pub fn init() {
     Lazy::force(&VFS);
-    VFS.mount("/dev", "udev", FileSystemType::Devfs, MountFlags::empty());
+    use FileSystemType::{DevTmpfs, Procfs};
+    VFS.mount("/dev", "udev", DevTmpfs, MountFlags::empty());
+    VFS.mount("/proc", "proc", Procfs, MountFlags::empty());
     VFS.list_root_dir();
 }
 
@@ -63,6 +68,8 @@ impl VirtFileSystem {
     ) -> KResult<()> {
         debug!("mount {device_path} under {mount_point}, fs_type: {fs_type:?}, flags: {flags:?}",);
         let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
+        // TODO: [low] 不太确定 stat fs flags 是怎么来的，目前是从 mount flags 里截取一部分
+        let statfs_flags = StatFsFlags::from_bits_truncate(flags.bits() & 0b1_1101_1111);
         let mut mount_table = self.mount_table.lock();
         // NOTE: linux 要求挂载必须发生在一个存在的目录上，但是我们的实现似乎不需要
         let mounted_dentry;
@@ -91,17 +98,26 @@ impl VirtFileSystem {
         } else {
             p2i.dir
         };
+
         let mut fs = match fs_type {
             // TODO: [high] 挂载 vfat 时是放了一个 tmpfs 进去
             FileSystemType::VFat | FileSystemType::Tmpfs => tmpfs::new_tmp_fs(
                 Arc::clone(&parent),
                 name.to_compact_string(),
                 device_path.to_compact_string(),
+                statfs_flags,
             )?,
-            FileSystemType::Devfs => devfs::new_dev_fs(
+            FileSystemType::DevTmpfs => devfs::new_dev_fs(
                 Arc::clone(&parent),
                 name.to_compact_string(),
                 device_path.to_compact_string(),
+                statfs_flags,
+            )?,
+            FileSystemType::Procfs => procfs::new_proc_fs(
+                Arc::clone(&parent),
+                name.to_compact_string(),
+                device_path.to_compact_string(),
+                statfs_flags,
             )?,
         };
         {
@@ -139,6 +155,22 @@ impl VirtFileSystem {
         }
 
         Ok(())
+    }
+
+    pub fn mounts_info(&self) -> CompactString {
+        let mut ret = CompactString::new("");
+        let mounts = self.mount_table.lock();
+        let mut n_write = 0;
+        for (dentry, fs) in mounts.iter() {
+            writeln!(
+                ret,
+                "{} {} {} {} 0 0",
+                fs.device_path, fs.mount_point, fs.fs_type, fs.flags
+            )
+            .expect("should not fail");
+            // TODO: [low]。是不是要考虑被覆盖挂载的文件系统？
+        }
+        ret
     }
 
     fn list_root_dir(&self) {
@@ -186,6 +218,7 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
         &BLOCK_DEVICE,
         CompactString::from_static_str("/"),
         CompactString::from_static_str("/dev/mmcblk0"),
+        StatFsFlags::empty(),
     )
     .expect("root_fs init failed");
 
@@ -202,13 +235,20 @@ pub struct FileSystem {
     device_path: CompactString,
     fs_type: FileSystemType,
     mounted_dentry: Option<DEntry>,
+    mount_point: CompactString,
+    flags: StatFsFlags,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum FileSystemType {
+    #[display(fmt = "vfat")]
     VFat,
+    #[display(fmt = "tmpfs")]
     Tmpfs,
-    Devfs,
+    #[display(fmt = "devtmpfs")]
+    DevTmpfs,
+    #[display(fmt = "proc")]
+    Procfs,
 }
 
 impl FromStr for FileSystemType {
@@ -218,8 +258,12 @@ impl FromStr for FileSystemType {
         match s {
             "vfat" => Ok(FileSystemType::VFat),
             "tmpfs" => Ok(FileSystemType::Tmpfs),
-            "devfs" => Ok(FileSystemType::Devfs),
-            _ => Err(errno::ENODEV),
+            "devtmpfs" => Ok(FileSystemType::DevTmpfs),
+            "proc" => Ok(FileSystemType::Procfs),
+            _ => {
+                warn!("invalid fs type {s}");
+                Err(errno::ENODEV)
+            }
         }
     }
 }
