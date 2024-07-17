@@ -178,7 +178,7 @@ impl FdTable {
         if self.files.len() >= self.rlimit.rlim_curr {
             return None;
         }
-        let mut new_fd = 0;
+        let mut new_fd = from;
         for (&existed_fd, _) in self.files.range(from..) {
             if new_fd != existed_fd {
                 break;
