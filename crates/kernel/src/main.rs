@@ -16,7 +16,7 @@
 #![feature(strict_provenance)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]
-// #![feature(ptr_metadata)]
+#![feature(debug_closure_helpers)]
 #![feature(negative_impls)]
 
 #[macro_use]

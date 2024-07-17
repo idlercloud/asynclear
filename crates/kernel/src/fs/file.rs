@@ -1,5 +1,5 @@
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::ops::Deref;
+use core::{fmt::Debug, ops::Deref};
 
 use async_lock::Mutex as SleepMutex;
 use defines::{
@@ -212,6 +212,19 @@ impl FdTable {
 
     pub fn limit(&self) -> usize {
         self.rlimit.rlim_curr
+    }
+}
+
+impl Debug for FdTable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FdTable")
+            .field("rlimit", &self.rlimit)
+            .field_with("files", |f| {
+                f.debug_map()
+                    .entries(self.files.iter().map(|(fd, file)| (fd, file.debug_name())))
+                    .finish()
+            })
+            .finish()
     }
 }
 

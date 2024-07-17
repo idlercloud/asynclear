@@ -137,7 +137,6 @@ impl dyn BytesInodeBackend {
     async fn read_at_impl(&self, mut buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         let meta = self.meta();
         let data_len = meta.lock_inner_with(|inner| inner.data_len);
-        debug!("read at offset {offset}");
 
         if offset > data_len {
             return Ok(0);
