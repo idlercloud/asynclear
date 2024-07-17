@@ -1,5 +1,6 @@
 mod fs;
 mod memory;
+mod misc;
 mod process;
 mod signal;
 mod thread;
@@ -11,6 +12,7 @@ use defines::{
 };
 use fs::*;
 use memory::*;
+use misc::*;
 use process::*;
 use signal::*;
 use thread::*;
@@ -104,6 +106,11 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
         STATFS64 => sys_statfs64(
             UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?,
             UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+        ),
+        FACCESSAT => sys_faccessat(
+            args[0],
+            UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+            args[2] as _,
         ),
         CHDIR => sys_chdir(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?),
         OPENAT => sys_openat(
@@ -203,6 +210,7 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
         GETPPID => sys_getppid(),
         GETUID | GETEUID | GETGID | GETEGID => Ok(0), // TODO: 目前不实现用户和用户组相关的部分
         GETTID => sys_gettid(),
+        SYSINFO => sys_sysinfo(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?),
         BRK => sys_brk(args[0]),
         MUNMAP => sys_munmap(args[0], args[1]),
         CLONE => sys_clone(args[0], args[1], args[2], args[3], args[4]),

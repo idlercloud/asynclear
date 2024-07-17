@@ -99,6 +99,40 @@ pub struct Tms {
     pub tms_cstime: usize,
 }
 
+const _F_SIZE: usize = 20 - 2 * size_of::<u64>() - size_of::<u32>();
+#[repr(C)]
+#[derive(Default)]
+pub struct SysInfo {
+    /// Seconds since boot
+    pub uptime: i64,
+    /// 1, 5, and 15 minute load averages
+    pub loads: [u64; 3],
+    /// Total usable main memory size
+    pub totalram: u64,
+    /// Available memory size
+    pub freeram: u64,
+    /// Amount of shared memory
+    pub sharedram: u64,
+    /// Memory used by buffers
+    pub bufferram: u64,
+    /// Total swap space size
+    pub totalswap: u64,
+    /// swap space still available
+    pub freeswap: u64,
+    /// Number of current processes
+    pub procs: i16,
+    /// Explicit padding for m68k
+    pub pad: i16,
+    /// Total high memory size
+    pub totalhigh: u64,
+    /// Available high memory size
+    pub freehigh: u64,
+    /// Memory unit size in bytes
+    pub mem_unit: u32,
+    /// Padding: libc5 uses this..
+    pub _f: [u8; _F_SIZE],
+}
+
 bitflags! {
     #[derive(Clone,Copy,Debug)]
     /// `sys_wait4` 的选项，描述等待方式

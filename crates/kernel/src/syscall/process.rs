@@ -7,7 +7,7 @@ use atomic::Ordering;
 use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
-    misc::{CloneFlags, UtsName, WaitFlags},
+    misc::{CloneFlags, WaitFlags},
 };
 use event_listener::listener;
 use triomphe::Arc;
@@ -299,13 +299,6 @@ pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
     let thread = local_hart().curr_thread();
     unsafe { thread.get_owned().as_mut().clear_child_tid = tidptr as usize };
     Ok(thread.tid())
-}
-
-/// 返回系统信息，返回值为 0
-pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
-    let utsname = unsafe { utsname.check_ptr_mut()? };
-    utsname.write(UtsName::default());
-    Ok(0)
 }
 
 /// 返回进程组号

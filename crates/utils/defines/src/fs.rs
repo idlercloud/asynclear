@@ -169,6 +169,13 @@ bitflags! {
         // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
         // const PATH        = 1 << 21;
     }
+
+    pub struct FaccessatMode: u32 {
+        const F_OK = 0;
+        const X_OK = 1 << 0;
+        const W_OK = 1 << 1;
+        const R_OK = 1 << 2;
+    }
 }
 
 impl Display for StatFsFlags {
