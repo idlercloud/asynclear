@@ -24,10 +24,10 @@ pub fn new_dev_fs(
         let child = Arc::new(TtyInode::new()).unsize(DynBytesInodeCoercion!());
         let child = DEntry::Bytes(Arc::new(DEntryBytes::new(
             Arc::clone(&fs.root_dentry),
-            CompactString::from_static_str("tty"),
+            CompactString::const_new("tty"),
             child,
         )));
-        children.insert(CompactString::from_static_str("tty"), child);
+        children.insert(CompactString::const_new("tty"), child);
     }
     Ok(fs)
 }

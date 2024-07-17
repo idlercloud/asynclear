@@ -25,11 +25,8 @@ use crate::{
 };
 
 pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
-    Process::from_path(
-        "/initproc",
-        vec![CompactString::from_static_str("/initproc")],
-    )
-    .expect("INITPROC Failed.")
+    Process::from_path("/initproc", vec![CompactString::const_new("/initproc")])
+        .expect("INITPROC Failed.")
 });
 
 pub struct Process {

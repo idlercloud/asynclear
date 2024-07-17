@@ -27,10 +27,10 @@ pub fn new_proc_fs(
         let child = Arc::new(MountsInode::new()).unsize(DynBytesInodeCoercion!());
         let child = DEntry::Bytes(Arc::new(DEntryBytes::new(
             Arc::clone(&fs.root_dentry),
-            CompactString::from_static_str("mounts"),
+            CompactString::const_new("mounts"),
             child,
         )));
-        children.insert(CompactString::from_static_str("mounts"), child);
+        children.insert(CompactString::const_new("mounts"), child);
     }
     Ok(fs)
 }

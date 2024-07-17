@@ -204,7 +204,7 @@ impl DEntryDir {
             dir = parent;
         }
 
-        let mut path = CompactString::from_static_str("/");
+        let mut path = CompactString::const_new("/");
 
         for component in dirs
             .into_iter()

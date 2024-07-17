@@ -178,8 +178,8 @@ pub async fn sys_execve(
         // FIXME: [low] hack: 实际上应该检查 shebang，这里简化认为 .sh 都应该以 busybox 执行
         if pathname.ends_with(".sh") {
             pathname = "/busybox";
-            args.push(CompactString::from_static_str("busybox"));
-            args.push(CompactString::from_static_str("sh"));
+            args.push(CompactString::const_new("busybox"));
+            args.push(CompactString::const_new("sh"));
         }
         args = collect_cstrs(args, argv)?;
         let envs = if let Some(envp) = envp {

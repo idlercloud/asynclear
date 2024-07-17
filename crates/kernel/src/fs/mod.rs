@@ -216,8 +216,8 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
     debug!("Init vfs");
     let root_fs = fat32::new_fat32_fs(
         &BLOCK_DEVICE,
-        CompactString::from_static_str("/"),
-        CompactString::from_static_str("/dev/mmcblk0"),
+        CompactString::const_new("/"),
+        CompactString::const_new("/dev/mmcblk0"),
         StatFsFlags::empty(),
     )
     .expect("root_fs init failed");
@@ -310,7 +310,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
 
     let mut ret = PathToInode {
         dir: start_dir,
-        last_component: CompactString::from_static_str("."),
+        last_component: CompactString::const_new("."),
     };
 
     let Some(mut curr_component) = split.next() else {
