@@ -149,24 +149,23 @@ impl FdTable {
         let mut new_fd = 0;
         let mut n_ok = 0;
         let mut ret = [usize::MAX; N];
-        let mut descs = descs.into_iter();
         for &existed_fd in self.files.keys() {
             if new_fd != existed_fd {
-                n_ok += 1;
                 if n_ok >= N {
                     break;
                 }
-                self.files.insert(new_fd, descs.next().unwrap());
                 ret[n_ok] = new_fd;
-                break;
+                n_ok += 1;
             }
             new_fd += 1;
         }
         while n_ok < N {
-            self.files.insert(new_fd, descs.next().unwrap());
             ret[n_ok] = new_fd;
             n_ok += 1;
             new_fd += 1;
+        }
+        for (fd, desc) in ret.into_iter().zip(descs.into_iter()) {
+            self.files.insert(fd, desc);
         }
         Some(ret)
     }

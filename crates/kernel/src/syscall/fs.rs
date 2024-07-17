@@ -299,6 +299,7 @@ pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
         .curr_process()
         .lock_inner_with(|inner| inner.fd_table.add_many([read_end, write_end]))
         .ok_or(errno::EMFILE)?;
+    debug!("pipe2: [{}, {}]", fds[0], fds[1]);
     pipefd.write([fds[0] as i32, fds[1] as i32]);
 
     Ok(0)
