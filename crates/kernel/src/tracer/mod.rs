@@ -28,8 +28,9 @@ pub fn init() {
         .call_once(|| Lazy::force(&KERNEL_TRACER_IMPL) as &(dyn Tracer + Sync));
 }
 
-pub fn print_span_stack() {
-    let span_stack = local_hart().span_stack.borrow();
+/// 其实这个很可能是 ub，但是为了调试还是先这么写着吧
+pub unsafe fn print_span_stack() {
+    let span_stack = unsafe { &*local_hart().span_stack.as_ptr() };
     let slab = KERNEL_TRACER_IMPL.slab.lock();
     eprintln!("span stack:");
     for id in span_stack.iter().rev() {
@@ -70,6 +71,7 @@ impl Tracer for KernelTracerImpl {
         SpanId::from_non_zero_u32(id)
     }
 
+    #[track_caller]
     fn enter(&self, span_id: &SpanId) {
         local_hart().span_stack.borrow_mut().push(span_id.clone());
         #[cfg(feature = "profiling")]

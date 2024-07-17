@@ -17,7 +17,9 @@ fn panic(info: &PanicInfo<'_>) -> ! {
     if !hart.panicked.get() {
         hart.panicked.set(true);
         eprintln!("{info}");
-        tracer::print_span_stack();
+        unsafe {
+            tracer::print_span_stack();
+        }
     }
 
     SHUTDOWN.store(true, Ordering::SeqCst);
