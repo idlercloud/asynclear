@@ -5,14 +5,15 @@ use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{
-        FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Stat, UnmountFlags, AT_FDCWD,
-        SEEK_CUR, SEEK_END, SEEK_SET,
+        FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Stat, UnmountFlags,
+        AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
     },
     misc::TimeSpec,
 };
 use kernel_tracer::Instrument;
 use smallvec::SmallVec;
 use triomphe::Arc;
+use virtio_drivers::device::blk::SECTOR_SIZE;
 
 use crate::{
     fs::{
@@ -743,4 +744,37 @@ pub async fn sys_sendfile64(
     let ret = target.write(WriteBuffer::Kernel(&buf)).await?;
 
     Ok(ret)
+}
+
+/// 获取文件系统统计信息。成功时返回 0
+pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
+    let path = path.check_cstr()?;
+    debug!("path {}", &*path);
+    let p2i = fs::path_walk(Arc::clone(VFS.root_dir()), &*path)?;
+    let mut dentry = p2i
+        .dir
+        .lookup(Cow::Owned(p2i.last_component))
+        .ok_or(errno::ENOENT)?;
+
+    let mount_table = VFS.lock_mount_table();
+    let fs = loop {
+        if let Some(fs) = mount_table.get(&dentry) {
+            break fs;
+        }
+        dentry = match dentry {
+            DEntry::Dir(dir) => {
+                DEntry::Dir(Arc::clone(dir.parent().expect("should not reach root fs")))
+            }
+            DEntry::Bytes(bytes) => DEntry::Dir(Arc::clone(bytes.parent())),
+        }
+    };
+
+    // TODO: [low] statfs 没有完整正确实现
+    let buf = unsafe { buf.check_ptr_mut()? };
+    let mut fs_stat = FsStat::default();
+    fs_stat.f_bsize = SECTOR_SIZE as u64;
+    fs_stat.f_flags = fs.flags().bits() as u64;
+    fs_stat.f_namelen = NAME_MAX as u64;
+    buf.write(fs_stat);
+    Ok(0)
 }

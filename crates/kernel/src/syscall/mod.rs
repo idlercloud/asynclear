@@ -101,6 +101,10 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             args[3] as _,
             UserCheck::new(args[4] as _),
         ),
+        STATFS64 => sys_statfs64(
+            UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?,
+            UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+        ),
         CHDIR => sys_chdir(UserCheck::new(args[0] as _).ok_or(errno::EINVAL)?),
         OPENAT => sys_openat(
             args[0],

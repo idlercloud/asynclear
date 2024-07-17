@@ -24,7 +24,7 @@ use defines::{
 };
 use derive_more::Display;
 use hashbrown::HashMap;
-use klocks::{Lazy, SpinMutex};
+use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
 use self::inode::InodeMeta;
@@ -173,6 +173,10 @@ impl VirtFileSystem {
         ret
     }
 
+    pub fn lock_mount_table(&self) -> SpinMutexGuard<'_, HashMap<DEntry, FileSystem>> {
+        self.mount_table.lock()
+    }
+
     fn list_root_dir(&self) {
         self.root_dir.read_dir().expect("read root dir failed");
         let mut curr_col = 0;
@@ -237,6 +241,12 @@ pub struct FileSystem {
     mounted_dentry: Option<DEntry>,
     mount_point: CompactString,
     flags: StatFsFlags,
+}
+
+impl FileSystem {
+    pub fn flags(&self) -> StatFsFlags {
+        self.flags
+    }
 }
 
 #[derive(Debug, Display)]

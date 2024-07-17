@@ -22,6 +22,7 @@ declare_syscall_id!(
     // LINKAT,             37,
     UMOUNT,             39,
     MOUNT,              40,
+    STATFS64,           43,
     CHDIR,              49,
     OPENAT,             56,
     CLOSE,              57,

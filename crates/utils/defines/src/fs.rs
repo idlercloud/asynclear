@@ -113,7 +113,7 @@ bitflags! {
         // const UMOUNT_NOFOLLOW   =   1 << 3;
     }
 
-    #[derive(Debug)]
+    #[derive(Clone, Copy)]
     pub struct StatFsFlags: u32 {
         // /// This filesystem is mounted read-only.
         // const ST_RDONLY         = 1 << 0;
@@ -167,8 +167,7 @@ bitflags! {
         const CLOEXEC   = 1 << 19;
         // /// 仅打开一个文件描述符，而不实际打开文件。后续只允许进行纯文件描述符级别的操作
         // TODO: 可能要考虑加上 O_PATH，似乎在某些情况下无法打开的文件可以通过它打开
-        // FIXME: 初赛误把 `O_DIRECTORY` 定义成了 `O_PATH`，这里暂时开启以便通过测试，实际未支持
-        const PATH        = 1 << 21;
+        // const PATH        = 1 << 21;
     }
 }
 
@@ -249,6 +248,35 @@ pub struct Stat {
     pub st_mtime: TimeSpec,
     /// 最后一次改变状态时间
     pub st_ctime: TimeSpec,
+}
+
+#[repr(C)]
+#[derive(Default)]
+pub struct FsStat {
+    /// Type of filesystem.
+    pub f_type: u64,
+    /// Optimal transfer block size.
+    pub f_bsize: u64,
+    /// Total data blocks in filesystem.
+    pub f_blocks: u64,
+    /// Free blocks in filesystem.
+    pub f_bfree: u64,
+    /// Free blocks available to unprivileged user.
+    pub f_bavail: u64,
+    /// Total inodes in filesystem.
+    pub f_files: u64,
+    /// Free inodes in filesystem.
+    pub f_ffree: u64,
+    /// Filesystem ID.
+    pub f_fsid: [i32; 2],
+    /// Maximum length of filenames.
+    pub f_namelen: u64,
+    /// Fragment size (since Linux 2.6).
+    pub f_frsize: u64,
+    /// Mount flags of filesystem (since Linux 2.6.36).
+    pub f_flags: u64,
+    /// Padding bytes rese=rved for future use.
+    pub f_spare: [u64; 4],
 }
 
 #[repr(C)]
