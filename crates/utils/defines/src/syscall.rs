@@ -42,6 +42,7 @@ declare_syscall_id!(
     SET_TID_ADDRESS,    96,
     NANOSLEEP,          101,
     CLOCK_GETTIME,      113,
+    SYSLOG,             116,
     SCHED_YIELD,        124,
     // KILL,               129,
     RT_SIGACTION,       134,
