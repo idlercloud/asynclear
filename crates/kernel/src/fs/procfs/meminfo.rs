@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 
 use common::config::PAGE_SIZE;
-use compact_str::CompactString;
 use defines::error::{errno, AKResult};
 
 use crate::{
@@ -13,15 +12,15 @@ use crate::{
     time,
 };
 
-pub struct MountsInode {
+pub struct MeminfoInode {
     meta: InodeMeta,
 }
 
-impl MountsInode {
+impl MeminfoInode {
     pub fn new() -> Self {
         let mut meta = InodeMeta::new(InodeMode::Regular);
         let meta_inner = meta.get_inner_mut();
-        // TODO: [low] hack: `mounts` 的大小设置为 `PAGE_SIZE`
+        // TODO: [low] hack: `meminfo` 的大小设置为 `PAGE_SIZE`
         meta_inner.data_len = PAGE_SIZE as u64;
         let curr_time = time::curr_time_spec();
         meta_inner.access_time = curr_time;
@@ -31,7 +30,20 @@ impl MountsInode {
     }
 }
 
-impl BytesInodeBackend for MountsInode {
+static DUMMY_MEMINFO: &[u8] = b"\
+MemTotal:\t1919810KB
+MemFree:\t114514KB
+MemAvailable:\t142857KB
+Buffers:\t10000KB
+Cached:\t20000KB
+SwapCached:\t30000KB
+SwapTotal:\t40000KB
+SwapFree:\t50000KB
+Shmem:\t60000KB
+Slab:\t70000KB
+";
+
+impl BytesInodeBackend for MeminfoInode {
     fn meta(&self) -> &InodeMeta {
         &self.meta
     }
@@ -39,22 +51,20 @@ impl BytesInodeBackend for MountsInode {
     fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'_, usize> {
         Box::pin(async move {
             // TODO: [low] 目前对这类伪文件系统中文件的读取实现并不正确，要求传入的 buf 能够一次性读取所有内容
-            debug!("read mounts info");
+            debug!("read meminfo");
             assert_eq!(offset, 0);
-            let mounts_info = VFS.mounts_info();
-            let mounts_info = mounts_info.as_bytes();
-            let read_len = usize::min(buf.len(), mounts_info.len());
-            assert_eq!(read_len, mounts_info.len());
+            let read_len = usize::min(buf.len(), DUMMY_MEMINFO.len());
+            assert_eq!(read_len, DUMMY_MEMINFO.len());
             match buf {
                 ReadBuffer::Kernel(buf) => {
-                    buf[0..read_len].copy_from_slice(&mounts_info[..read_len])
+                    buf[0..read_len].copy_from_slice(&DUMMY_MEMINFO[..read_len])
                 }
                 ReadBuffer::User(buf) => unsafe {
                     buf.slice(0..read_len)
                         .expect("must be in bound")
                         .check_slice_mut()?
                         .as_bytes_mut()
-                        .copy_from_slice(&mounts_info[..read_len])
+                        .copy_from_slice(&DUMMY_MEMINFO[..read_len])
                 },
             }
 

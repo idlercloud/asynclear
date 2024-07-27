@@ -23,6 +23,7 @@ pub trait Tracer {
     fn log_to_console(&self, record: &Record<'_>);
     fn log_to_file(&self, record: &Record<'_>);
     fn new_span(&self, span_attr: SpanAttr) -> SpanId;
+    #[track_caller]
     fn enter(&self, span_id: &SpanId);
     fn exit(&self, span_id: &SpanId);
     fn drop_span(&self, span_id: SpanId);

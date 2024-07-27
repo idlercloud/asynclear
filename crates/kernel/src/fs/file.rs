@@ -25,6 +25,17 @@ pub enum File {
     Stream(Arc<DEntryBytes>),
 }
 
+impl File {
+    pub fn meta(&self) -> &InodeMeta {
+        match self {
+            File::Dir(dir) => dir.inode().meta(),
+            File::Seekable(seekable) => seekable.inode().meta(),
+            File::Pipe(pipe) => pipe.meta(),
+            File::Stream(stream) => stream.inode().meta(),
+        }
+    }
+}
+
 pub struct DirFile {
     dentry: Arc<DEntryDir>,
     dirent_index: SpinMutex<usize>,
@@ -325,12 +336,7 @@ impl FileDescriptor {
     }
 
     pub fn meta(&self) -> &InodeMeta {
-        match &self.file {
-            File::Dir(dir) => dir.inode().meta(),
-            File::Seekable(seekable) => seekable.inode().meta(),
-            File::Pipe(pipe) => pipe.meta(),
-            File::Stream(stream) => stream.inode().meta(),
-        }
+        self.file.meta()
     }
 
     pub fn ioctl(&self, request: usize, argp: usize) -> KResult {
