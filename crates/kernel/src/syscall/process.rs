@@ -17,7 +17,7 @@ use crate::{
     fs::{self, DEntry, InodeMode},
     hart::local_hart,
     memory::UserCheck,
-    process::{exit_process, INITPROC},
+    process::{exit_process, INITPROC_PID, PROCESS_MANAGER},
     signal::Signal,
 };
 
@@ -262,6 +262,7 @@ pub async fn sys_wait4(
 
             if let Some(index) = child_index {
                 let child = inner.children.remove(index);
+                PROCESS_MANAGER.remove(child.pid());
                 drop(inner);
                 let found_pid = child.pid();
                 let exit_code = child.exit_code().expect("Thread should be zombie");
@@ -306,7 +307,7 @@ pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
 /// TODO: 暂时未实现
 pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
     debug!("set pgid of {_pid} to {_pgid}");
-    Ok(INITPROC.pid())
+    Ok(INITPROC_PID)
 }
 
 /// 返回进程组号
@@ -314,5 +315,5 @@ pub fn sys_setpgid(_pid: usize, _pgid: usize) -> KResult {
 /// TODO: 暂时未实现，仅返回 INITPROC 的 pid
 pub fn sys_getpgid(_pid: usize) -> KResult {
     debug!("get pgid of {_pid}");
-    Ok(INITPROC.pid())
+    Ok(INITPROC_PID)
 }

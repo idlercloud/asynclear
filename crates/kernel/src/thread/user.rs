@@ -16,7 +16,7 @@ use crate::{
     fs::VFS,
     hart::local_hart,
     memory::KERNEL_SPACE,
-    process::{ProcessStatus, INITPROC},
+    process::{ProcessStatus, INITPROC_PID, PROCESS_MANAGER},
     thread::ThreadStatus,
     SHUTDOWN,
 };
@@ -95,14 +95,15 @@ fn exit_thread(thread: &Thread) {
         process.status.store(new_status, Ordering::SeqCst);
 
         // 子进程交由 INITPROC 来处理。如果退出的就是 INITPROC，那么系统退出
-        if process.pid() == 1 {
+        if process.pid() == INITPROC_PID {
             assert_eq!(children.len(), 0);
             SHUTDOWN.store(true, Ordering::SeqCst);
         } else {
-            INITPROC.lock_inner_with(|initproc_inner| {
+            let init_proc = PROCESS_MANAGER.init_proc();
+            init_proc.lock_inner_with(|initproc_inner| {
                 for child in children {
                     child.lock_inner_with(|child_inner| {
-                        child_inner.parent = Some(Arc::clone(&INITPROC));
+                        child_inner.parent = Some(Arc::clone(&init_proc));
                     });
                     initproc_inner.children.push(child);
                 }

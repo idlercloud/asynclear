@@ -16,7 +16,7 @@ use triomphe::Arc;
 use crate::{
     drivers::{self, qemu_block::BLOCK_SIZE},
     fs, memory,
-    process::{Process, INITPROC},
+    process::{self, Process, PROCESS_MANAGER},
     thread::{self, Thread},
     trap::TrapContext,
 };
@@ -110,7 +110,12 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 
         fs::init();
 
-        thread::spawn_user_thread(INITPROC.lock_inner_with(|inner| inner.main_thread()));
+        process::init();
+        thread::spawn_user_thread(
+            PROCESS_MANAGER
+                .init_proc()
+                .lock_inner_with(|inner| inner.main_thread()),
+        );
         info!("Init hart {hart_id} started");
         INIT_FINISHED.store(true, Ordering::SeqCst);
 

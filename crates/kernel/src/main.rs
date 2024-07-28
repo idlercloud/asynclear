@@ -18,6 +18,7 @@
 #![feature(let_chains)]
 #![feature(debug_closure_helpers)]
 #![feature(negative_impls)]
+#![feature(build_hasher_default_const_new)]
 
 #[macro_use]
 extern crate kernel_tracer;

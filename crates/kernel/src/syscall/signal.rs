@@ -6,7 +6,7 @@ use defines::{
 use crate::{
     hart::local_hart,
     memory::UserCheck,
-    process::exit_process,
+    process::{exit_process, PROCESS_MANAGER},
     signal::{KSignalSet, SigProcMaskHow, Signal, SignalContext},
 };
 
@@ -110,7 +110,6 @@ pub fn sys_rt_sigreturn() -> KResult {
         .ok_or(errno::EINVAL)?
         .check_ptr()
     else {
-        // TODO:[blocked] 这里其实可以试着补救
         exit_process(&thread.process, -10);
         return Err(errno::BREAK);
     };
@@ -120,4 +119,45 @@ pub fn sys_rt_sigreturn() -> KResult {
     *trap_context = old_ctx.old_trap_context;
 
     Ok(trap_context.a0())
+}
+
+pub fn sys_kill(pid: isize, signum: usize) -> KResult {
+    let signal = if signum != 0 {
+        Some(
+            Signal::from_user(u8::try_from(signum).map_err(|e| {
+                warn!("convert signum {signum} to u8 failed: {e}");
+                errno::EINVAL
+            })?)
+            .ok_or(errno::EINVAL)?,
+        )
+    } else {
+        None
+    };
+    // TODO: [low] 发送信号需要权限检查
+    if pid > 0 {
+        let Some(process) = PROCESS_MANAGER.get(pid as usize) else {
+            return Err(errno::ESRCH);
+        };
+        if let Some(signal) = signal {
+            debug!("send signal {signal:?} to pid {pid}");
+            process.lock_inner_with(|inner| inner.receive_signal(signal));
+        }
+    } else if pid == 0 {
+        todo!("[blocked] process group. send signal to process group");
+    } else if pid == -1 {
+        let Some(signal) = signal else {
+            return Ok(0);
+        };
+        debug!("send signal {signal:?} to all processes");
+        let all_processes = PROCESS_MANAGER.lock_all();
+        for (&pid, process) in all_processes.iter() {
+            if pid == 1 {
+                continue;
+            }
+            process.lock_inner_with(|inner| inner.receive_signal(signal));
+        }
+    } else if pid < -1 {
+        todo!("[blocked] process group. send signal to process group");
+    }
+    Ok(0)
 }

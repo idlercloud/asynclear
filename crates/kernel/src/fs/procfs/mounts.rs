@@ -47,14 +47,14 @@ impl BytesInodeBackend for MountsInode {
             assert_eq!(read_len, mounts_info.len());
             match buf {
                 ReadBuffer::Kernel(buf) => {
-                    buf[0..read_len].copy_from_slice(&mounts_info[..read_len])
+                    buf[0..read_len].copy_from_slice(&mounts_info[..read_len]);
                 }
                 ReadBuffer::User(buf) => unsafe {
                     buf.slice(0..read_len)
                         .expect("must be in bound")
                         .check_slice_mut()?
                         .as_bytes_mut()
-                        .copy_from_slice(&mounts_info[..read_len])
+                        .copy_from_slice(&mounts_info[..read_len]);
                 },
             }
 

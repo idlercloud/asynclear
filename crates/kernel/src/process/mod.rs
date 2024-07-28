@@ -1,4 +1,5 @@
 mod inner;
+mod manager;
 
 use alloc::{vec, vec::Vec};
 use core::num::NonZeroUsize;
@@ -10,7 +11,8 @@ use elf::Elf;
 use event_listener::Event;
 use hashbrown::HashMap;
 use idallocator::RecycleAllocator;
-use klocks::{Lazy, SpinMutex, SpinMutexGuard};
+use klocks::{SpinMutex, SpinMutexGuard};
+use manager::ProcessManager;
 use memory::MemorySpace;
 use triomphe::Arc;
 
@@ -24,10 +26,14 @@ use crate::{
     trap::TrapContext,
 };
 
-pub static INITPROC: Lazy<Arc<Process>> = Lazy::new(|| {
-    Process::from_path("/initproc", vec![CompactString::const_new("/initproc")])
-        .expect("INITPROC Failed.")
-});
+pub static PROCESS_MANAGER: ProcessManager = ProcessManager::new();
+pub const INITPROC_PID: usize = 1;
+
+pub fn init() {
+    let init_proc = Process::from_path("/initproc", vec![CompactString::const_new("/initproc")])
+        .expect("INITPROC Failed.");
+    PROCESS_MANAGER.add(INITPROC_PID, init_proc);
+}
 
 pub struct Process {
     pid: usize,
@@ -153,6 +159,7 @@ impl Process {
                     )),
                 )
             });
+            PROCESS_MANAGER.add(child.pid(), Arc::clone(&child));
             // 新进程添入原进程的子进程表
             inner.children.push(Arc::clone(&child));
             child

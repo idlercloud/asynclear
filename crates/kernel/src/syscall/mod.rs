@@ -186,6 +186,7 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             UserCheck::new_slice(args[1] as _, args[2]).ok_or(errno::EINVAL)?,
         ),
         SCHED_YIELD => sys_sched_yield().await,
+        KILL => sys_kill(args[0] as _, args[1]),
         RT_SIGACTION => sys_rt_sigaction(
             args[0],
             UserCheck::new(args[1] as _),

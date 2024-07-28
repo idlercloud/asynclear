@@ -45,7 +45,7 @@ declare_syscall_id!(
     CLOCK_GETTIME,      113,
     SYSLOG,             116,
     SCHED_YIELD,        124,
-    // KILL,               129,
+    KILL,               129,
     RT_SIGACTION,       134,
     RT_SIGPROCMASK,     135,
     RT_SIGRETURN,       139,

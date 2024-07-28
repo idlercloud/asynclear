@@ -18,7 +18,7 @@ pub fn sys_syslog(log_type: u32, buf: UserCheck<[u8]>) -> KResult {
         buf.check_slice_mut()?;
     }
     match log_type {
-        2 | 3 | 4 => {
+        2..=4 => {
             // For type equal to 2, 3, or 4, a successful call to syslog() returns the number of bytes read.
             Ok(0)
         }

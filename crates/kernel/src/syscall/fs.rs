@@ -751,7 +751,7 @@ pub async fn sys_sendfile64(
 pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
     let path = path.check_cstr()?;
     debug!("path {}", &*path);
-    let p2i = fs::path_walk(Arc::clone(VFS.root_dir()), &*path)?;
+    let p2i = fs::path_walk(Arc::clone(VFS.root_dir()), &path)?;
     let mut dentry = p2i
         .dir
         .lookup(Cow::Owned(p2i.last_component))
@@ -772,11 +772,12 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
 
     // TODO: [low] statfs 没有完整正确实现
     let buf = unsafe { buf.check_ptr_mut()? };
-    let mut fs_stat = FsStat::default();
-    fs_stat.f_bsize = SECTOR_SIZE as u64;
-    fs_stat.f_flags = fs.flags().bits() as u64;
-    fs_stat.f_namelen = NAME_MAX as u64;
-    buf.write(fs_stat);
+    buf.write(FsStat {
+        f_bsize: SECTOR_SIZE as u64,
+        f_flags: fs.flags().bits() as u64,
+        f_namelen: NAME_MAX as u64,
+        ..Default::default()
+    });
     Ok(0)
 }
 

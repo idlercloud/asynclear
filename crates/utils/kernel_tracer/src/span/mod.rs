@@ -65,6 +65,7 @@ impl Span {
         Self { id: None }
     }
 
+    #[track_caller]
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
         if let Some(tracer) = KERNLE_TRACER.get() {
             if let Some(id) = &self.id {
@@ -74,6 +75,7 @@ impl Span {
         RefEnterGuard { span: self }
     }
 
+    #[track_caller]
     pub fn entered(self) -> OwnedEnterGuard {
         if let Some(tracer) = KERNLE_TRACER.get() {
             if let Some(id) = &self.id {
