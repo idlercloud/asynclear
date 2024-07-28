@@ -38,6 +38,7 @@ declare_syscall_id!(
     PPOLL,              73,
     NEWFSTATAT,         79,
     NEWFSTAT,           80,
+    UTIMENSAT,          88,
     EXIT,               93,
     EXIT_GROUP,         94,
     SET_TID_ADDRESS,    96,

@@ -53,6 +53,10 @@ impl Default for UtsName {
     }
 }
 
+/// for utimensat
+pub const UTIME_NOW: i64 = 1073741823;
+pub const UTIME_OMIT: i64 = 1073741822;
+
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TimeSpec {

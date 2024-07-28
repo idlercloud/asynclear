@@ -8,7 +8,7 @@ use defines::{
         FaccessatMode, FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Stat,
         UnmountFlags, AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
     },
-    misc::TimeSpec,
+    misc::{TimeSpec, UTIME_NOW, UTIME_OMIT},
 };
 use kernel_tracer::Instrument;
 use smallvec::SmallVec;
@@ -22,6 +22,7 @@ use crate::{
     },
     hart::local_hart,
     memory::{ReadBuffer, UserCheck, WriteBuffer},
+    time,
 };
 
 /// 操纵某个特殊文件的底层设备，尤其是字符特殊文件
@@ -445,18 +446,18 @@ pub fn sys_newfstatat(
 ) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
         .ok_or(errno::EINVAL)?;
-    let file_name = path.check_cstr()?;
-    if file_name.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
+    let path = path.check_cstr()?;
+    if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
     }
     let statbuf = unsafe { statbuf.check_ptr_mut()? };
-    let stat = if file_name.is_empty() {
+    let stat = if path.is_empty() {
         let process = local_hart().curr_process();
         let inner = process.lock_inner();
         let file = inner.fd_table.get(dir_fd).ok_or(errno::EBADF)?;
         fs::stat_from_meta(file.meta())
     } else {
-        let p2i = fs::resolve_path_with_dir_fd(dir_fd, &file_name)?;
+        let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
         let dentry = p2i
             .dir
             .lookup(Cow::Owned(p2i.last_component))
@@ -782,11 +783,67 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
 }
 
 /// 检查用户的权限
-pub fn sys_faccessat(dir_fd: usize, pathname: UserCheck<u8>, mode: u32) -> KResult {
+pub fn sys_faccessat(dir_fd: usize, path: UserCheck<u8>, mode: u32) -> KResult {
+    // TODO: [low] 未正确实现 `faccessat`。
     let _mode = FaccessatMode::from_bits(mode).ok_or(errno::EINVAL)?;
-    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &pathname.check_cstr()?)?;
+    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path.check_cstr()?)?;
     p2i.dir
         .lookup(Cow::Owned(p2i.last_component))
         .ok_or(errno::ENOENT)?;
+    Ok(0)
+}
+
+pub fn sys_utimensat(
+    dir_fd: usize,
+    path: UserCheck<u8>,
+    times: Option<UserCheck<[TimeSpec; 2]>>,
+    flags: usize,
+) -> KResult {
+    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
+        .ok_or(errno::EINVAL)?;
+    let path = path.check_cstr()?;
+    if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
+        return Err(errno::ENOENT);
+    }
+    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
+    let file = p2i
+        .dir
+        .lookup(Cow::Owned(p2i.last_component))
+        .ok_or(errno::ENOENT)?;
+    let new_atime;
+    let new_mtime;
+    let now = time::curr_time_spec();
+    if let Some(times) = times {
+        // times[0] 是 atime，times[1] 是 mtime
+        let times = times.check_ptr()?.read();
+        let [atime, mtime] = times;
+        if atime.nsec == UTIME_NOW {
+            new_atime = Some(now);
+        } else if atime.nsec == UTIME_OMIT {
+            new_atime = None;
+        } else {
+            new_atime = Some(atime);
+        }
+
+        if mtime.nsec == UTIME_NOW {
+            new_mtime = Some(now);
+        } else if mtime.nsec == UTIME_OMIT {
+            new_mtime = None;
+        } else {
+            new_mtime = Some(atime);
+        }
+    } else {
+        new_atime = Some(now);
+        new_mtime = Some(now);
+    }
+
+    file.meta().lock_inner_with(|inner| {
+        if let Some(new_atime) = new_atime {
+            inner.access_time = new_atime;
+        }
+        if let Some(new_mtime) = new_mtime {
+            inner.modify_time = new_mtime;
+        }
+    });
     Ok(0)
 }

@@ -173,6 +173,12 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             args[3],
         ),
         NEWFSTAT => sys_newfstat(args[0], UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?),
+        UTIMENSAT => sys_utimensat(
+            args[0],
+            UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+            UserCheck::new(args[2] as _),
+            args[3],
+        ),
         EXIT => sys_exit(args[0] as _),
         EXIT_GROUP => sys_exit_group(args[0] as _),
         SET_TID_ADDRESS => sys_set_tid_address(args[0] as _),
