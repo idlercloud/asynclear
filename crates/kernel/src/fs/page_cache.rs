@@ -1,4 +1,5 @@
 use alloc::collections::BTreeMap;
+use core::ops::{Bound, RangeBounds};
 
 use async_lock::Mutex as SleepMutex;
 use atomic::Atomic;
@@ -41,6 +42,22 @@ impl PageCache {
 
     pub fn lock_pages(&self) -> RwLockReadGuard<'_, BTreeMap<u64, Arc<BackedPage>>> {
         self.pages.read()
+    }
+
+    pub fn free_pages(&self, range: impl RangeBounds<u64>) {
+        let mut pages = self.pages.write();
+        let (start, end) = (range.start_bound(), range.end_bound());
+        let mut freed_part = match start {
+            Bound::Unbounded => core::mem::take(&mut *pages),
+            Bound::Included(left) => pages.split_off(&left),
+            _ => unreachable!("start bound should not be excluded"),
+        };
+        let mut right_part = match end {
+            Bound::Unbounded => BTreeMap::new(),
+            Bound::Excluded(right) => freed_part.split_off(&right),
+            Bound::Included(right) => freed_part.split_off(&(right + 1)),
+        };
+        pages.append(&mut right_part);
     }
 }
 

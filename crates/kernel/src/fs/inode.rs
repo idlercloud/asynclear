@@ -123,6 +123,9 @@ pub trait BytesInodeBackend: Send + Sync + 'static {
     fn ioctl(&self, request: usize, argp: usize) -> KResult {
         Err(errno::ENOTTY)
     }
+    fn truncate(&self, len: u64) -> KResult<()> {
+        Err(errno::EINVAL)
+    }
 }
 
 // TODO: [low] 对于伪文件系统中的某些常规文件，比如 /proc/mounts，其实不需要也不应该走页缓存。另一方面，tmpfs 又是完全依据页缓存实现的
@@ -211,7 +214,7 @@ impl dyn BytesInodeBackend {
             while nwrite < buf.len() {
                 let page_id = (offset + nwrite as u64) >> PAGE_SIZE_BITS as u64;
                 let page_offset = ((offset + nwrite as u64) & PAGE_OFFSET_MASK as u64) as usize;
-                let page = self.meta().page_cache().get_or_init_page(page_id);
+                let page = meta.page_cache().get_or_init_page(page_id);
 
                 let mut frame;
                 if page.state.load(Ordering::SeqCst) == PageState::Invalid {
@@ -258,6 +261,18 @@ impl dyn BytesInodeBackend {
         } else {
             self.write_inode_at(buf, offset).await
         }
+    }
+
+    pub fn resize(&self, len: u64) -> KResult<()> {
+        let meta = self.meta();
+        assert_eq!(meta.mode, InodeMode::Regular);
+        let curr_data_len = meta.lock_inner_with(|inner| inner.data_len);
+        let curr_last_page_id = curr_data_len >> PAGE_SIZE_BITS;
+        let new_last_page_id = len >> PAGE_SIZE_BITS;
+        if new_last_page_id < curr_last_page_id {
+            meta.page_cache().free_pages(new_last_page_id + 1..);
+        }
+        self.truncate(len)
     }
 }
 

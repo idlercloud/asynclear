@@ -95,6 +95,32 @@ impl BytesInodeBackend for FatFile {
     fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, offset: u64) -> AKResult<'a, usize> {
         todo!("[high] impl write_page for FatFile")
     }
+
+    fn truncate(&self, len: u64) -> KResult<()> {
+        let old_len = self.meta.lock_inner_with(|inner| inner.data_len);
+        #[allow(clippy::comparison_chain)]
+        if len < old_len {
+            let new_cluster_count = len.div_floor(self.fat.bytes_per_cluster()) as usize;
+            let mut clusters = self.clusters.write();
+            self.fat.free_clusters(
+                &clusters[new_cluster_count..],
+                if new_cluster_count == 0 {
+                    None
+                } else {
+                    Some(clusters[new_cluster_count - 1])
+                },
+            );
+            let now = time::curr_time_spec();
+            self.meta.lock_inner_with(|inner| {
+                inner.data_len = len;
+                inner.change_time = now;
+                inner.modify_time = now;
+            });
+        } else if len > old_len {
+            todo!("[mid] impl FatFile extend");
+        }
+        Ok(())
+    }
 }
 
 impl FatFile {

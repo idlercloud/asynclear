@@ -243,6 +243,12 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
                     return Err(errno::ENOTDIR);
                 }
                 let mode = bytes.inode().meta().mode();
+                if flags.contains(OpenFlags::TRUNCATE)
+                    && flags.read_write().1
+                    && mode == InodeMode::Regular
+                {
+                    bytes.inode().resize(0)?;
+                }
                 if mode == InodeMode::Regular || mode == InodeMode::BlockDevice {
                     File::Seekable(Arc::new(SeekableFile::new(bytes)))
                 } else {

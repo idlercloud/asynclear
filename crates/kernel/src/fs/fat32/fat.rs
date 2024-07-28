@@ -149,6 +149,21 @@ impl FileAllocTable {
         ret
     }
 
+    pub fn free_clusters(&self, clusters: &[u32], prev_cluster: Option<u32>) {
+        if clusters.is_empty() {
+            return;
+        }
+        let mut entries = self.fat_entries.write();
+        if let Some(prev_cluster) = prev_cluster {
+            assert_eq!(entries[prev_cluster as usize], clusters[0]);
+            entries[prev_cluster as usize] = END_OF_CHAIN;
+        }
+        for &cluster in clusters {
+            entries[cluster as usize] = 0;
+        }
+        self.alloc_meta.lock().free_count += clusters.len() as u32;
+    }
+
     pub fn cluster_chain(&self, first_cluster_id: u32) -> impl Iterator<Item = u32> + '_ {
         core::iter::from_coroutine(
             #[coroutine]
@@ -175,6 +190,10 @@ impl FileAllocTable {
 
     pub fn sector_per_cluster(&self) -> u8 {
         self.sector_per_cluster
+    }
+
+    pub fn bytes_per_cluster(&self) -> u64 {
+        self.sector_per_cluster as u64 * SECTOR_SIZE as u64
     }
 }
 
