@@ -176,6 +176,16 @@ bitflags! {
         const W_OK = 1 << 1;
         const R_OK = 1 << 2;
     }
+
+    #[derive(Debug)]
+    pub struct Renameat2Flags: u32 {
+        /// Don't overwrite newpath of the rename. Return an error if newpath already exists.
+        const RENAME_NOREPLACE  = 1 << 0;
+        /// Atomically exchange oldpath and newpath.
+        const RENAME_EXCHANGE   = 1 << 1;
+        /// This operation makes sense only for overlay/union filesystem implementations.
+        const RENAME_WHITEOUT   = 1 << 2;
+    }
 }
 
 impl Display for StatFsFlags {

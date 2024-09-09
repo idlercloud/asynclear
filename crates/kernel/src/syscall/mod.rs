@@ -238,6 +238,13 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             args[5],
         ),
         WAIT4 => sys_wait4(args[0] as _, UserCheck::new(args[1] as _), args[2], args[3]).await,
+        RENAMEAT2 => sys_renameat2(
+            args[0],
+            UserCheck::new(args[1] as _).ok_or(errno::EINVAL)?,
+            args[2],
+            UserCheck::new(args[3] as _).ok_or(errno::EINVAL)?,
+            args[4] as _,
+        ),
         _ => {
             error!("Unsupported syscall id: {id}");
             exit_process(&local_hart().curr_process(), -10);

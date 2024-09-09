@@ -70,4 +70,5 @@ declare_syscall_id!(
     EXECVE,             221,
     MMAP,               222,
     WAIT4,              260,
+    RENAMEAT2,          276,
 );

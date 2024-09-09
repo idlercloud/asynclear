@@ -5,8 +5,8 @@ use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{
-        FaccessatMode, FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Stat,
-        UnmountFlags, AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
+        FaccessatMode, FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd,
+        Renameat2Flags, Stat, UnmountFlags, AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
     },
     misc::{TimeSpec, UTIME_NOW, UTIME_OMIT},
 };
@@ -852,4 +852,36 @@ pub fn sys_utimensat(
         }
     });
     Ok(0)
+}
+
+pub fn sys_renameat2(
+    old_dir_fd: usize,
+    old_path: UserCheck<u8>,
+    new_dir_fd: usize,
+    new_path: UserCheck<u8>,
+    flags: u32,
+) -> KResult {
+    let flags = Renameat2Flags::from_bits(flags).ok_or(errno::EINVAL)?;
+    if flags.contains(Renameat2Flags::RENAME_EXCHANGE)
+        && flags.intersects(Renameat2Flags::RENAME_WHITEOUT | Renameat2Flags::RENAME_WHITEOUT)
+    {
+        return Err(errno::EINVAL);
+    }
+
+    let old_path = old_path.check_cstr()?;
+    let new_path = new_path.check_cstr()?;
+    debug!(
+        "rename '{}' to '{}' with flags: {flags:?}",
+        &*old_path, &*new_path
+    );
+    let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
+    let old_file = old_p2i
+        .dir
+        .lookup(Cow::Owned(old_p2i.last_component))
+        .ok_or(errno::ENOENT)?;
+    let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
+    if old_file.is_dir() {
+        let new_file = new_p2i.dir.lookup(Cow::Borrowed(&new_p2i.last_component));
+    }
+    todo!()
 }
