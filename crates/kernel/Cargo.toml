@@ -9,7 +9,7 @@ atomic.workspace = true
 async-lock.workspace = true
 bytemuck.workspace = true
 chrono.workspace = true
-derive_more.workspace = true
+derive_more = { workspace = true, features = ["display"] }
 riscv.workspace = true
 ecow.workspace = true
 hashbrown.workspace = true

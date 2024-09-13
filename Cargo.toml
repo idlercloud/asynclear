@@ -13,11 +13,11 @@ async-lock = { version = "3.3", default-features = false }
 buddy_system_allocator = { path = "deps/buddy_system_allocator" }
 atomic = "0.6"
 bytemuck = { version = "1.15", features = ["derive"] }
-derive_more = "0.99"
+derive_more = { version = "1", default-features = false }
 extend = "1.2"
 fastrand = { version = "2.1", default-features = false }
 pin-project = "1.1"
-bitflags = "2.5"
+bitflags = "2.6"
 tap = "1.0"
 ecow = { git = "https://github.com/idlercloud/ecow.git", branch = "dev", default-features = false }
 hashbrown = { version = "0.14" }

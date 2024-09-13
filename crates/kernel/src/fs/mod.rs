@@ -248,13 +248,13 @@ impl FileSystem {
 
 #[derive(Debug, Display)]
 pub enum FileSystemType {
-    #[display(fmt = "vfat")]
+    #[display("vfat")]
     VFat,
-    #[display(fmt = "tmpfs")]
+    #[display("tmpfs")]
     TmpFs,
-    #[display(fmt = "devtmpfs")]
+    #[display("devtmpfs")]
     DevTmpFs,
-    #[display(fmt = "proc")]
+    #[display("proc")]
     ProcFs,
 }
 
