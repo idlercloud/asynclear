@@ -6,11 +6,11 @@ use core::{
 
 use bitflags::bitflags;
 use common::config::{LOW_ADDRESS_END, MEMORY_END, MMAP_START, MMIO, PAGE_OFFSET_MASK, PA_TO_VA};
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::{MmapFlags, MmapProt},
 };
+use ecow::EcoString;
 use elf::{Elf, PF_R, PF_W, PF_X, PT_INTERP, PT_LOAD};
 use klocks::Lazy;
 use smallvec::SmallVec;
@@ -452,8 +452,8 @@ impl MemorySpace {
     pub fn init_stack(
         &mut self,
         tid: usize,
-        args: Vec<CompactString>,
-        envs: Vec<CompactString>,
+        args: Vec<EcoString>,
+        envs: Vec<EcoString>,
         auxv: Vec<(u8, usize)>,
     ) -> (usize, usize) {
         let ustack_range = Thread::alloc_user_stack(tid, self);

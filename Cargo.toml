@@ -19,7 +19,7 @@ fastrand = { version = "2.1", default-features = false }
 pin-project = "1.1"
 bitflags = "2.5"
 tap = "1.0"
-compact_str = { version = "0.8.0", default-features = false }
+ecow = { git = "https://github.com/idlercloud/ecow.git", branch = "dev", default-features = false }
 hashbrown = { version = "0.14" }
 riscv = "0.11"
 spin = { version = "0.9", default-features = false, features = [

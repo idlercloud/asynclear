@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use common::config::{PAGE_SIZE, PTR_SIZE};
-use compact_str::CompactString;
+use ecow::EcoString;
 use triomphe::Arc;
 
 use crate::memory::{FramedVmArea, Page, PageTable, VirtAddr, VirtPageNum};
@@ -119,8 +119,8 @@ pub(super) struct StackInitCtx<'a> {
     /// 用户地址空间的 sp
     user_sp: usize,
     page_table: &'a mut PageTable,
-    args: Vec<CompactString>,
-    envs: Vec<CompactString>,
+    args: Vec<EcoString>,
+    envs: Vec<EcoString>,
     auxv: Vec<(u8, usize)>,
     page: Option<Arc<Page>>,
 }
@@ -129,8 +129,8 @@ impl<'a> StackInitCtx<'a> {
     pub fn new(
         user_sp_page: VirtPageNum,
         page_table: &'a mut PageTable,
-        args: Vec<CompactString>,
-        envs: Vec<CompactString>,
+        args: Vec<EcoString>,
+        envs: Vec<EcoString>,
         auxv: Vec<(u8, usize)>,
     ) -> Self {
         Self {

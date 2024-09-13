@@ -49,12 +49,12 @@ impl PageCache {
         let (start, end) = (range.start_bound(), range.end_bound());
         let mut freed_part = match start {
             Bound::Unbounded => core::mem::take(&mut *pages),
-            Bound::Included(left) => pages.split_off(&left),
-            _ => unreachable!("start bound should not be excluded"),
+            Bound::Included(left) => pages.split_off(left),
+            Bound::Excluded(_) => unreachable!("start bound should not be excluded"),
         };
         let mut right_part = match end {
             Bound::Unbounded => BTreeMap::new(),
-            Bound::Excluded(right) => freed_part.split_off(&right),
+            Bound::Excluded(right) => freed_part.split_off(right),
             Bound::Included(right) => freed_part.split_off(&(right + 1)),
         };
         pages.append(&mut right_part);

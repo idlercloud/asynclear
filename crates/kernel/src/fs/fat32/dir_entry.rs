@@ -2,11 +2,11 @@ use core::mem::MaybeUninit;
 
 use bitflags::bitflags;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
 };
+use ecow::EcoString;
 use smallvec::SmallVec;
 
 const SNAME_MAX_LEN: usize = 11;
@@ -16,8 +16,8 @@ const LNAME_PART_LEN: usize = 13;
 pub(super) const DIR_ENTRY_SIZE: usize = 32;
 
 pub struct DirEntry {
-    pub(super) short_name: CompactString,
-    pub(super) long_name: CompactString,
+    pub(super) short_name: EcoString,
+    pub(super) long_name: EcoString,
     attr: DirEntryAttr,
     create_date: u16,
     create_time: u16,
@@ -47,7 +47,7 @@ impl DirEntry {
         self.file_size as u64
     }
 
-    pub fn take_name(&mut self) -> CompactString {
+    pub fn take_name(&mut self) -> EcoString {
         if !self.long_name.is_empty() {
             core::mem::take(&mut self.long_name)
         } else {
@@ -236,11 +236,10 @@ impl DirEntryBuilder {
             while lfn_len < self.name.len() && self.name[lfn_len] != 0 {
                 lfn_len += 1;
             }
-            dir_entry.long_name =
-                CompactString::from_utf16(&self.name[..lfn_len]).map_err(|e| {
-                    warn!("Invalid utf16 {:?}. {e}", &self.name[..lfn_len]);
-                    errno::EINVAL
-                })?;
+            dir_entry.long_name = EcoString::from_utf16(&self.name[..lfn_len]).map_err(|e| {
+                warn!("Invalid utf16 {:?}. {e}", &self.name[..lfn_len]);
+                errno::EINVAL
+            })?;
             Ok(DirEntryBuilderResult::Final(dir_entry))
         }
     }
@@ -269,7 +268,7 @@ fn read_standard_entry(entry: &[u8; DIR_ENTRY_SIZE]) -> KResult<DirEntry> {
     while short_name_len < SNAME_MAX_LEN && entry[short_name_len] != 0 {
         short_name_len += 1;
     }
-    let Ok(short_name) = CompactString::from_utf8(&entry[..short_name_len]) else {
+    let Ok(short_name) = EcoString::from_utf8(&entry[..short_name_len]) else {
         warn!(
             "short name is not valid utf8: {:?}",
             &entry[..short_name_len]
@@ -290,7 +289,7 @@ fn read_standard_entry(entry: &[u8; DIR_ENTRY_SIZE]) -> KResult<DirEntry> {
     let file_size = u32::from_le_bytes([entry[28], entry[29], entry[30], entry[31]]);
     Ok(DirEntry {
         short_name,
-        long_name: CompactString::default(),
+        long_name: EcoString::default(),
         attr,
         create_date,
         create_time,

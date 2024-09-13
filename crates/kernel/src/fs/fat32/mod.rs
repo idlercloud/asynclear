@@ -13,11 +13,11 @@ mod dir_entry;
 mod fat;
 mod file;
 
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     fs::StatFsFlags,
 };
+use ecow::EcoString;
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
@@ -37,8 +37,8 @@ const BOOT_SECTOR_ID: usize = 0;
 
 pub fn new_fat32_fs(
     block_device: &'static DiskDriver,
-    name: CompactString,
-    device_path: CompactString,
+    name: EcoString,
+    device_path: EcoString,
     flags: StatFsFlags,
 ) -> KResult<FileSystem> {
     let _enter = debug_span!("fat32_fs_init").entered();

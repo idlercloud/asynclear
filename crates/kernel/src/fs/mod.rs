@@ -16,13 +16,12 @@ use core::{fmt::Write, str::FromStr};
 
 use anstyle::{AnsiColor, Reset};
 use bitflags::Flags;
-use cervine::Cow;
-use compact_str::{CompactString, ToCompactString};
 use defines::{
     error::{errno, KResult},
     fs::{MountFlags, Stat, StatFsFlags, StatMode, UnmountFlags, AT_FDCWD},
 };
 use derive_more::Display;
+use ecow::EcoString;
 use hashbrown::HashMap;
 use klocks::{Lazy, SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
@@ -43,9 +42,9 @@ use crate::{
 
 pub fn init() {
     Lazy::force(&VFS);
-    use FileSystemType::{DevTmpfs, Procfs};
-    VFS.mount("/dev", "udev", DevTmpfs, MountFlags::empty());
-    VFS.mount("/proc", "proc", Procfs, MountFlags::empty());
+    use FileSystemType::{DevTmpFs, ProcFs};
+    VFS.mount("/dev", "udev", DevTmpFs, MountFlags::empty());
+    VFS.mount("/proc", "proc", ProcFs, MountFlags::empty());
     VFS.list_root_dir();
 }
 
@@ -73,16 +72,17 @@ impl VirtFileSystem {
         let mut mount_table = self.mount_table.lock();
         // NOTE: linux 要求挂载必须发生在一个存在的目录上，但是我们的实现似乎不需要
         let mounted_dentry;
-        let mut name = Cow::Owned(p2i.last_component);
-        if let Some(dentry) = p2i.dir.lookup(Cow::Borrowed(&name)) {
+        let mut name = p2i.last_component.clone();
+
+        if let Some(dentry) = p2i.dir.lookup(&name) {
             if mount_table.contains_key(&dentry) {
                 // 暂时不支持挂载到已有挂载的挂载点上
                 error!("cover mount fs not supported yet");
                 return Err(errno::EBUSY);
             }
             mounted_dentry = Some(dentry);
-            if &*name != "." && &*name != ".." {
-                name = Cow::Borrowed(mounted_dentry.as_ref().unwrap().name());
+            if name != "." && name != ".." {
+                name = mounted_dentry.as_ref().unwrap().name().clone();
             }
         } else {
             mounted_dentry = None;
@@ -101,28 +101,28 @@ impl VirtFileSystem {
 
         let mut fs = match fs_type {
             // TODO: [high] 挂载 vfat 时是放了一个 tmpfs 进去
-            FileSystemType::VFat | FileSystemType::Tmpfs => tmpfs::new_tmp_fs(
+            FileSystemType::VFat | FileSystemType::TmpFs => tmpfs::new_tmp_fs(
                 Arc::clone(&parent),
-                name.to_compact_string(),
-                device_path.to_compact_string(),
+                name.clone(),
+                EcoString::from(device_path),
                 statfs_flags,
             )?,
-            FileSystemType::DevTmpfs => devfs::new_dev_fs(
+            FileSystemType::DevTmpFs => devfs::new_dev_fs(
                 Arc::clone(&parent),
-                name.to_compact_string(),
-                device_path.to_compact_string(),
+                name.clone(),
+                EcoString::from(device_path),
                 statfs_flags,
             )?,
-            FileSystemType::Procfs => procfs::new_proc_fs(
+            FileSystemType::ProcFs => procfs::new_proc_fs(
                 Arc::clone(&parent),
-                name.to_compact_string(),
-                device_path.to_compact_string(),
+                name.clone(),
+                EcoString::from(device_path),
                 statfs_flags,
             )?,
         };
         {
             let mut children = parent.lock_children();
-            children.insert(name.into_owned(), DEntry::Dir(Arc::clone(&fs.root_dentry)));
+            children.insert(name, DEntry::Dir(Arc::clone(&fs.root_dentry)));
         };
         fs.mounted_dentry = mounted_dentry;
         mount_table.insert(DEntry::Dir(Arc::clone(&fs.root_dentry)), fs);
@@ -132,10 +132,7 @@ impl VirtFileSystem {
     pub fn unmount(&self, mount_point: &str, flags: UnmountFlags) -> KResult<()> {
         debug!("mount {mount_point}, flags: {flags:?}");
         let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
-        let dentry = p2i
-            .dir
-            .lookup(Cow::Borrowed(&p2i.last_component))
-            .ok_or(errno::ENOENT)?;
+        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
 
         let Some(fs) = self.mount_table.lock().remove(&dentry) else {
             return Err(errno::EINVAL);
@@ -157,8 +154,8 @@ impl VirtFileSystem {
         Ok(())
     }
 
-    pub fn mounts_info(&self) -> CompactString {
-        let mut ret = CompactString::new("");
+    pub fn mounts_info(&self) -> EcoString {
+        let mut ret = EcoString::new();
         let mounts = self.mount_table.lock();
         let mut n_write = 0;
         for (dentry, fs) in mounts.iter() {
@@ -220,8 +217,8 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
     debug!("Init vfs");
     let root_fs = fat32::new_fat32_fs(
         &BLOCK_DEVICE,
-        CompactString::const_new("/"),
-        CompactString::const_new("/dev/mmcblk0"),
+        EcoString::from("/"),
+        EcoString::from("/dev/mmcblk0"),
         StatFsFlags::empty(),
     )
     .expect("root_fs init failed");
@@ -236,10 +233,10 @@ pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
 
 pub struct FileSystem {
     root_dentry: Arc<DEntryDir>,
-    device_path: CompactString,
+    device_path: EcoString,
     fs_type: FileSystemType,
     mounted_dentry: Option<DEntry>,
-    mount_point: CompactString,
+    mount_point: EcoString,
     flags: StatFsFlags,
 }
 
@@ -254,11 +251,11 @@ pub enum FileSystemType {
     #[display(fmt = "vfat")]
     VFat,
     #[display(fmt = "tmpfs")]
-    Tmpfs,
+    TmpFs,
     #[display(fmt = "devtmpfs")]
-    DevTmpfs,
+    DevTmpFs,
     #[display(fmt = "proc")]
-    Procfs,
+    ProcFs,
 }
 
 impl FromStr for FileSystemType {
@@ -267,9 +264,9 @@ impl FromStr for FileSystemType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "vfat" => Ok(FileSystemType::VFat),
-            "tmpfs" => Ok(FileSystemType::Tmpfs),
-            "devtmpfs" => Ok(FileSystemType::DevTmpfs),
-            "proc" => Ok(FileSystemType::Procfs),
+            "tmpfs" => Ok(FileSystemType::TmpFs),
+            "devtmpfs" => Ok(FileSystemType::DevTmpFs),
+            "proc" => Ok(FileSystemType::ProcFs),
             _ => {
                 warn!("invalid fs type {s}");
                 Err(errno::ENODEV)
@@ -283,7 +280,7 @@ impl FromStr for FileSystemType {
 /// 也就是路径最后一个 component 和前面的其他部分解析得到的目录 dentry
 pub struct PathToInode {
     pub dir: Arc<DEntryDir>,
-    pub last_component: CompactString,
+    pub last_component: EcoString,
 }
 
 pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
@@ -320,7 +317,7 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
 
     let mut ret = PathToInode {
         dir: start_dir,
-        last_component: CompactString::const_new("."),
+        last_component: EcoString::from("."),
     };
 
     let Some(mut curr_component) = split.next() else {
@@ -328,22 +325,20 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
     };
 
     for next_component in split {
-        match ret.dir.lookup(Cow::Borrowed(curr_component)) {
+        match ret.dir.lookup(curr_component) {
             Some(DEntry::Dir(next_dir)) => ret.dir = next_dir,
             Some(_) => return Err(errno::ENOTDIR),
             None => return Err(errno::ENOENT),
         }
         curr_component = next_component;
     }
-    ret.last_component = curr_component.to_compact_string();
+    ret.last_component = EcoString::from(curr_component);
     Ok(ret)
 }
 
 pub fn find_file(path: &str) -> KResult<DEntry> {
     let p2i = resolve_path_with_dir_fd(AT_FDCWD, path)?;
-    p2i.dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)
+    p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)
 }
 
 pub async fn read_file(file: &Arc<DynBytesInode>) -> KResult<Vec<u8>> {

@@ -216,14 +216,13 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 
 - [ ] buddy_system_allocator 增加调试信息，包括碎片率、分配耗时等等
 - [ ] frame_allocator 可以试着用别的测试测试性能
-- [ ] 某些堆分配可以用 Allocaotr API 试着优化
+- [ ] 某些堆分配可以用 Allocator API 试着优化
 - [ ] trap 改为 vector 模式（会有优化吗？）
 - [ ] per-cpu 的分配缓存
 - [ ] virtio 块设备驱动采取中断方式处理
 - [ ] 要定期检查下有没有无用依赖（人工，cargo-udeps，cargo-machete 等方法）
 - [ ] 支持 GPU 驱动
 - [ ] 支持用户的多线程之后要实现 TLB shootdown
-- [ ] compact_str 或许可以改用 arcstr 或者 smol_str
 - [ ] 处理可能存在的 Arc 循环引用
 
 ### 具体任务

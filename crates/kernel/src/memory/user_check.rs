@@ -137,15 +137,6 @@ impl<T> UserCheck<[T]> {
         }
     }
 
-    pub fn into_raw_parts(self) -> (UserCheck<T>, usize) {
-        (
-            UserCheck {
-                ptr: self.ptr.as_non_null_ptr(),
-            },
-            self.ptr.len(),
-        )
-    }
-
     pub fn slice(&self, range: Range<usize>) -> Option<UserCheck<[T]>> {
         if range.end > self.len() || range.start > range.end {
             return None;
@@ -237,12 +228,6 @@ impl<T> UserRead<T> {
         } else {
             unsafe { self.ptr.read_unaligned() }
         }
-    }
-}
-
-impl<T> UserRead<[T]> {
-    pub fn len(&self) -> usize {
-        self.ptr.len()
     }
 }
 

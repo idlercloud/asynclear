@@ -4,11 +4,11 @@ use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
 use atomic::Ordering;
-use compact_str::CompactString;
 use defines::{
     error::{errno, KResult},
     misc::{CloneFlags, WaitFlags},
 };
+use ecow::EcoString;
 use event_listener::listener;
 use triomphe::Arc;
 
@@ -156,30 +156,29 @@ pub async fn sys_execve(
         let mut pathname = &*pathname;
         debug!("pathname: {}", pathname);
         // 收集参数列表
-        let collect_cstrs = |mut v: Vec<CompactString>,
-                             mut ptr_vec: UserCheck<usize>|
-         -> KResult<Vec<CompactString>> {
-            loop {
-                // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
-                let arg_str_ptr = ptr_vec.check_ptr()?.read();
-                if arg_str_ptr == 0 {
-                    break;
+        let collect_cstrs =
+            |mut v: Vec<EcoString>, mut ptr_vec: UserCheck<usize>| -> KResult<Vec<EcoString>> {
+                loop {
+                    // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
+                    let arg_str_ptr = ptr_vec.check_ptr()?.read();
+                    if arg_str_ptr == 0 {
+                        break;
+                    }
+                    let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
+                        .ok_or(errno::EINVAL)?
+                        .check_cstr()?;
+                    v.push(EcoString::from(&*arg_str));
+                    ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
                 }
-                let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
-                    .ok_or(errno::EINVAL)?
-                    .check_cstr()?;
-                v.push(CompactString::from(&*arg_str));
-                ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
-            }
-            Ok(v)
-        };
+                Ok(v)
+            };
 
         let mut args = Vec::new();
         // FIXME: [low] hack: 实际上应该检查 shebang，这里简化认为 .sh 都应该以 busybox 执行
         if pathname.ends_with(".sh") {
             pathname = "/busybox";
-            args.push(CompactString::const_new("busybox"));
-            args.push(CompactString::const_new("sh"));
+            args.push(EcoString::from("busybox"));
+            args.push(EcoString::from("sh"));
         }
         args = collect_cstrs(args, argv)?;
         let envs = if let Some(envp) = envp {
@@ -289,16 +288,16 @@ pub fn sys_setpriority(_prio: isize) -> KResult {
     todo!("[low] sys_setpriority")
 }
 
-/// 设置线程控制块中 `clear_child_tid` 的值为 `tidptr`。总是返回调用者线程的 tid。
+/// 设置线程控制块中 `clear_child_tid` 的值为 `tid_ptr`。总是返回调用者线程的 tid。
 ///
 /// 参数：
-/// - `tidptr`。
+/// - `tid_ptr`。
 ///   - 注意该参数此时是不进行检查的，因此该系统调用永不失败。
-///   - 在 linux 手册中，`tidptr` 的类型是 int*。
+///   - 在 linux 手册中，`tid_ptr` 的类型是 int*。
 ///   - 这里设置为 i32，是参考 libc crate 设置 `c_int` 为 i32
-pub fn sys_set_tid_address(tidptr: *const i32) -> KResult {
+pub fn sys_set_tid_address(tid_ptr: *const i32) -> KResult {
     let thread = local_hart().curr_thread();
-    unsafe { thread.get_owned().as_mut().clear_child_tid = tidptr as usize };
+    unsafe { thread.get_owned().as_mut().clear_child_tid = tid_ptr as usize };
     Ok(thread.tid())
 }
 

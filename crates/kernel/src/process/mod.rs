@@ -5,8 +5,8 @@ use alloc::{vec, vec::Vec};
 use core::num::NonZeroUsize;
 
 use atomic::{Atomic, Ordering};
-use compact_str::CompactString;
 use defines::error::{errno, KResult};
+use ecow::EcoString;
 use elf::Elf;
 use event_listener::Event;
 use hashbrown::HashMap;
@@ -30,7 +30,7 @@ pub static PROCESS_MANAGER: ProcessManager = ProcessManager::new();
 pub const INITPROC_PID: usize = 1;
 
 pub fn init() {
-    let init_proc = Process::from_path("/initproc", vec![CompactString::const_new("/initproc")])
+    let init_proc = Process::from_path("/initproc", vec![EcoString::from("/initproc")])
         .expect("INITPROC Failed.");
     PROCESS_MANAGER.add(INITPROC_PID, init_proc);
 }
@@ -50,7 +50,7 @@ impl Process {
     // TODO: 整理这些函数，抽出共同部分
 
     /// `path` 需要是绝对路径
-    fn from_path(path: &str, args: Vec<CompactString>) -> KResult<Arc<Self>> {
+    fn from_path(path: &str, args: Vec<EcoString>) -> KResult<Arc<Self>> {
         let _enter = info_span!("spawn process", path = path, args = args).entered();
 
         let mut memory_space;
@@ -172,12 +172,7 @@ impl Process {
     /// 根据 `elf_data` 加载一个新的 ELF 文件并执行。
     ///
     /// 目前要求原进程仅有一个线程并且没有子进程
-    pub fn exec(
-        &self,
-        elf_data: &[u8],
-        args: Vec<CompactString>,
-        envs: Vec<CompactString>,
-    ) -> KResult<()> {
+    pub fn exec(&self, elf_data: &[u8], args: Vec<EcoString>, envs: Vec<EcoString>) -> KResult<()> {
         // let bytes = {
         //     let DEntry::Bytes(bytes) =
         //         fs::find_file(self.lock_inner_with(|inner| Arc::clone(&inner.cwd)), &path)?

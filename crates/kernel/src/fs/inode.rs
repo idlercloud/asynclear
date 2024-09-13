@@ -35,8 +35,6 @@ pub enum InodeMode {
     CharDevice,
 }
 
-pub struct Inode {}
-
 impl From<InodeMode> for StatMode {
     fn from(value: InodeMode) -> Self {
         match value {
@@ -104,6 +102,10 @@ pub struct InodeMetaInner {
     pub modify_time: TimeSpec,
     /// 上一次元数据变化时间
     pub change_time: TimeSpec,
+}
+
+pub trait Inode {
+    fn meta(&self) -> &InodeMeta;
 }
 
 pub trait DirInodeBackend: Send + Sync {

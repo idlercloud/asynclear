@@ -24,7 +24,7 @@ static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImp
 });
 
 pub fn init() {
-    kernel_tracer::KERNLE_TRACER
+    kernel_tracer::KERNEL_TRACER
         .call_once(|| Lazy::force(&KERNEL_TRACER_IMPL) as &(dyn Tracer + Sync));
 }
 

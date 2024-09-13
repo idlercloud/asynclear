@@ -120,8 +120,7 @@ impl BytesInodeBackend for TtyInode {
     }
 
     fn ioctl(&self, cmd: usize, value: usize) -> KResult {
-        let _enter =
-            debug_span!("tty_ioctl", cmd = compact_str::format_compact!("{cmd:x}")).entered();
+        let _enter = debug_span!("tty_ioctl", cmd = ecow::eco_format!("{cmd:x}")).entered();
         match cmd {
             TCGETS | TCGETA => {
                 debug!("Get termios");

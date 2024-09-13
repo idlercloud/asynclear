@@ -1,8 +1,8 @@
 use alloc::boxed::Box;
 
 use common::config::PAGE_SIZE;
-use compact_str::CompactString;
 use defines::error::{errno, AKResult};
+use ecow::EcoString;
 
 use crate::{
     fs::{

@@ -7,10 +7,10 @@ use core::{
     num::NonZeroU32,
 };
 
-use compact_str::CompactString;
+use ecow::EcoString;
 
 use self::loggable::Loggable;
-use crate::{Level, KERNLE_TRACER};
+use crate::{Level, KERNEL_TRACER};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SpanId(NonZeroU32);
@@ -40,9 +40,9 @@ impl Span {
         name: &'static str,
         kvs: Option<&'a [(&'static str, &'a dyn Loggable)]>,
     ) -> Self {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             let kvs = kvs.map(|kvs| {
-                let mut kvs_str = CompactString::new("");
+                let mut kvs_str = EcoString::new();
                 write!(kvs_str, "{}=", kvs[0].0).unwrap();
                 kvs[0].1.log(&mut kvs_str);
                 let mut i = 1;
@@ -67,7 +67,7 @@ impl Span {
 
     #[track_caller]
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             if let Some(id) = &self.id {
                 tracer.enter(id);
             }
@@ -77,7 +77,7 @@ impl Span {
 
     #[track_caller]
     pub fn entered(self) -> OwnedEnterGuard {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             if let Some(id) = &self.id {
                 tracer.enter(id);
             }
@@ -89,7 +89,7 @@ impl Span {
 impl Drop for Span {
     #[inline]
     fn drop(&mut self) {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             if let Some(id) = self.id.take() {
                 tracer.drop_span(id);
             }
@@ -107,7 +107,7 @@ impl !Send for RefEnterGuard<'_> {}
 
 impl Drop for RefEnterGuard<'_> {
     fn drop(&mut self) {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             if let Some(id) = &self.span.id {
                 tracer.exit(id);
             }
@@ -125,7 +125,7 @@ impl !Send for OwnedEnterGuard {}
 
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {
-        if let Some(tracer) = KERNLE_TRACER.get() {
+        if let Some(tracer) = KERNEL_TRACER.get() {
             if let Some(id) = &self.span.id {
                 tracer.exit(id);
             }
@@ -136,7 +136,7 @@ impl Drop for OwnedEnterGuard {
 pub struct SpanAttr {
     name: &'static str,
     level: Level,
-    kvs: Option<CompactString>,
+    kvs: Option<EcoString>,
 }
 
 impl SpanAttr {

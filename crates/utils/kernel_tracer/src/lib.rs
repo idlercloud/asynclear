@@ -17,7 +17,7 @@ pub use macros::{log, log_enabled};
 pub use record::Record;
 pub use span::{instrument::Instrument, Span, SpanAttr, SpanId};
 
-pub static KERNLE_TRACER: Once<&'static (dyn Tracer + Sync)> = Once::new();
+pub static KERNEL_TRACER: Once<&'static (dyn Tracer + Sync)> = Once::new();
 
 pub trait Tracer {
     fn log_to_console(&self, record: &Record<'_>);
@@ -31,7 +31,7 @@ pub trait Tracer {
 
 #[inline]
 pub fn log(level: Level, args: core::fmt::Arguments<'_>) {
-    if let Some(logger) = KERNLE_TRACER.get() {
+    if let Some(logger) = KERNEL_TRACER.get() {
         let record = Record::new(level, args);
         if level <= crate::CLOG {
             logger.log_to_console(&record);

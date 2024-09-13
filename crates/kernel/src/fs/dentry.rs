@@ -1,9 +1,8 @@
 use alloc::collections::{btree_map::Entry, BTreeMap};
 use core::hash::Hash;
 
-use cervine::Cow;
-use compact_str::CompactString;
 use defines::error::{errno, KResult};
+use ecow::EcoString;
 use klocks::{SpinMutex, SpinMutexGuard};
 use smallvec::SmallVec;
 use triomphe::Arc;
@@ -39,7 +38,7 @@ impl DEntry {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &EcoString {
         match self {
             DEntry::Dir(dir) => dir.name(),
             DEntry::Bytes(bytes) => bytes.name(),
@@ -60,17 +59,13 @@ impl DEntry {
 
 pub struct DEntryDir {
     parent: Option<Arc<DEntryDir>>,
-    name: CompactString,
-    children: SpinMutex<BTreeMap<CompactString, DEntry>>,
+    name: EcoString,
+    children: SpinMutex<BTreeMap<EcoString, DEntry>>,
     inode: Arc<DynDirInode>,
 }
 
 impl DEntryDir {
-    pub fn new(
-        parent: Option<Arc<DEntryDir>>,
-        name: CompactString,
-        inode: Arc<DynDirInode>,
-    ) -> Self {
+    pub fn new(parent: Option<Arc<DEntryDir>>, name: EcoString, inode: Arc<DynDirInode>) -> Self {
         Self {
             parent,
             name,
@@ -79,44 +74,54 @@ impl DEntryDir {
         }
     }
 
-    pub fn lookup(self: &Arc<Self>, component: Cow<'_, CompactString, str>) -> Option<DEntry> {
-        let curr_time = time::curr_time_spec();
-        self.inode
-            .meta()
-            .lock_inner_with(|inner| inner.access_time = curr_time);
-        if &component == "." {
-            return Some(DEntry::Dir(Arc::clone(self)));
-        } else if &component == ".." {
-            return Some(DEntry::Dir(Arc::clone(
-                self.parent.as_ref().unwrap_or(self),
-            )));
-        }
-        let component = component.into_owned();
-        let mut children = self.children.lock();
-        let entry = children.entry(component);
-        match entry {
-            Entry::Vacant(vacant) => {
-                let new_inode = self.inode.lookup(vacant.key())?;
-                let new_dentry = match new_inode {
-                    DynInode::Dir(dir) => DEntry::Dir(Arc::new(DEntryDir::new(
-                        Some(Arc::clone(self)),
-                        vacant.key().clone(),
-                        dir,
-                    ))),
-                    DynInode::Bytes(bytes) => DEntry::Bytes(Arc::new(DEntryBytes::new(
-                        Arc::clone(self),
-                        vacant.key().clone(),
-                        bytes,
-                    ))),
-                };
-                vacant.insert(new_dentry.clone());
-                Some(new_dentry)
+    pub fn lookup(
+        self: &Arc<Self>,
+        component: impl Into<EcoString> + AsRef<str>,
+    ) -> Option<DEntry> {
+        fn special(parent: &Arc<DEntryDir>, component: &str) -> Option<DEntry> {
+            let curr_time = time::curr_time_spec();
+            parent
+                .inode
+                .meta()
+                .lock_inner_with(|inner| inner.access_time = curr_time);
+            if component == "." {
+                Some(DEntry::Dir(Arc::clone(parent)))
+            } else if component == ".." {
+                Some(DEntry::Dir(Arc::clone(
+                    parent.parent.as_ref().unwrap_or(parent),
+                )))
+            } else {
+                None
             }
-            Entry::Occupied(occupied) => Some(occupied.get().clone()),
         }
+        fn general(parent: &Arc<DEntryDir>, component: EcoString) -> Option<DEntry> {
+            let mut children = parent.children.lock();
+            let entry = children.entry(component);
+            match entry {
+                Entry::Vacant(vacant) => {
+                    let new_inode = parent.inode.lookup(vacant.key())?;
+                    let new_dentry = match new_inode {
+                        DynInode::Dir(dir) => DEntry::Dir(Arc::new(DEntryDir::new(
+                            Some(Arc::clone(parent)),
+                            vacant.key().clone(),
+                            dir,
+                        ))),
+                        DynInode::Bytes(bytes) => DEntry::Bytes(Arc::new(DEntryBytes::new(
+                            Arc::clone(parent),
+                            vacant.key().clone(),
+                            bytes,
+                        ))),
+                    };
+                    vacant.insert(new_dentry.clone());
+                    Some(new_dentry)
+                }
+                Entry::Occupied(occupied) => Some(occupied.get().clone()),
+            }
+        }
+        special(self, component.as_ref()).or_else(|| general(self, component.into()))
     }
 
-    pub fn mkdir(self: &Arc<Self>, component: CompactString) -> KResult<Arc<DEntryDir>> {
+    pub fn mkdir(self: &Arc<Self>, component: EcoString) -> KResult<Arc<DEntryDir>> {
         if component == "." || component == ".." {
             return Err(errno::EINVAL);
         }
@@ -137,7 +142,7 @@ impl DEntryDir {
 
     pub fn mknod(
         self: &Arc<Self>,
-        component: CompactString,
+        component: EcoString,
         mode: InodeMode,
     ) -> KResult<Arc<DEntryBytes>> {
         if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir)
@@ -180,11 +185,11 @@ impl DEntryDir {
         self.parent.as_ref()
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &EcoString {
         &self.name
     }
 
-    pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<CompactString, DEntry>> {
+    pub fn lock_children(&self) -> SpinMutexGuard<'_, BTreeMap<EcoString, DEntry>> {
         self.children.lock()
     }
 
@@ -192,7 +197,7 @@ impl DEntryDir {
         &self.inode
     }
 
-    pub fn path(&self) -> CompactString {
+    pub fn path(&self) -> EcoString {
         let mut dirs = SmallVec::<[&DEntryDir; 4]>::new();
         let mut dir = self;
         // 根目录 `/` 和 `\0`
@@ -204,12 +209,12 @@ impl DEntryDir {
             dir = parent;
         }
 
-        let mut path = CompactString::const_new("/");
+        let mut path = EcoString::from("/");
 
         for component in dirs
             .into_iter()
             .rev()
-            .map(|dir| dir.name())
+            .map(|dir| dir.name().as_str())
             .intersperse("/")
         {
             path.push_str(component);
@@ -221,12 +226,12 @@ impl DEntryDir {
 
 pub struct DEntryBytes {
     parent: Arc<DEntryDir>,
-    name: CompactString,
+    name: EcoString,
     inode: Arc<DynBytesInode>,
 }
 
 impl DEntryBytes {
-    pub fn new(parent: Arc<DEntryDir>, name: CompactString, inode: Arc<DynBytesInode>) -> Self {
+    pub fn new(parent: Arc<DEntryDir>, name: EcoString, inode: Arc<DynBytesInode>) -> Self {
         Self {
             parent,
             name,
@@ -238,7 +243,7 @@ impl DEntryBytes {
         &self.parent
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &EcoString {
         &self.name
     }
 

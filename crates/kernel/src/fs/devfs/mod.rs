@@ -1,8 +1,8 @@
 mod rtc;
 mod tty;
 
-use compact_str::CompactString;
 use defines::{error::KResult, fs::StatFsFlags};
+use ecow::EcoString;
 use rtc::RtcInode;
 use triomphe::Arc;
 use unsize::CoerceUnsize;
@@ -16,20 +16,21 @@ use super::{
 
 pub fn new_dev_fs(
     parent: Arc<DEntryDir>,
-    name: CompactString,
-    device_path: CompactString,
+    name: EcoString,
+    device_path: EcoString,
     flags: StatFsFlags,
 ) -> KResult<FileSystem> {
     let fs = tmpfs::new_tmp_fs(parent, name, device_path, flags)?;
     {
         let mut children = fs.root_dentry.lock_children();
         let mut add_child = |name: &'static str, inode: Arc<DynBytesInode>| {
+            let name = EcoString::from(name);
             let child = DEntry::Bytes(Arc::new(DEntryBytes::new(
                 Arc::clone(&fs.root_dentry),
-                CompactString::const_new(name),
+                name.clone(),
                 inode,
             )));
-            children.insert(CompactString::const_new(name), child);
+            children.insert(name, child);
         };
         macro new_inode($ty:ty) {
             Arc::new(<$ty>::new()).unsize(DynBytesInodeCoercion!())

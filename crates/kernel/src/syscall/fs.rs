@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use core::{ops::Deref, str::FromStr};
 
-use cervine::Cow;
 use defines::{
     error::{errno, KResult},
     fs::{
@@ -224,7 +223,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
     }
 
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
-    let new_file = if let Some(final_dentry) = p2i.dir.lookup(Cow::Borrowed(&p2i.last_component)) {
+    let new_file = if let Some(final_dentry) = p2i.dir.lookup(&p2i.last_component) {
         // 指定了必须要创建文件，但该文件已存在
         if flags.contains(OpenFlags::CREATE | OpenFlags::EXCL) {
             return Err(errno::EEXIST);
@@ -464,10 +463,7 @@ pub fn sys_newfstatat(
         fs::stat_from_meta(file.meta())
     } else {
         let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
-        let dentry = p2i
-            .dir
-            .lookup(Cow::Owned(p2i.last_component))
-            .ok_or(errno::ENOENT)?;
+        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
         fs::stat_from_meta(dentry.meta())
     };
     statbuf.write(stat);
@@ -500,10 +496,7 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
     };
     info!("flags {flags:?}");
     let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
-    let dentry = p2i
-        .dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)?;
+    let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
     if flags.contains(FstatFlags::AT_REMOVEDIR) {
         todo!("[mid] impl rmdir");
     } else {
@@ -576,11 +569,7 @@ pub fn sys_mount(
 pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
     let path = path.check_cstr()?;
     let p2i = fs::resolve_path_with_dir_fd(AT_FDCWD, &path)?;
-    let DEntry::Dir(dir) = p2i
-        .dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)?
-    else {
+    let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
         return Err(errno::ENOTDIR);
     };
     local_hart()
@@ -759,10 +748,7 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
     let path = path.check_cstr()?;
     debug!("path {}", &*path);
     let p2i = fs::path_walk(Arc::clone(VFS.root_dir()), &path)?;
-    let mut dentry = p2i
-        .dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)?;
+    let mut dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
 
     let mount_table = VFS.lock_mount_table();
     let fs = loop {
@@ -793,9 +779,7 @@ pub fn sys_faccessat(dir_fd: usize, path: UserCheck<u8>, mode: u32) -> KResult {
     // TODO: [low] 未正确实现 `faccessat`。
     let _mode = FaccessatMode::from_bits(mode).ok_or(errno::EINVAL)?;
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path.check_cstr()?)?;
-    p2i.dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)?;
+    p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
     Ok(0)
 }
 
@@ -812,10 +796,7 @@ pub fn sys_utimensat(
         return Err(errno::ENOENT);
     }
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
-    let file = p2i
-        .dir
-        .lookup(Cow::Owned(p2i.last_component))
-        .ok_or(errno::ENOENT)?;
+    let file = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
     let new_atime;
     let new_mtime;
     let now = time::curr_time_spec();
@@ -863,7 +844,7 @@ pub fn sys_renameat2(
 ) -> KResult {
     let flags = Renameat2Flags::from_bits(flags).ok_or(errno::EINVAL)?;
     if flags.contains(Renameat2Flags::RENAME_EXCHANGE)
-        && flags.intersects(Renameat2Flags::RENAME_WHITEOUT | Renameat2Flags::RENAME_WHITEOUT)
+        && flags.intersects(Renameat2Flags::RENAME_NOREPLACE | Renameat2Flags::RENAME_WHITEOUT)
     {
         return Err(errno::EINVAL);
     }
@@ -877,11 +858,11 @@ pub fn sys_renameat2(
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
     let old_file = old_p2i
         .dir
-        .lookup(Cow::Owned(old_p2i.last_component))
+        .lookup(old_p2i.last_component)
         .ok_or(errno::ENOENT)?;
     let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
     if old_file.is_dir() {
-        let new_file = new_p2i.dir.lookup(Cow::Borrowed(&new_p2i.last_component));
+        let _new_file = new_p2i.dir.lookup(&new_p2i.last_component);
     }
-    todo!()
+    todo!("[high] impl sys_renameat2")
 }
