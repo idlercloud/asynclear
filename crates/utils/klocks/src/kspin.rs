@@ -89,7 +89,7 @@ impl<T: ?Sized> Deref for SpinMutexGuard<'_, T> {
     }
 }
 
-impl<'a, T: ?Sized> DerefMut for SpinMutexGuard<'a, T> {
+impl<T: ?Sized> DerefMut for SpinMutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.inner
     }
@@ -171,7 +171,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     }
 }
 
-impl<'a, T: ?Sized> Deref for SpinNoIrqMutexGuard<'a, T> {
+impl<T: ?Sized> Deref for SpinNoIrqMutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -180,7 +180,7 @@ impl<'a, T: ?Sized> Deref for SpinNoIrqMutexGuard<'a, T> {
     }
 }
 
-impl<'a, T: ?Sized> DerefMut for SpinNoIrqMutexGuard<'a, T> {
+impl<T: ?Sized> DerefMut for SpinNoIrqMutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.spin_guard
     }

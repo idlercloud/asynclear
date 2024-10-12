@@ -120,8 +120,8 @@ pub trait DirInodeBackend: Send + Sync {
 
 pub trait BytesInodeBackend: Send + Sync + 'static {
     fn meta(&self) -> &InodeMeta;
-    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, _offset: u64) -> AKResult<'_, usize>;
-    fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, offset: u64) -> AKResult<'_, usize>;
+    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, _offset: u64) -> AKResult<'a, usize>;
+    fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, offset: u64) -> AKResult<'a, usize>;
     fn ioctl(&self, request: usize, argp: usize) -> KResult {
         Err(errno::ENOTTY)
     }

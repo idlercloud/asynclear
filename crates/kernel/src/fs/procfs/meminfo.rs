@@ -48,7 +48,7 @@ impl BytesInodeBackend for MeminfoInode {
         &self.meta
     }
 
-    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'_, usize> {
+    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'a, usize> {
         Box::pin(async move {
             // TODO: [low] 目前对这类伪文件系统中文件的读取实现并不正确，要求传入的 buf 能够一次性读取所有内容
             debug!("read meminfo");
@@ -72,7 +72,7 @@ impl BytesInodeBackend for MeminfoInode {
         })
     }
 
-    fn write_inode_at<'a>(&'a self, _buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'_, usize> {
+    fn write_inode_at<'a>(&'a self, _buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'a, usize> {
         Box::pin(async move { Err(errno::EBADF) })
     }
 }

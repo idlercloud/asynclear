@@ -35,7 +35,7 @@ impl BytesInodeBackend for RtcInode {
         &self.meta
     }
 
-    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'_, usize> {
+    fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, offset: u64) -> AKResult<'a, usize> {
         Box::pin(async move {
             debug!("read rtc");
             // TODO: [low] rtc 实现不正确
@@ -51,7 +51,7 @@ impl BytesInodeBackend for RtcInode {
         })
     }
 
-    fn write_inode_at<'a>(&'a self, _buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'_, usize> {
+    fn write_inode_at<'a>(&'a self, _buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'a, usize> {
         Box::pin(async move { Err(errno::EBADF) })
     }
 
