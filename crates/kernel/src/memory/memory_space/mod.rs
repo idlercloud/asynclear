@@ -21,9 +21,7 @@ use self::{
     init_stack::{StackInitCtx, AT_BASE, AT_ENTRY, AT_PAGESZ, AT_PHDR, AT_PHENT, AT_PHNUM},
     vm_area::{BackedInode, FramedVmArea},
 };
-use super::{
-    kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum,
-};
+use super::{kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum};
 use crate::thread::Thread;
 
 pub mod init_stack;
@@ -131,9 +129,7 @@ impl MemorySpace {
                 .get_mut(&vpn_range.start)
                 .expect("just insert above");
             for (&vpn, src_frame) in src_area.unbacked_map() {
-                let mut dst_frame = dst_area
-                    .ensure_allocated(vpn, &mut memory_set.page_table)
-                    .frame_mut();
+                let mut dst_frame = dst_area.ensure_allocated(vpn, &mut memory_set.page_table).frame_mut();
                 dst_frame.copy_from(&src_frame.frame());
             }
         }
@@ -194,10 +190,7 @@ impl MemorySpace {
                 if ph.p_flags & PF_X != 0 {
                     map_perm |= MapPermission::X;
                 }
-                debug!(
-                    "load vm area {:#x}..{:#x}, {map_perm:?}",
-                    start_va.0, end_va.0
-                );
+                debug!("load vm area {:#x}..{:#x}, {map_perm:?}", start_va.0, end_va.0);
                 unsafe {
                     self.user_map_with_data(
                         start_va.vpn_floor()..end_va.vpn_ceil(),
@@ -275,12 +268,7 @@ impl MemorySpace {
         Ok(vpn_range.start)
     }
 
-    fn try_find_mmap_area(
-        &mut self,
-        addr: usize,
-        len: NonZeroUsize,
-        flags: MmapFlags,
-    ) -> KResult<Range<VirtPageNum>> {
+    fn try_find_mmap_area(&mut self, addr: usize, len: NonZeroUsize, flags: MmapFlags) -> KResult<Range<VirtPageNum>> {
         if flags.contains(MmapFlags::MAP_FIXED) {
             if addr & PAGE_OFFSET_MASK != 0 {
                 return Err(errno::EINVAL);
@@ -314,9 +302,7 @@ impl MemorySpace {
     /// 将 `va_range` 范围内的所有页取消映射。有可能导致某个 area 被部分截断
     pub fn unmap(&mut self, va_range: Range<VirtAddr>) {
         let vpn_range = va_range.start.vpn_floor()..va_range.end.vpn_ceil();
-        let mut cursor = self
-            .user_areas
-            .lower_bound(Bound::Included(&vpn_range.start));
+        let mut cursor = self.user_areas.lower_bound(Bound::Included(&vpn_range.start));
         cursor.prev();
 
         let mut to_unmap = SmallVec::<[VirtPageNum; 4]>::new();
@@ -508,26 +494,10 @@ extern "C" {
 }
 
 pub fn log_kernel_sections() {
-    info!(
-        "kernel     text {:#x}..{:#x}",
-        stext as usize, etext as usize
-    );
-    info!(
-        "kernel   rodata {:#x}..{:#x}",
-        srodata as usize, erodata as usize
-    );
-    info!(
-        "kernel     data {:#x}..{:#x}",
-        sdata as usize, edata as usize
-    );
-    info!(
-        "kernel    stack {:#x}..{:#x}",
-        sstack as usize, estack as usize
-    );
+    info!("kernel     text {:#x}..{:#x}", stext as usize, etext as usize);
+    info!("kernel   rodata {:#x}..{:#x}", srodata as usize, erodata as usize);
+    info!("kernel     data {:#x}..{:#x}", sdata as usize, edata as usize);
+    info!("kernel    stack {:#x}..{:#x}", sstack as usize, estack as usize);
     info!("kernel      bss {:#x}..{:#x}", sbss as usize, ebss as usize);
-    info!(
-        "physical memory {:#x}..{:#x}",
-        ekernel as usize,
-        PA_TO_VA + MEMORY_END
-    );
+    info!("physical memory {:#x}..{:#x}", ekernel as usize, PA_TO_VA + MEMORY_END);
 }

@@ -139,10 +139,7 @@ impl KtestArgs {
         .unwrap();
         let mut shutdown = false;
         for line in lines {
-            if line
-                .unwrap()
-                .contains("[initproc] No child process. OS shutdown")
-            {
+            if line.unwrap().contains("[initproc] No child process. OS shutdown") {
                 shutdown = true;
                 break;
             }

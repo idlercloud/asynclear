@@ -58,8 +58,7 @@ impl Ord for Timer {
     }
 }
 
-static TIMERS: SpinNoIrqMutex<BinaryHeap<Reverse<Timer>>> =
-    SpinNoIrqMutex::new(BinaryHeap::<Reverse<Timer>>::new());
+static TIMERS: SpinNoIrqMutex<BinaryHeap<Reverse<Timer>>> = SpinNoIrqMutex::new(BinaryHeap::<Reverse<Timer>>::new());
 
 pub fn check_timer() {
     let mut timers = TIMERS.lock();

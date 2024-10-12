@@ -61,10 +61,7 @@ fn exit_thread(thread: &Thread) {
     debug!("thread exits");
     let process = &thread.process;
     let mut process_inner = process.lock_inner();
-    process_inner
-        .threads
-        .remove(&thread.tid)
-        .expect("remove thread here");
+    process_inner.threads.remove(&thread.tid).expect("remove thread here");
     process_inner.tid_allocator.dealloc(thread.tid);
     thread.dealloc_user_stack(&mut process_inner.memory_space);
     thread.set_status(ThreadStatus::Terminated);
@@ -155,10 +152,7 @@ impl Future for UserThreadWrapperFuture {
             trap_context.user_float_ctx.restore();
         }
         trace!("User task running");
-        let prev_status = self
-            .thread
-            .status
-            .swap(ThreadStatus::Running, Ordering::SeqCst);
+        let prev_status = self.thread.status.swap(ThreadStatus::Running, Ordering::SeqCst);
         if prev_status != ThreadStatus::Ready {
             panic!("Run unready({prev_status:?}) task")
         }

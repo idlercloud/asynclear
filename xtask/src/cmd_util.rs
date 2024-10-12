@@ -40,10 +40,7 @@ impl Cmd {
         self
     }
 
-    pub fn envs(
-        &mut self,
-        vars: impl IntoIterator<Item = (impl AsRef<OsStr>, impl AsRef<OsStr>)>,
-    ) -> &mut Self {
+    pub fn envs(&mut self, vars: impl IntoIterator<Item = (impl AsRef<OsStr>, impl AsRef<OsStr>)>) -> &mut Self {
         self.0.envs(vars);
         self
     }
@@ -90,11 +87,7 @@ impl Cmd {
     pub fn invoke(&mut self) -> &mut Self {
         let status = self.status();
         if !status.success() {
-            panic!(
-                "Failed with code {}: {:?}",
-                status.code().unwrap(),
-                self.info()
-            );
+            panic!("Failed with code {}: {:?}", status.code().unwrap(), self.info());
         }
         self
     }
@@ -113,10 +106,6 @@ impl Cmd {
     }
 
     pub fn spawn(&mut self) -> Child {
-        self.0
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap()
+        self.0.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap()
     }
 }

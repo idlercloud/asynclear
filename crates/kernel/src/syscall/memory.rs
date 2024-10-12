@@ -35,14 +35,7 @@ use crate::{
 /// - `flags` 描述映射的特征，详细参考 [`MmapFlags`]
 /// - `fd` 被映射的文件描述符
 /// - `offset` 映射的起始偏移，必须是 `PAGE_SIZE` 的整数倍
-pub fn sys_mmap(
-    addr: usize,
-    len: usize,
-    prot: u32,
-    flags: u32,
-    fd: usize,
-    offset: usize,
-) -> KResult {
+pub fn sys_mmap(addr: usize, len: usize, prot: u32, flags: u32, fd: usize, offset: usize) -> KResult {
     let len = NonZeroUsize::new(len).ok_or(errno::EINVAL)?;
     let prot = MmapProt::from_bits(prot).ok_or(errno::EINVAL)?;
     let Some(flags) = MmapFlags::from_bits(flags) else {
@@ -88,19 +81,10 @@ pub fn sys_mmap(
 /// 私有匿名映射，没有底层文件。内容全部初始化为 0
 ///
 /// 如果 addr 没有对齐到页边界或者
-fn private_anonymous_map(
-    addr: usize,
-    len: NonZeroUsize,
-    prot: MmapProt,
-    flags: MmapFlags,
-) -> KResult<VirtPageNum> {
+fn private_anonymous_map(addr: usize, len: NonZeroUsize, prot: MmapProt, flags: MmapFlags) -> KResult<VirtPageNum> {
     debug!("private anonymous map, addr: {addr:#}, len: {len}");
     let process = local_hart().curr_process();
-    process.lock_inner_with(|inner| {
-        inner
-            .memory_space
-            .try_map(addr, len, MapPermission::from(prot), flags)
-    })
+    process.lock_inner_with(|inner| inner.memory_space.try_map(addr, len, MapPermission::from(prot), flags))
 }
 
 fn shared_file_map(
@@ -126,8 +110,7 @@ fn shared_file_map(
         let (readable, writable) = fd_flags.read_write();
         if desc.meta().mode() != InodeMode::Regular
             || !readable
-            || ((!writable || fd_flags.contains(OpenFlags::APPEND))
-                && prot.contains(MmapProt::PROT_WRITE))
+            || ((!writable || fd_flags.contains(OpenFlags::APPEND)) && prot.contains(MmapProt::PROT_WRITE))
         {
             warn!("file mode: {:?}, flags: {fd_flags:?}", desc.meta().mode());
             return Err(errno::EACCES);
@@ -141,14 +124,9 @@ fn shared_file_map(
         BackedInode::new(bytes.inode()).ok_or(errno::EACCES)
     })()?;
 
-    inner.memory_space.try_map_inode(
-        addr,
-        len,
-        MapPermission::from(prot),
-        flags,
-        backed_inode,
-        file_page_id,
-    )
+    inner
+        .memory_space
+        .try_map_inode(addr, len, MapPermission::from(prot), flags, backed_inode, file_page_id)
 }
 
 /// 将一块区域取消映射。

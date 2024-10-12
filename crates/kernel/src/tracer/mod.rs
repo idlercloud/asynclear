@@ -24,8 +24,7 @@ static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImp
 });
 
 pub fn init() {
-    kernel_tracer::KERNEL_TRACER
-        .call_once(|| Lazy::force(&KERNEL_TRACER_IMPL) as &(dyn Tracer + Sync));
+    kernel_tracer::KERNEL_TRACER.call_once(|| Lazy::force(&KERNEL_TRACER_IMPL) as &(dyn Tracer + Sync));
 }
 
 /// 其实这个很可能是 ub，但是为了调试还是先这么写着吧
@@ -65,9 +64,7 @@ impl Tracer for KernelTracerImpl {
         let id = self.slab.lock().insert(span_attr);
         let id = NonZeroU32::new(id as u32 + 1).unwrap();
         #[cfg(feature = "profiling")]
-        self.events
-            .lock()
-            .push(ProfilingEvent::NewSpan { id: id.get(), name });
+        self.events.lock().push(ProfilingEvent::NewSpan { id: id.get(), name });
         SpanId::from_non_zero_u32(id)
     }
 
@@ -139,14 +136,7 @@ impl KernelTracerImpl {
                 let span_style = span_attr.level().output_color().on_default().bold();
                 has_span = true;
 
-                write!(
-                    writer,
-                    "-{}{}{}",
-                    span_style.render(),
-                    span_attr.name(),
-                    Reset.render()
-                )
-                .unwrap();
+                write!(writer, "-{}{}{}", span_style.render(), span_attr.name(), Reset.render()).unwrap();
                 if let Some(kvs) = span_attr.kvs() {
                     write!(writer, "{{{kvs}}}").unwrap();
                 }

@@ -58,14 +58,7 @@ pub fn syscall6(id: usize, args: [usize; 6]) -> isize {
 pub fn sys_openat(dirfd: usize, path: &CStr, flags: u32, mode: u32) -> isize {
     syscall6(
         OPENAT,
-        [
-            dirfd,
-            path.as_ptr() as usize,
-            flags as usize,
-            mode as usize,
-            0,
-            0,
-        ],
+        [dirfd, path.as_ptr() as usize, flags as usize, mode as usize, 0, 0],
     )
 }
 
@@ -78,10 +71,7 @@ pub fn sys_lseek(fd: i32, offset: i64, whence: usize) -> isize {
 }
 
 pub fn sys_read(fd: i32, buffer: &mut [u8]) -> isize {
-    syscall3(
-        READ,
-        [fd as usize, buffer.as_mut_ptr() as usize, buffer.len()],
-    )
+    syscall3(READ, [fd as usize, buffer.as_mut_ptr() as usize, buffer.len()])
 }
 
 pub fn sys_write(fd: i32, buffer: *const u8, len: usize) -> isize {
@@ -152,24 +142,10 @@ pub fn sys_set_priority(prio: isize) -> isize {
     syscall3(SETPRIORITY, [prio as usize, 0, 0])
 }
 
-pub fn sys_mmap(
-    start: usize,
-    len: usize,
-    prot: MmapProt,
-    flags: MmapFlags,
-    fd: usize,
-    offset: usize,
-) -> isize {
+pub fn sys_mmap(start: usize, len: usize, prot: MmapProt, flags: MmapFlags, fd: usize, offset: usize) -> isize {
     syscall6(
         MMAP,
-        [
-            start,
-            len,
-            prot.bits() as usize,
-            flags.bits() as usize,
-            fd,
-            offset,
-        ],
+        [start, len, prot.bits() as usize, flags.bits() as usize, fd, offset],
     )
 }
 
@@ -210,11 +186,7 @@ pub unsafe fn sys_uname(utsname: *mut UtsName) -> isize {
     syscall3(UNAME, [utsname as _, 0, 0])
 }
 
-pub fn sys_rt_sigaction(
-    signum: usize,
-    act: *const KSignalAction,
-    old_act: *mut KSignalAction,
-) -> isize {
+pub fn sys_rt_sigaction(signum: usize, act: *const KSignalAction, old_act: *mut KSignalAction) -> isize {
     syscall3(RT_SIGACTION, [signum, act as _, old_act as _])
 }
 

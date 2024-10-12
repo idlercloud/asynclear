@@ -13,24 +13,14 @@ fn main() -> i32 {
         if pid == 0 {
             for i in 0..HEIGHT {
                 let buf = [b'B'; WIDTH];
-                println!(
-                    "{} [{}/{}]",
-                    core::str::from_utf8(&buf).unwrap(),
-                    i + 1,
-                    HEIGHT
-                );
+                println!("{} [{}/{}]", core::str::from_utf8(&buf).unwrap(), i + 1, HEIGHT);
                 yield_();
             }
             exit(0);
         } else {
             for i in 0..HEIGHT {
                 let buf = [b'A'; WIDTH];
-                println!(
-                    "{} [{}/{}]",
-                    core::str::from_utf8(&buf).unwrap(),
-                    i + 1,
-                    HEIGHT
-                );
+                println!("{} [{}/{}]", core::str::from_utf8(&buf).unwrap(), i + 1, HEIGHT);
                 yield_();
             }
             let mut exit_code = 0;

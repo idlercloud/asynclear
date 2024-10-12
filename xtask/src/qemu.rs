@@ -48,14 +48,8 @@ impl QemuArgs {
             .args(["-m", "128M"])
             .args(["-nographic"])
             .args(["-bios", SBI_PATH])
-            .args([
-                "-drive",
-                formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0"),
-            ])
-            .args([
-                "-device",
-                "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0",
-            ]);
+            .args(["-drive", formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0")])
+            .args(["-device", "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0"]);
         cmd
     }
 }

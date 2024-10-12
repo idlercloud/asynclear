@@ -43,8 +43,7 @@ impl Pipe {
             n_read += 1;
         }
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.access_time = curr_time);
         Ok(n_read)
     }
 
@@ -80,14 +79,11 @@ impl Pipe {
             sender.send(last_byte).await;
             this_n_write += 1;
             n_write += this_n_write;
-            buf = buf
-                .slice(this_n_write..buf.len())
-                .expect("this_n_write <= buf.len()");
+            buf = buf.slice(this_n_write..buf.len()).expect("this_n_write <= buf.len()");
         }
 
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.modify_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.modify_time = curr_time);
         Ok(n_write)
     }
 

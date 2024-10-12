@@ -35,12 +35,7 @@ pub struct Thread {
 }
 
 impl Thread {
-    pub fn new(
-        process: Arc<Process>,
-        tid: usize,
-        trap_context: TrapContext,
-        signal_mask: KSignalSet,
-    ) -> Self {
+    pub fn new(process: Arc<Process>, tid: usize, trap_context: TrapContext, signal_mask: KSignalSet) -> Self {
         Self {
             tid,
             exit_code: Atomic::new(0),

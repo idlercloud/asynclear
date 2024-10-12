@@ -35,11 +35,7 @@ impl Span {
     /// 创建一个新的 span。但只是将其注册，而没有实际实际启用。
     ///
     /// 调用 `entered()` 以进入该 span
-    pub fn new<'a>(
-        level: Level,
-        name: &'static str,
-        kvs: Option<&'a [(&'static str, &'a dyn Loggable)]>,
-    ) -> Self {
+    pub fn new<'a>(level: Level, name: &'static str, kvs: Option<&'a [(&'static str, &'a dyn Loggable)]>) -> Self {
         if let Some(tracer) = KERNEL_TRACER.get() {
             let kvs = kvs.map(|kvs| {
                 let mut kvs_str = EcoString::new();

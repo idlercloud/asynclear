@@ -4,8 +4,8 @@ use core::{ops::Deref, str::FromStr};
 use defines::{
     error::{errno, KResult},
     fs::{
-        FaccessatMode, FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd,
-        Renameat2Flags, Stat, UnmountFlags, AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
+        FaccessatMode, FsStat, FstatFlags, IoVec, MountFlags, OpenFlags, PollEvents, PollFd, Renameat2Flags, Stat,
+        UnmountFlags, AT_FDCWD, NAME_MAX, SEEK_CUR, SEEK_END, SEEK_SET,
     },
     misc::{TimeSpec, UTIME_NOW, UTIME_OMIT},
 };
@@ -16,8 +16,8 @@ use virtio_drivers::device::blk::SECTOR_SIZE;
 
 use crate::{
     fs::{
-        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType,
-        InodeMode, SeekFrom, SeekableFile, VFS,
+        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode, SeekFrom,
+        SeekableFile, VFS,
     },
     hart::local_hart,
     memory::{ReadBuffer, UserCheck, WriteBuffer},
@@ -242,10 +242,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
                     return Err(errno::ENOTDIR);
                 }
                 let mode = bytes.inode().meta().mode();
-                if flags.contains(OpenFlags::TRUNCATE)
-                    && flags.read_write().1
-                    && mode == InodeMode::Regular
-                {
+                if flags.contains(OpenFlags::TRUNCATE) && flags.read_write().1 && mode == InodeMode::Regular {
                     bytes.inode().resize(0)?;
                 }
                 if mode == InodeMode::Regular || mode == InodeMode::BlockDevice {
@@ -275,10 +272,7 @@ pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32
 
 pub fn sys_close(fd: usize) -> KResult {
     let process = local_hart().curr_process();
-    if process
-        .lock_inner_with(|inner| inner.fd_table.remove(fd))
-        .is_none()
-    {
+    if process.lock_inner_with(|inner| inner.fd_table.remove(fd)).is_none() {
         return Err(errno::EBADF);
     }
 
@@ -314,8 +308,7 @@ pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
 /// 获取目录项信息
 pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
     let process = local_hart().curr_process();
-    let Some(File::Dir(dir)) =
-        process.lock_inner_with(|inner| inner.fd_table.get(fd).map(Deref::deref).cloned())
+    let Some(File::Dir(dir)) = process.lock_inner_with(|inner| inner.fd_table.get(fd).map(Deref::deref).cloned())
     else {
         return Err(errno::EBADF);
     };
@@ -443,14 +436,8 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
 /// - `path` 相对路径或绝对路径
 /// - `statbuf` 文件信息写入的目的地
 /// - `flags` fstat 的一些 flags
-pub fn sys_newfstatat(
-    dir_fd: usize,
-    path: UserCheck<u8>,
-    statbuf: UserCheck<Stat>,
-    flags: usize,
-) -> KResult {
-    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
-        .ok_or(errno::EINVAL)?;
+pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, statbuf: UserCheck<Stat>, flags: usize) -> KResult {
+    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
     let path = path.check_cstr()?;
     if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
@@ -572,9 +559,7 @@ pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
     let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
         return Err(errno::ENOTDIR);
     };
-    local_hart()
-        .curr_process()
-        .lock_inner_with(|inner| inner.cwd = dir);
+    local_hart().curr_process().lock_inner_with(|inner| inner.cwd = dir);
     Ok(0)
 }
 
@@ -681,14 +666,12 @@ pub fn sys_ppoll(
             match &**fd {
                 // TODO: 轮询机制尚未实现，一律返回 ok
                 File::Stream(_) | File::Pipe(_) => {
-                    poll_fd_val.revents =
-                        (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
+                    poll_fd_val.revents = (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                     ret += 1;
                 }
                 // 目录、常规文件和块设备没有合理的轮询语义，因此直接返回
                 File::Dir(_) | File::Seekable(_) => {
-                    poll_fd_val.revents =
-                        (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
+                    poll_fd_val.revents = (events & (PollEvents::POLLIN | PollEvents::POLLOUT)).bits();
                     ret += 1;
                 }
             }
@@ -709,12 +692,7 @@ pub fn sys_ppoll(
 ///     - 若不为 None，则将从 `in_fd` 的该偏移量开始读数据，且不会修改起文件偏移量。调用完成后，它将增加读取的字节数
 ///     - 若为 None，则从当前文件偏移量开始读取，并且修改文件偏移量
 /// - `count` 指定复制的字节数
-pub async fn sys_sendfile64(
-    out_fd: usize,
-    in_fd: usize,
-    offset_ptr: Option<UserCheck<u64>>,
-    count: usize,
-) -> KResult {
+pub async fn sys_sendfile64(out_fd: usize, in_fd: usize, offset_ptr: Option<UserCheck<u64>>, count: usize) -> KResult {
     let source = prepare_io::<true>(in_fd)?;
     let target = prepare_io::<false>(out_fd)?;
 
@@ -724,9 +702,7 @@ pub async fn sys_sendfile64(
     let n_read = match offset_ptr {
         Some(offset_ptr) => {
             let offset = offset_ptr.check_ptr()?.read();
-            let n_read = source
-                .read_at(ReadBuffer::Kernel(buf_slice), offset)
-                .await?;
+            let n_read = source.read_at(ReadBuffer::Kernel(buf_slice), offset).await?;
             unsafe { offset_ptr.check_ptr_mut()?.write(offset + n_read as u64) }
             n_read
         }
@@ -756,9 +732,7 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
             break fs;
         }
         dentry = match dentry {
-            DEntry::Dir(dir) => {
-                DEntry::Dir(Arc::clone(dir.parent().expect("should not reach root fs")))
-            }
+            DEntry::Dir(dir) => DEntry::Dir(Arc::clone(dir.parent().expect("should not reach root fs"))),
             DEntry::Bytes(bytes) => DEntry::Dir(Arc::clone(bytes.parent())),
         }
     };
@@ -789,8 +763,7 @@ pub fn sys_utimensat(
     times: Option<UserCheck<[TimeSpec; 2]>>,
     flags: usize,
 ) -> KResult {
-    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?)
-        .ok_or(errno::EINVAL)?;
+    let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
     let path = path.check_cstr()?;
     if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
@@ -851,15 +824,9 @@ pub fn sys_renameat2(
 
     let old_path = old_path.check_cstr()?;
     let new_path = new_path.check_cstr()?;
-    debug!(
-        "rename '{}' to '{}' with flags: {flags:?}",
-        &*old_path, &*new_path
-    );
+    debug!("rename '{}' to '{}' with flags: {flags:?}", &*old_path, &*new_path);
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
-    let old_file = old_p2i
-        .dir
-        .lookup(old_p2i.last_component)
-        .ok_or(errno::ENOENT)?;
+    let old_file = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
     let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
     if old_file.is_dir() {
         let _new_file = new_p2i.dir.lookup(&new_p2i.last_component);

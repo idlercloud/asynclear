@@ -40,8 +40,7 @@ impl FileAllocTable {
         let fat_start_sector_id = bpb.reserved_sector_count;
         let fat_length = bpb.fat32_length;
         let data_start_sector_id = fat_start_sector_id as u32 + bpb.fat_count as u32 * fat_length;
-        let data_clusters_count =
-            (bpb.total_sector_count - data_start_sector_id) / bpb.sector_per_cluster as u32;
+        let data_clusters_count = (bpb.total_sector_count - data_start_sector_id) / bpb.sector_per_cluster as u32;
 
         let entries_capacity = fat_length as usize * (SECTOR_SIZE / FAT_ENTRY_SIZE);
 
@@ -53,8 +52,7 @@ impl FileAllocTable {
 
         const FAT_ENTRY_SIZE: usize = core::mem::size_of::<u32>();
 
-        let mut fat_entries =
-            Vec::with_capacity(fat_length as usize * SECTOR_SIZE / FAT_ENTRY_SIZE);
+        let mut fat_entries = Vec::with_capacity(fat_length as usize * SECTOR_SIZE / FAT_ENTRY_SIZE);
         for sector_id in fat_start_sector_id as u32..fat_start_sector_id as u32 + fat_length {
             block_device.read_blocks(sector_id as usize, &mut buf);
             for &entry in buf.array_chunks::<FAT_ENTRY_SIZE>() {
@@ -87,11 +85,7 @@ impl FileAllocTable {
             meta.next_free = INVALID_ALLOC_META;
             meta.free_count = 0;
             let entries = self.fat_entries.read();
-            for (cluster_id, entry) in entries
-                .iter()
-                .enumerate()
-                .skip(RESERVED_FAT_ENTRY_COUNT as usize)
-            {
+            for (cluster_id, entry) in entries.iter().enumerate().skip(RESERVED_FAT_ENTRY_COUNT as usize) {
                 let entry = entry & FAT_ENTRY_MASK;
                 if entry == 0 {
                     meta.free_count += 1;
@@ -183,8 +177,8 @@ impl FileAllocTable {
 
     pub fn cluster_sectors(&self, cluster_id: u32) -> Range<u32> {
         debug_assert!(cluster_id >= 2);
-        let first_sector = self.data_start_sector_id
-            + (cluster_id - RESERVED_FAT_ENTRY_COUNT) * self.sector_per_cluster as u32;
+        let first_sector =
+            self.data_start_sector_id + (cluster_id - RESERVED_FAT_ENTRY_COUNT) * self.sector_per_cluster as u32;
         first_sector..first_sector + self.sector_per_cluster as u32
     }
 
@@ -222,9 +216,6 @@ impl FatAllocMeta {
         if trail_sig != 0xaa550000 {
             return Err(errno::EINVAL);
         }
-        Ok(Self {
-            free_count,
-            next_free,
-        })
+        Ok(Self { free_count, next_free })
     }
 }

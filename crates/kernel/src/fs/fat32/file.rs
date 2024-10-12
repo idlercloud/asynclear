@@ -27,14 +27,9 @@ pub struct FatFile {
 impl FatFile {
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, dir_entry: DirEntry) -> Self {
         debug_assert!(!dir_entry.is_dir());
-        let clusters = fat
-            .cluster_chain(dir_entry.first_cluster_id())
-            .collect::<SmallVec<_>>();
+        let clusters = fat.cluster_chain(dir_entry.first_cluster_id()).collect::<SmallVec<_>>();
         // 文件的大小显然是不超过它占用的簇的总大小的
-        assert!(
-            dir_entry.file_size()
-                <= clusters.len() as u64 * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64
-        );
+        assert!(dir_entry.file_size() <= clusters.len() as u64 * fat.sector_per_cluster() as u64 * SECTOR_SIZE as u64);
         let mut meta = InodeMeta::new(InodeMode::Regular);
         let meta_inner = meta.get_inner_mut();
         meta_inner.data_len = dir_entry.file_size();

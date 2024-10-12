@@ -20,9 +20,7 @@ use crate::{
     hart::local_hart,
     memory::UserCheck,
     process::{self, exit_process},
-    signal::{
-        DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN,
-    },
+    signal::{DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
     syscall,
     thread::Thread,
     time,
@@ -61,10 +59,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                 (syscall_id, syscall_args)
             };
             let result = syscall::syscall(syscall_id, syscall_args)
-                .instrument(info_span!(
-                    "syscall",
-                    name = defines::syscall::name(syscall_id)
-                ))
+                .instrument(info_span!("syscall", name = defines::syscall::name(syscall_id)))
                 .await;
 
             // 线程应当退出
@@ -134,11 +129,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             ControlFlow::Continue(())
         }
         _ => {
-            panic!(
-                "Unsupported trap {:?}, stval = {:#x}!",
-                scause.cause(),
-                stval,
-            );
+            panic!("Unsupported trap {:?}, stval = {:#x}!", scause.cause(), stval,);
         }
     }
 }
@@ -195,10 +186,7 @@ pub fn check_signal(thread: &Thread) -> bool {
         SIG_ERR => todo!("[low] maybe there is no `SIG_ERR`"),
         SIG_DFL => match DefaultHandler::new(first_pending) {
             DefaultHandler::Terminate | DefaultHandler::CoreDump => {
-                exit_process(
-                    &thread.process,
-                    (first_pending as i8).wrapping_add_unsigned(128),
-                );
+                exit_process(&thread.process, (first_pending as i8).wrapping_add_unsigned(128));
                 // TODO:[low] 要处理 CoreDump
                 return true;
             }
@@ -252,10 +240,7 @@ pub fn check_signal(thread: &Thread) -> bool {
         user_ptr.write(signal_context);
         false
     } else {
-        exit_process(
-            &thread.process,
-            (first_pending as i8).wrapping_add_unsigned(128),
-        );
+        exit_process(&thread.process, (first_pending as i8).wrapping_add_unsigned(128));
         true
     }
 }

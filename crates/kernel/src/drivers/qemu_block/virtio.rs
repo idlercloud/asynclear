@@ -15,10 +15,7 @@ use crate::memory::{self, kernel_pa_to_va, ContinuousFrames, PhysAddr};
 pub struct HalImpl;
 
 unsafe impl Hal for HalImpl {
-    fn dma_alloc(
-        pages: usize,
-        _direction: virtio_drivers::BufferDirection,
-    ) -> (virtio_drivers::PhysAddr, NonNull<u8>) {
+    fn dma_alloc(pages: usize, _direction: virtio_drivers::BufferDirection) -> (virtio_drivers::PhysAddr, NonNull<u8>) {
         let frames = ContinuousFrames::alloc(pages).unwrap();
         // 这些 frames 交由库管理了，要阻止它调用 drop
         let pa_start = frames.start_ppn().page_start();
@@ -27,11 +24,7 @@ unsafe impl Hal for HalImpl {
         (pa_start.0, vptr)
     }
 
-    unsafe fn dma_dealloc(
-        paddr: virtio_drivers::PhysAddr,
-        _vaddr: NonNull<u8>,
-        pages: usize,
-    ) -> i32 {
+    unsafe fn dma_dealloc(paddr: virtio_drivers::PhysAddr, _vaddr: NonNull<u8>, pages: usize) -> i32 {
         let ppn = PhysAddr(paddr).ppn();
         unsafe {
             memory::frame_dealloc(ppn..(ppn + pages));
@@ -45,10 +38,7 @@ unsafe impl Hal for HalImpl {
     }
 
     // 不知道 share 和 unshare 干嘛的，先这么实现着
-    unsafe fn share(
-        buffer: NonNull<[u8]>,
-        _direction: virtio_drivers::BufferDirection,
-    ) -> virtio_drivers::PhysAddr {
+    unsafe fn share(buffer: NonNull<[u8]>, _direction: virtio_drivers::BufferDirection) -> virtio_drivers::PhysAddr {
         let vaddr = buffer.as_ptr() as *const u8 as usize;
         assert!(vaddr >= PA_TO_VA);
         vaddr - PA_TO_VA

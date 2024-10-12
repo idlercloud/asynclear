@@ -8,8 +8,8 @@ use core::{
 use defines::{
     error::{errno, AKResult, KResult},
     ioctl::{
-        Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ,
-        TIOCSPGRP, TIOCSWINSZ,
+        Termios, WinSize, TCGETA, TCGETS, TCSBRK, TCSETS, TCSETSF, TCSETSW, TIOCGPGRP, TIOCGWINSZ, TIOCSPGRP,
+        TIOCSWINSZ,
     },
 };
 use futures::future::BoxFuture;
@@ -94,8 +94,7 @@ impl BytesInodeBackend for TtyInode {
 
     fn read_inode_at<'a>(&'a self, buf: ReadBuffer<'a>, _offset: u64) -> AKResult<'a, usize> {
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.access_time = curr_time);
         let ReadBuffer::User(buf) = buf else {
             unreachable!("why kernel read tty?");
         };
@@ -105,8 +104,7 @@ impl BytesInodeBackend for TtyInode {
     fn write_inode_at<'a>(&'a self, buf: WriteBuffer<'a>, _offset: u64) -> AKResult<'a, usize> {
         let _entered = trace_span!("write_tty").entered();
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.modify_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.modify_time = curr_time);
 
         Box::pin(async move {
             let buf = match &buf {
@@ -124,11 +122,7 @@ impl BytesInodeBackend for TtyInode {
         match cmd {
             TCGETS | TCGETA => {
                 debug!("Get termios");
-                let termios_ptr = unsafe {
-                    UserCheck::new(value as _)
-                        .ok_or(errno::EINVAL)?
-                        .check_ptr_mut()?
-                };
+                let termios_ptr = unsafe { UserCheck::new(value as _).ok_or(errno::EINVAL)?.check_ptr_mut()? };
                 termios_ptr.write(self.inner.lock().termios);
                 Ok(0)
             }
@@ -143,11 +137,7 @@ impl BytesInodeBackend for TtyInode {
             }
             TIOCGPGRP => {
                 debug!("Get foreground pgid");
-                let fg_pgid_ptr = unsafe {
-                    UserCheck::new(value as _)
-                        .ok_or(errno::EINVAL)?
-                        .check_ptr_mut()?
-                };
+                let fg_pgid_ptr = unsafe { UserCheck::new(value as _).ok_or(errno::EINVAL)?.check_ptr_mut()? };
                 fg_pgid_ptr.write(self.inner.lock().fg_pgid);
                 Ok(0)
             }
@@ -162,11 +152,7 @@ impl BytesInodeBackend for TtyInode {
             }
             TIOCGWINSZ => {
                 debug!("Get window size");
-                let win_size_ptr = unsafe {
-                    UserCheck::new(value as _)
-                        .ok_or(errno::EINVAL)?
-                        .check_ptr_mut()?
-                };
+                let win_size_ptr = unsafe { UserCheck::new(value as _).ok_or(errno::EINVAL)?.check_ptr_mut()? };
                 win_size_ptr.write(self.inner.lock().win_size);
                 Ok(0)
             }

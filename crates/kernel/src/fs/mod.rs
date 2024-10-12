@@ -188,13 +188,7 @@ impl VirtFileSystem {
             }
 
             if dentry.is_dir() {
-                write!(
-                    output,
-                    "{}{name}{}",
-                    AnsiColor::Blue.render_fg(),
-                    Reset.render()
-                )
-                .unwrap();
+                write!(output, "{}{name}{}", AnsiColor::Blue.render_fg(), Reset.render()).unwrap();
             } else {
                 output.push_str(name);
             }

@@ -91,13 +91,11 @@ pub fn sys_rt_sigprocmask(
     if let Some(new_set) = new_set {
         debug!("write signal mask with how = {how:?}");
         let new_set = KSignalSet::from_user(new_set.check_ptr()?.read());
-        local_hart()
-            .curr_thread()
-            .lock_inner_with(|inner| match how {
-                SigProcMaskHow::Block => inner.signal_mask.insert(new_set),
-                SigProcMaskHow::Unblock => inner.signal_mask.remove(new_set),
-                SigProcMaskHow::SetMask => inner.signal_mask = new_set,
-            });
+        local_hart().curr_thread().lock_inner_with(|inner| match how {
+            SigProcMaskHow::Block => inner.signal_mask.insert(new_set),
+            SigProcMaskHow::Unblock => inner.signal_mask.remove(new_set),
+            SigProcMaskHow::SetMask => inner.signal_mask = new_set,
+        });
     }
 
     Ok(0)

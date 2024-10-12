@@ -3,9 +3,7 @@
 
 use core::hint::black_box;
 
-use user::{
-    check_syscall_ret, close, exit, fork, pipe, println, read, test_main, wait, write_all, yield_,
-};
+use user::{check_syscall_ret, close, exit, fork, pipe, println, read, test_main, wait, write_all, yield_};
 
 #[no_mangle]
 pub fn main() -> i32 {

@@ -20,8 +20,8 @@ use crate::{
         dentry::{DEntry, DEntryBytes, DEntryDir},
         fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
-            DirInodeBackend, DynBytesInode, DynBytesInodeCoercion, DynDirInode,
-            DynDirInodeCoercion, DynInode, InodeMeta, InodeMode,
+            DirInodeBackend, DynBytesInode, DynBytesInodeCoercion, DynDirInode, DynDirInodeCoercion, DynInode,
+            InodeMeta, InodeMode,
         },
     },
     hart::local_hart,
@@ -40,9 +40,7 @@ impl FatDir {
     pub fn new_root(fat: Arc<FileAllocTable>, first_root_cluster_id: u32) -> Self {
         debug!("init root dir");
         assert!(first_root_cluster_id >= 2);
-        let clusters = fat
-            .cluster_chain(first_root_cluster_id)
-            .collect::<SmallVec<_>>();
+        let clusters = fat.cluster_chain(first_root_cluster_id).collect::<SmallVec<_>>();
         let meta = InodeMeta::new(InodeMode::Dir);
         let root_dir = Self {
             meta,
@@ -59,8 +57,7 @@ impl FatDir {
     pub fn from_dir_entry(fat: Arc<FileAllocTable>, dir_entry: DirEntry) -> Self {
         debug_assert!(dir_entry.is_dir());
         let meta = InodeMeta::new(InodeMode::Dir);
-        let clusters: SmallVec<[u32; 4]> =
-            fat.cluster_chain(dir_entry.first_cluster_id()).collect();
+        let clusters: SmallVec<[u32; 4]> = fat.cluster_chain(dir_entry.first_cluster_id()).collect();
         let data_len = clusters_disk_space(&fat, clusters.len() as u64);
         meta.lock_inner_with(|inner| {
             inner.data_len = data_len;
@@ -107,17 +104,13 @@ impl FatDir {
                     .iter()
                     .flat_map(|&cluster_id| self.fat.cluster_sectors(cluster_id))
                 {
-                    self.fat
-                        .block_device
-                        .read_blocks_cached(sector_id as usize, &mut buf);
+                    self.fat.block_device.read_blocks_cached(sector_id as usize, &mut buf);
                     for dentry_index in 0..BLOCK_SIZE / DIR_ENTRY_SIZE {
                         let entry_start = dentry_index * DIR_ENTRY_SIZE;
                         if buf[entry_start] == 0 {
                             return;
                         }
-                        yield buf[entry_start..entry_start + DIR_ENTRY_SIZE]
-                            .try_into()
-                            .unwrap();
+                        yield buf[entry_start..entry_start + DIR_ENTRY_SIZE].try_into().unwrap();
                     }
                 }
             },
@@ -154,8 +147,7 @@ impl DirInodeBackend for FatDir {
 
     fn lookup(&self, name: &str) -> Option<DynInode> {
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.access_time = curr_time);
         for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
             let Ok(dir_entry) = dir_entry else {
                 continue;
@@ -166,14 +158,10 @@ impl DirInodeBackend for FatDir {
 
             if dir_entry.is_dir() {
                 let fat_dir = FatDir::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                return Some(DynInode::Dir(
-                    Arc::new(fat_dir).unsize(DynDirInodeCoercion!()),
-                ));
+                return Some(DynInode::Dir(Arc::new(fat_dir).unsize(DynDirInodeCoercion!())));
             } else {
                 let fat_file = FatFile::from_dir_entry(Arc::clone(&self.fat), dir_entry);
-                return Some(DynInode::Bytes(
-                    Arc::new(fat_file).unsize(DynBytesInodeCoercion!()),
-                ));
+                return Some(DynInode::Bytes(Arc::new(fat_file).unsize(DynBytesInodeCoercion!())));
             }
         }
         None
@@ -231,8 +219,7 @@ impl DirInodeBackend for FatDir {
             vacant.insert(new_dentry);
         }
         let curr_time = time::curr_time_spec();
-        self.meta
-            .lock_inner_with(|inner| inner.access_time = curr_time);
+        self.meta.lock_inner_with(|inner| inner.access_time = curr_time);
         Ok(())
     }
 

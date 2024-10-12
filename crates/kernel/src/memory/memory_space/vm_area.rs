@@ -6,10 +6,7 @@ use triomphe::Arc;
 
 use crate::{
     fs::{DynBytesInode, InodeMode},
-    memory::{
-        frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable,
-        VirtPageNum,
-    },
+    memory::{frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable, VirtPageNum},
 };
 
 /// 采取帧式映射的一块（用户）虚拟内存区域
@@ -53,11 +50,7 @@ pub enum AreaType {
 }
 
 impl FramedVmArea {
-    pub(super) fn new(
-        vpn_range: Range<VirtPageNum>,
-        perm: MapPermission,
-        area_type: AreaType,
-    ) -> Self {
+    pub(super) fn new(vpn_range: Range<VirtPageNum>, perm: MapPermission, area_type: AreaType) -> Self {
         Self {
             vpn_range,
             unbacked_map: BTreeMap::new(),
@@ -97,18 +90,12 @@ impl FramedVmArea {
         self.vpn_range.end.0.saturating_sub(self.vpn_range.start.0) * PAGE_SIZE
     }
 
-    pub fn init_backed_inode(
-        &mut self,
-        inode: BackedInode,
-        inode_page_id: u64,
-        page_table: &mut PageTable,
-    ) {
+    pub fn init_backed_inode(&mut self, inode: BackedInode, inode_page_id: u64, page_table: &mut PageTable) {
         // 先把已经在页缓存中的映射好
         {
             let n_pages = self.vpn_range.end.0 - self.vpn_range.start.0;
             let page_cache = inode.meta().page_cache().lock_pages();
-            for (&page_id, page) in page_cache.range(inode_page_id..inode_page_id + n_pages as u64)
-            {
+            for (&page_id, page) in page_cache.range(inode_page_id..inode_page_id + n_pages as u64) {
                 let frame = page.inner_page().frame();
                 let vpn = self.vpn_range.start + (page_id - inode_page_id) as usize;
                 page_table.map(vpn, frame.ppn(), PTEFlags::from(self.perm));
@@ -131,19 +118,13 @@ impl FramedVmArea {
         })
     }
 
-    pub(super) unsafe fn map_with_data(
-        &mut self,
-        page_table: &mut PageTable,
-        data: &[u8],
-        mut page_offset: usize,
-    ) {
+    pub(super) unsafe fn map_with_data(&mut self, page_table: &mut PageTable, data: &[u8], mut page_offset: usize) {
         debug_assert!(data.len() + page_offset <= self.len());
         let mut start = 0;
         for vpn in self.vpn_range() {
             let frame = Frame::alloc().unwrap();
             let ppn = frame.ppn();
-            self.unbacked_map
-                .insert(vpn, Arc::new(Page::with_frame(frame)));
+            self.unbacked_map.insert(vpn, Arc::new(Page::with_frame(frame)));
             page_table.map(vpn, ppn, PTEFlags::from(self.perm));
             let len = usize::min(data.len() - start, PAGE_SIZE - page_offset);
             unsafe {

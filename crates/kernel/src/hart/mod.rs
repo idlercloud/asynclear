@@ -111,11 +111,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         fs::init();
 
         process::init();
-        thread::spawn_user_thread(
-            PROCESS_MANAGER
-                .init_proc()
-                .lock_inner_with(|inner| inner.main_thread()),
-        );
+        thread::spawn_user_thread(PROCESS_MANAGER.init_proc().lock_inner_with(|inner| inner.main_thread()));
         info!("Init hart {hart_id} started");
         INIT_FINISHED.store(true, Ordering::SeqCst);
 
@@ -159,13 +155,9 @@ fn clear_bss() {
         const BATCH_SIZE: usize = 4096;
         let batch_end = sbss as usize + len / BATCH_SIZE * BATCH_SIZE;
         unsafe {
-            core::slice::from_raw_parts_mut(
-                sbss as usize as *mut [u8; BATCH_SIZE],
-                len / BATCH_SIZE,
-            )
-            .fill([0; BATCH_SIZE]);
-            core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as usize - batch_end)
-                .fill(0);
+            core::slice::from_raw_parts_mut(sbss as usize as *mut [u8; BATCH_SIZE], len / BATCH_SIZE)
+                .fill([0; BATCH_SIZE]);
+            core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as usize - batch_end).fill(0);
         }
     }
     #[cfg(not(debug_assertions))]

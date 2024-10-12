@@ -269,10 +269,7 @@ fn read_standard_entry(entry: &[u8; DIR_ENTRY_SIZE]) -> KResult<DirEntry> {
         short_name_len += 1;
     }
     let Ok(short_name) = EcoString::from_utf8(&entry[..short_name_len]) else {
-        warn!(
-            "short name is not valid utf8: {:?}",
-            &entry[..short_name_len]
-        );
+        warn!("short name is not valid utf8: {:?}", &entry[..short_name_len]);
         return Err(errno::EINVAL);
     };
     let Some(attr) = DirEntryAttr::from_bits(entry[11]) else {

@@ -15,8 +15,9 @@ impl DefaultHandler {
         #[allow(clippy::enum_glob_use)]
         use Signal::*;
         match signal {
-            SIGABRT | SIGBUS | SIGILL | SIGQUIT | SIGSEGV | SIGSYS | SIGTRAP | SIGXCPU
-            | SIGXFSZ => DefaultHandler::CoreDump,
+            SIGABRT | SIGBUS | SIGILL | SIGQUIT | SIGSEGV | SIGSYS | SIGTRAP | SIGXCPU | SIGXFSZ => {
+                DefaultHandler::CoreDump
+            }
             SIGCHLD | SIGURG | SIGWINCH => DefaultHandler::Ignore,
             SIGSTOP | SIGTSTP | SIGTTIN | SIGTTOU => DefaultHandler::Stop,
             SIGCONT => DefaultHandler::Continue,

@@ -91,18 +91,10 @@ impl BiosParameterBlock {
 impl core::fmt::Display for BiosParameterBlock {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "BiosParameterBlock {{")?;
-        write!(
-            f,
-            "system_id: {}, ",
-            &core::str::from_utf8(&self.system_id).unwrap()
-        )?;
+        write!(f, "system_id: {}, ", &core::str::from_utf8(&self.system_id).unwrap())?;
         write!(f, "sector_size: {}, ", &self.sector_size)?;
         write!(f, "sector_per_cluster: {}, ", &self.sector_per_cluster)?;
-        write!(
-            f,
-            "reserved_sector_count: {}, ",
-            &self.reserved_sector_count
-        )?;
+        write!(f, "reserved_sector_count: {}, ", &self.reserved_sector_count)?;
         write!(f, "fat_count: {}, ", &self.fat_count)?;
         write!(f, "total_sector_count: {}, ", &self.total_sector_count)?;
         write!(f, "fat32_length: {}, ", &self.fat32_length)?;

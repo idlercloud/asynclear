@@ -30,8 +30,7 @@ pub static PROCESS_MANAGER: ProcessManager = ProcessManager::new();
 pub const INITPROC_PID: usize = 1;
 
 pub fn init() {
-    let init_proc = Process::from_path("/initproc", vec![EcoString::from("/initproc")])
-        .expect("INITPROC Failed.");
+    let init_proc = Process::from_path("/initproc", vec![EcoString::from("/initproc")]).expect("INITPROC Failed.");
     PROCESS_MANAGER.add(INITPROC_PID, init_proc);
 }
 
@@ -115,17 +114,12 @@ impl Process {
     /// fork 一个新进程，目前仅支持只有一个主线程的进程。
     ///
     /// `stack` 若不为 0 则指定新进程的栈顶
-    pub fn fork(
-        self: &Arc<Self>,
-        stack: Option<NonZeroUsize>,
-        exit_signal: Option<Signal>,
-    ) -> Arc<Self> {
+    pub fn fork(self: &Arc<Self>, stack: Option<NonZeroUsize>, exit_signal: Option<Signal>) -> Arc<Self> {
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             let parent_main_thread = inner.main_thread();
             let signal_mask = parent_main_thread.lock_inner_with(|inner| inner.signal_mask);
-            let mut trap_context =
-                unsafe { parent_main_thread.get_owned().as_mut().trap_context.clone() };
+            let mut trap_context = unsafe { parent_main_thread.get_owned().as_mut().trap_context.clone() };
             if let Some(stack) = stack {
                 *trap_context.sp_mut() = stack.get();
             }
@@ -243,8 +237,7 @@ impl Process {
             assert_eq!(inner.children.len(), 0);
             inner.memory_space.recycle_user_pages();
             // TODO: 执行新进程过程中发生错误，该退出还是恢复？
-            let (elf_end, auxv, elf_entry) =
-                inner.memory_space.load_elf_sections(&elf, elf_data)?;
+            let (elf_end, auxv, elf_entry) = inner.memory_space.load_elf_sections(&elf, elf_data)?;
             inner.heap_range = {
                 let brk = elf_end.vpn_ceil().page_start();
                 brk..brk
@@ -257,8 +250,7 @@ impl Process {
             memory::flush_tlb(None);
 
             // TODO: [low] 也许可以直接原地修改？
-            let trap_context =
-                unsafe { &mut inner.main_thread().get_owned().as_mut().trap_context };
+            let trap_context = unsafe { &mut inner.main_thread().get_owned().as_mut().trap_context };
 
             *trap_context = TrapContext::app_init_context(elf_entry, user_sp);
             *trap_context.a0_mut() = argc;

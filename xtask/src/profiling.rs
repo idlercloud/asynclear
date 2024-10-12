@@ -20,9 +20,7 @@ pub struct ProfilingArgs {
 
 impl ProfilingArgs {
     pub fn analyze(self) {
-        let mut lines = BufReader::new(File::open(self.input).unwrap())
-            .lines()
-            .enumerate();
+        let mut lines = BufReader::new(File::open(self.input).unwrap()).lines().enumerate();
         for (_, line) in &mut lines {
             let line = line.unwrap();
             if line == "<Profiling Report>" {

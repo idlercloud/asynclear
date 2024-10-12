@@ -330,7 +330,7 @@ struct TryOpRet {
 #[naked]
 extern "C" fn try_read_user_byte_impl(addr: usize) -> TryOpRet {
     unsafe {
-        arch::asm!("mv a1, zero", "lb a0, 0(a0)", "ret", options(noreturn));
+        arch::naked_asm!("mv a1, zero", "lb a0, 0(a0)", "ret");
     }
 }
 
@@ -342,27 +342,14 @@ extern "C" fn try_read_user_byte_impl(addr: usize) -> TryOpRet {
 #[naked]
 extern "C" fn try_write_user_byte_impl(addr: usize) -> TryOpRet {
     unsafe {
-        arch::asm!(
-            "mv a1, zero",
-            "lb a2, 0(a0)",
-            "sb a2, 0(a0)",
-            "ret",
-            options(noreturn)
-        );
+        arch::naked_asm!("mv a1, zero", "lb a2, 0(a0)", "sb a2, 0(a0)", "ret",);
     }
 }
 
 #[naked]
 extern "C" fn trap_from_access_user() {
     unsafe {
-        arch::asm!(
-            ".align 2",
-            "csrw sepc, ra",
-            "li a1, 1",
-            "csrr a0, scause",
-            "sret",
-            options(noreturn)
-        );
+        arch::naked_asm!(".align 2", "csrw sepc, ra", "li a1, 1", "csrr a0, scause", "sret",);
     }
 }
 
@@ -378,10 +365,7 @@ pub fn set_kernel_trap_entry() {
 fn handle_memory_exception(addr: usize, e: Exception) -> KResult<()> {
     if !matches!(
         e,
-        Exception::StoreFault
-            | Exception::StorePageFault
-            | Exception::InstructionPageFault
-            | Exception::LoadPageFault
+        Exception::StoreFault | Exception::StorePageFault | Exception::InstructionPageFault | Exception::LoadPageFault
     ) {
         warn!("Unexpected exception {e:?} when checking user ptr {addr:#x}");
         return Err(errno::EFAULT);
@@ -391,7 +375,11 @@ fn handle_memory_exception(addr: usize, e: Exception) -> KResult<()> {
             .memory_space
             .handle_memory_exception(addr, e == Exception::StoreFault)
     });
-    if !ok { Err(errno::EFAULT) } else { Ok(()) }
+    if !ok {
+        Err(errno::EFAULT)
+    } else {
+        Ok(())
+    }
 }
 
 fn check_read_impl<T>(user_ptr: *const T, len: usize) -> KResult<AccessUserGuard> {

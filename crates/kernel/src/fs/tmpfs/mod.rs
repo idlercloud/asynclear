@@ -4,10 +4,7 @@ use triomphe::Arc;
 use unsize::CoerceUnsize;
 
 use super::{
-    inode::{
-        DirInodeBackend, DynBytesInodeCoercion, DynDirInode, DynDirInodeCoercion, DynInode,
-        InodeMeta,
-    },
+    inode::{DirInodeBackend, DynBytesInodeCoercion, DynDirInode, DynDirInodeCoercion, DynInode, InodeMeta},
     DEntry, DEntryBytes, DEntryDir, DynBytesInode, FileSystem, InodeMode,
 };
 use crate::time;

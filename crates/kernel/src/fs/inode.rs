@@ -208,8 +208,8 @@ impl dyn BytesInodeBackend {
 
             // 写范围是 offset..offset + buf.len()。
             // 中间可能有一些页被完全覆盖，因此可以直接设为 Dirty 而不需要读
-            let full_page_range = (offset & (!PAGE_OFFSET_MASK) as u64)
-                ..(offset + buf.len() as u64).next_multiple_of(PAGE_SIZE as u64);
+            let full_page_range =
+                (offset & (!PAGE_OFFSET_MASK) as u64)..(offset + buf.len() as u64).next_multiple_of(PAGE_SIZE as u64);
 
             let mut nwrite = 0;
 
@@ -226,11 +226,8 @@ impl dyn BytesInodeBackend {
                         && full_page_range.contains(&page_id)
                         && page.state.load(Ordering::SeqCst) == PageState::Invalid
                     {
-                        self.read_inode_at(
-                            ReadBuffer::Kernel(frame.as_page_bytes_mut()),
-                            page_id << PAGE_SIZE_BITS,
-                        )
-                        .await?;
+                        self.read_inode_at(ReadBuffer::Kernel(frame.as_page_bytes_mut()), page_id << PAGE_SIZE_BITS)
+                            .await?;
                     }
                     page.state.store(PageState::Dirty, Ordering::SeqCst);
                 } else {
@@ -238,15 +235,11 @@ impl dyn BytesInodeBackend {
                 }
 
                 let copy_len = usize::min(buf.len() - nwrite, PAGE_SIZE - page_offset);
-                let buf_slice = match buf
-                    .slice(nwrite..nwrite + copy_len)
-                    .expect("should not panic")
-                {
+                let buf_slice = match buf.slice(nwrite..nwrite + copy_len).expect("should not panic") {
                     WriteBuffer::Kernel(buf) => buf,
                     WriteBuffer::User(buf) => &*buf.check_slice()?,
                 };
-                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len]
-                    .copy_from_slice(buf_slice);
+                frame.as_page_bytes_mut()[page_offset..page_offset + copy_len].copy_from_slice(buf_slice);
                 nwrite += copy_len;
             }
             let curr_time = time::curr_time_spec();
@@ -288,9 +281,7 @@ pub macro DynDirInodeCoercion() {
     unsafe {
         ::unsize::Coercion::new({
             #[allow(unused_parens)]
-            fn coerce<'lt>(
-                p: *const (impl DirInodeBackend + 'lt),
-            ) -> *const (dyn DirInodeBackend + 'lt) {
+            fn coerce<'lt>(p: *const (impl DirInodeBackend + 'lt)) -> *const (dyn DirInodeBackend + 'lt) {
                 p
             }
             coerce
@@ -303,9 +294,7 @@ pub macro DynBytesInodeCoercion() {
     unsafe {
         ::unsize::Coercion::new({
             #[allow(unused_parens)]
-            fn coerce<'lt>(
-                p: *const (impl BytesInodeBackend + 'lt),
-            ) -> *const (dyn BytesInodeBackend + 'lt) {
+            fn coerce<'lt>(p: *const (impl BytesInodeBackend + 'lt)) -> *const (dyn BytesInodeBackend + 'lt) {
                 p
             }
             coerce

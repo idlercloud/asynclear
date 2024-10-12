@@ -74,10 +74,7 @@ impl DEntryDir {
         }
     }
 
-    pub fn lookup(
-        self: &Arc<Self>,
-        component: impl Into<EcoString> + AsRef<str>,
-    ) -> Option<DEntry> {
+    pub fn lookup(self: &Arc<Self>, component: impl Into<EcoString> + AsRef<str>) -> Option<DEntry> {
         fn special(parent: &Arc<DEntryDir>, component: &str) -> Option<DEntry> {
             let curr_time = time::curr_time_spec();
             parent
@@ -87,9 +84,7 @@ impl DEntryDir {
             if component == "." {
                 Some(DEntry::Dir(Arc::clone(parent)))
             } else if component == ".." {
-                Some(DEntry::Dir(Arc::clone(
-                    parent.parent.as_ref().unwrap_or(parent),
-                )))
+                Some(DEntry::Dir(Arc::clone(parent.parent.as_ref().unwrap_or(parent))))
             } else {
                 None
             }
@@ -131,24 +126,13 @@ impl DEntryDir {
             Entry::Occupied(_) => return Err(errno::EEXIST),
         };
         let dir = self.inode.mkdir(vacant.key())?;
-        let dentry = Arc::new(DEntryDir::new(
-            Some(Arc::clone(self)),
-            vacant.key().clone(),
-            dir,
-        ));
+        let dentry = Arc::new(DEntryDir::new(Some(Arc::clone(self)), vacant.key().clone(), dir));
         vacant.insert(DEntry::Dir(Arc::clone(&dentry)));
         Ok(dentry)
     }
 
-    pub fn mknod(
-        self: &Arc<Self>,
-        component: EcoString,
-        mode: InodeMode,
-    ) -> KResult<Arc<DEntryBytes>> {
-        if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir)
-            || component == "."
-            || component == ".."
-        {
+    pub fn mknod(self: &Arc<Self>, component: EcoString, mode: InodeMode) -> KResult<Arc<DEntryBytes>> {
+        if matches!(mode, InodeMode::SymbolLink | InodeMode::Dir) || component == "." || component == ".." {
             return Err(errno::EINVAL);
         }
         let mut children = self.children.lock();
@@ -157,11 +141,7 @@ impl DEntryDir {
             Entry::Occupied(_) => return Err(errno::EEXIST),
         };
         let file = self.inode.mknod(vacant.key(), mode)?;
-        let dentry = Arc::new(DEntryBytes::new(
-            Arc::clone(self),
-            vacant.key().clone(),
-            file,
-        ));
+        let dentry = Arc::new(DEntryBytes::new(Arc::clone(self), vacant.key().clone(), file));
         vacant.insert(DEntry::Bytes(dentry.clone()));
         Ok(dentry)
     }
@@ -211,12 +191,7 @@ impl DEntryDir {
 
         let mut path = EcoString::from("/");
 
-        for component in dirs
-            .into_iter()
-            .rev()
-            .map(|dir| dir.name().as_str())
-            .intersperse("/")
-        {
+        for component in dirs.into_iter().rev().map(|dir| dir.name().as_str()).intersperse("/") {
             path.push_str(component);
         }
 
@@ -232,11 +207,7 @@ pub struct DEntryBytes {
 
 impl DEntryBytes {
     pub fn new(parent: Arc<DEntryDir>, name: EcoString, inode: Arc<DynBytesInode>) -> Self {
-        Self {
-            parent,
-            name,
-            inode,
-        }
+        Self { parent, name, inode }
     }
 
     pub fn parent(&self) -> &Arc<DEntryDir> {

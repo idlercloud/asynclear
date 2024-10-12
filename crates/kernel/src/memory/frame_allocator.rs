@@ -39,8 +39,7 @@ impl Frame {
     }
 
     pub fn copy_from(&mut self, src: &Self) {
-        self.as_page_bytes_mut()
-            .copy_from_slice(src.as_page_bytes());
+        self.as_page_bytes_mut().copy_from_slice(src.as_page_bytes());
     }
 
     /// # SAFETY
@@ -136,20 +135,16 @@ extern "C" {
 
 impl FrameAllocator for BuddySystemFrameAllocator {
     fn alloc(&mut self, num: usize) -> Option<PhysPageNum> {
-        let physical_memory_begin_frame: usize =
-            kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
+        let physical_memory_begin_frame: usize = kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
         self.allocator
             .alloc(num)
             .map(|first| PhysPageNum(first + physical_memory_begin_frame))
     }
 
     unsafe fn dealloc(&mut self, range: Range<PhysPageNum>) {
-        let physical_memory_begin_frame: usize =
-            kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
-        self.allocator.dealloc(
-            range.start.0 - physical_memory_begin_frame,
-            range.end.0 - range.start.0,
-        );
+        let physical_memory_begin_frame: usize = kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
+        self.allocator
+            .dealloc(range.start.0 - physical_memory_begin_frame, range.end.0 - range.start.0);
     }
 }
 
@@ -159,10 +154,10 @@ static FRAME_ALLOCATOR: SpinMutex<FrameAllocatorImpl> = SpinMutex::new(FrameAllo
 
 pub fn init_frame_allocator() {
     let physical_memory_begin_frame = kernel_va_to_pa(VirtAddr(ekernel as usize)).ceil().0;
-    FRAME_ALLOCATOR.lock().allocator.add_frame(
-        0,
-        PhysAddr(MEMORY_END).floor().0 - physical_memory_begin_frame,
-    );
+    FRAME_ALLOCATOR
+        .lock()
+        .allocator
+        .add_frame(0, PhysAddr(MEMORY_END).floor().0 - physical_memory_begin_frame);
 }
 
 /// # Safety

@@ -74,8 +74,7 @@ impl DirFile {
             if ptr as usize + d_reclen > range.end {
                 break;
             }
-            d_reclen =
-                (ptr as usize + d_reclen).next_multiple_of(align_of::<Dirent64>()) - ptr as usize;
+            d_reclen = (ptr as usize + d_reclen).next_multiple_of(align_of::<Dirent64>()) - ptr as usize;
             let meta = child.meta();
             // SAFETY:
             // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域
@@ -216,8 +215,7 @@ impl FdTable {
     }
 
     pub fn close_on_exec(&mut self) {
-        self.files
-            .retain(|_, file| !file.flags.contains(OpenFlags::CLOEXEC));
+        self.files.retain(|_, file| !file.flags.contains(OpenFlags::CLOEXEC));
     }
 
     pub fn limit(&self) -> usize {

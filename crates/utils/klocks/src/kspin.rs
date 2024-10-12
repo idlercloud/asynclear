@@ -80,7 +80,7 @@ impl<T: ?Sized> SpinMutex<T> {
     }
 }
 
-impl<'a, T: ?Sized> Deref for SpinMutexGuard<'a, T> {
+impl<T: ?Sized> Deref for SpinMutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {

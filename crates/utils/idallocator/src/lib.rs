@@ -45,10 +45,7 @@ impl RecycleAllocator {
 
     pub fn dealloc(&mut self, id: usize) {
         debug_assert!(id < self.current);
-        debug_assert!(
-            !self.recycled.iter().any(|i| *i == id),
-            "id {id} has been deallocated!",
-        );
+        debug_assert!(!self.recycled.iter().any(|i| *i == id), "id {id} has been deallocated!",);
         self.recycled.push(id);
     }
 

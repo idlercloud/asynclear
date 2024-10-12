@@ -55,10 +55,7 @@ impl AsmArgs {
             .tap(|cmd| println!("Invoking {:?}", cmd.info()))
             .output();
         fs::write(elf_path.with_extension("S"), output.stdout).unwrap();
-        println!(
-            "Asm generated at {}",
-            elf_path.with_extension("S").display()
-        );
+        println!("Asm generated at {}", elf_path.with_extension("S").display());
     }
 }
 
@@ -73,11 +70,7 @@ pub struct FatProbeArgs {
 
 impl FatProbeArgs {
     pub fn probe(&self) {
-        let fs = File::options()
-            .read(true)
-            .write(true)
-            .open(&self.img_path)
-            .unwrap();
+        let fs = File::options().read(true).write(true).open(&self.img_path).unwrap();
         let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
         if let Some(file_path) = &self.file_path {
             let mut dir = fs.root_dir();
@@ -194,15 +187,9 @@ pub fn pack() {
         }
     }
     {
-        let mut pg = root_dir
-            .open_dir("kbench")
-            .unwrap()
-            .create_file("_playground")
-            .unwrap();
+        let mut pg = root_dir.open_dir("kbench").unwrap().create_file("_playground").unwrap();
         let mut rng = Rng::with_seed(19260817);
-        let buf = iter::repeat_with(|| rng.u8(..))
-            .take(1234 * 1024)
-            .collect::<Vec<u8>>();
+        let buf = iter::repeat_with(|| rng.u8(..)).take(1234 * 1024).collect::<Vec<u8>>();
         pg.write_all(&buf).unwrap();
     }
 }

@@ -65,13 +65,7 @@ pub fn sys_getppid() -> KResult {
 /// - `flags` 低八位 `exit_signal`，高位指定 clone 的方式。具体参看
 ///   [`CloneFlags`]
 /// - `user_stack` 指定用户栈的
-pub fn sys_clone(
-    flags: usize,
-    user_stack: usize,
-    _ptid: usize,
-    _tls: usize,
-    _ctid: usize,
-) -> KResult {
+pub fn sys_clone(flags: usize, user_stack: usize, _ptid: usize, _tls: usize, _ctid: usize) -> KResult {
     let Ok(flags) = u32::try_from(flags) else {
         error!("flags exceeds u32: {flags:#b}");
         return Err(errno::UNSUPPORTED);
@@ -98,10 +92,7 @@ pub fn sys_clone(
 
         // 创建线程时不该有 `exit_signal`
         if flags as u8 != 0 {
-            warn!(
-                "create thread not allowed to set exit_signal: {:#b}",
-                flags as u8
-            );
+            warn!("create thread not allowed to set exit_signal: {:#b}", flags as u8);
             return Err(errno::EINVAL);
         }
         todo!("[mid] support create thread");
@@ -132,10 +123,7 @@ pub fn sys_clone(
             exit_signal = Some(signal);
         }
         let user_stack = NonZeroUsize::new(user_stack);
-        let new_process = local_hart()
-            .curr_thread()
-            .process
-            .fork(user_stack, exit_signal);
+        let new_process = local_hart().curr_thread().process.fork(user_stack, exit_signal);
         Ok(new_process.pid())
     }
 }
@@ -146,32 +134,27 @@ pub fn sys_clone(
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0
-pub async fn sys_execve(
-    pathname: UserCheck<u8>,
-    argv: UserCheck<usize>,
-    envp: Option<UserCheck<usize>>,
-) -> KResult {
+pub async fn sys_execve(pathname: UserCheck<u8>, argv: UserCheck<usize>, envp: Option<UserCheck<usize>>) -> KResult {
     let (bytes, args, envs) = {
         let pathname = pathname.check_cstr()?;
         let mut pathname = &*pathname;
         debug!("pathname: {}", pathname);
         // 收集参数列表
-        let collect_cstrs =
-            |mut v: Vec<EcoString>, mut ptr_vec: UserCheck<usize>| -> KResult<Vec<EcoString>> {
-                loop {
-                    // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
-                    let arg_str_ptr = ptr_vec.check_ptr()?.read();
-                    if arg_str_ptr == 0 {
-                        break;
-                    }
-                    let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
-                        .ok_or(errno::EINVAL)?
-                        .check_cstr()?;
-                    v.push(EcoString::from(&*arg_str));
-                    ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
+        let collect_cstrs = |mut v: Vec<EcoString>, mut ptr_vec: UserCheck<usize>| -> KResult<Vec<EcoString>> {
+            loop {
+                // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
+                let arg_str_ptr = ptr_vec.check_ptr()?.read();
+                if arg_str_ptr == 0 {
+                    break;
                 }
-                Ok(v)
-            };
+                let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
+                    .ok_or(errno::EINVAL)?
+                    .check_cstr()?;
+                v.push(EcoString::from(&*arg_str));
+                ptr_vec = ptr_vec.add(1).ok_or(errno::EINVAL)?;
+            }
+            Ok(v)
+        };
 
         let mut args = Vec::new();
         // FIXME: [low] hack: 实际上应该检查 shebang，这里简化认为 .sh 都应该以 busybox 执行
@@ -217,12 +200,7 @@ pub async fn sys_execve(
 /// - `wstatus` 若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
 /// - `options` 控制等待方式，详细查看 [`WaitFlags`]，目前只支持 `WNOHANG`
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
-pub async fn sys_wait4(
-    pid: isize,
-    wstatus: Option<UserCheck<i32>>,
-    options: usize,
-    rusage: usize,
-) -> KResult {
+pub async fn sys_wait4(pid: isize, wstatus: Option<UserCheck<i32>>, options: usize, rusage: usize) -> KResult {
     assert!(
         pid == -1 || pid > 0,
         "pid < -1 && pid == 0, i.e. wait process group, not supported yet"
