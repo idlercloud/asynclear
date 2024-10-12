@@ -1,5 +1,6 @@
 use core::{
     alloc::{GlobalAlloc, Layout},
+    cell::SyncUnsafeCell,
     ptr::NonNull,
 };
 
@@ -28,7 +29,7 @@ unsafe impl<const ORDER: usize> GlobalAlloc for LockedHeap<ORDER> {
 }
 
 /// 实际上的内核堆空间
-static mut HEAP_SPACE: [u8; KERNEL_HEAP_SIZE] = [0; KERNEL_HEAP_SIZE];
+static HEAP_SPACE: SyncUnsafeCell<[u8; KERNEL_HEAP_SIZE]> = SyncUnsafeCell::new([0; KERNEL_HEAP_SIZE]);
 
 /// 初始化内核堆，只应当调用一次
 pub unsafe fn init_heap() {
@@ -36,6 +37,6 @@ pub unsafe fn init_heap() {
         HEAP_ALLOCATOR
             .0
             .lock()
-            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+            .init(HEAP_SPACE.get() as usize, KERNEL_HEAP_SIZE);
     }
 }
