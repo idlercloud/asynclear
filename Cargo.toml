@@ -28,7 +28,7 @@ spin = { version = "0.9", default-features = false, features = [
 ] }
 smallvec = "1.13"
 chrono = { version = "0.4", default-features = false }
-sbi-rt = { version = "0.0.3", features = ["legacy"] }
+sbi-rt = "0.0.3"
 event-listener = { version = "5.3", default-features = false }
 heapless = { version = "0.8", features = ["mpmc_large"] }
 scopeguard = { version = "1.2", default-features = false }
