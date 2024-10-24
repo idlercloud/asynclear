@@ -127,9 +127,9 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
-/// - `iovec` 指定 `IoVec` 数组起始位置
-/// - `vlen` 指定 `IoVec` 数组长度
-pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> KResult {
+/// - `io_vec` 指定 `IoVec` 数组起始位置
+/// - `vec_len` 指定 `IoVec` 数组长度
+pub async fn sys_readv(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("writev stdout/stderr");
     } else {
@@ -138,8 +138,8 @@ pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> K
     let file = prepare_io::<true>(fd)?;
     let mut tot_read = 0;
     // TODO: [mid] 改变 `sys_readv` 的实现方式使其满足原子性
-    for _ in 0..vlen {
-        let iov = iovec.check_ptr()?.read();
+    for _ in 0..vec_len {
+        let iov = io_vec.check_ptr()?.read();
         if iov.iov_len != 0 {
             let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
             let nread = file.read(ReadBuffer::User(buf)).await?;
@@ -148,7 +148,7 @@ pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> K
             }
             tot_read += nread;
         }
-        iovec = iovec.add(1).ok_or(errno::EINVAL)?;
+        io_vec = io_vec.add(1).ok_or(errno::EINVAL)?;
     }
     Ok(tot_read)
 }
@@ -159,9 +159,9 @@ pub async fn sys_readv(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> K
 ///
 /// 参数：
 /// - `fd` 指定文件描述符
-/// - `iovec` 指定 `IoVec` 数组起始位置
-/// - `vlen` 指定 `IoVec` 数组长度
-pub async fn sys_writev(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> KResult {
+/// - `io_vec` 指定 `IoVec` 数组起始位置
+/// - `vec_len` 指定 `IoVec` 数组长度
+pub async fn sys_writev(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("writev stdout");
     } else {
@@ -170,14 +170,14 @@ pub async fn sys_writev(fd: usize, mut iovec: UserCheck<IoVec>, vlen: usize) -> 
     let file = prepare_io::<false>(fd)?;
     let mut total_write = 0;
     // TODO: [mid] 改变 `sys_writev` 的实现方式使其满足原子性
-    for _ in 0..vlen {
-        let iov = iovec.check_ptr()?.read();
+    for _ in 0..vec_len {
+        let iov = io_vec.check_ptr()?.read();
         if iov.iov_len != 0 {
             let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
             let nwrite = file.write(WriteBuffer::User(buf)).await?;
             total_write += nwrite;
         }
-        iovec = iovec.add(1).ok_or(errno::EINVAL)?;
+        io_vec = io_vec.add(1).ok_or(errno::EINVAL)?;
     }
     Ok(total_write)
 }
@@ -287,8 +287,8 @@ pub fn sys_close(fd: usize) -> KResult {
 /// 参数
 /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
 /// - `flags`: 同 [`sys_openat()`] 的 [`OpenFlags`]，只有某些位有用
-pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
-    let pipefd = unsafe { pipefd.check_ptr_mut()? };
+pub fn sys_pipe2(pipe_fd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
+    let pipe_fd = unsafe { pipe_fd.check_ptr_mut()? };
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
     };
@@ -300,7 +300,7 @@ pub fn sys_pipe2(pipefd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
         .lock_inner_with(|inner| inner.fd_table.add_many([read_end, write_end]))
         .ok_or(errno::EMFILE)?;
     debug!("pipe2: [{}, {}]", fds[0], fds[1]);
-    pipefd.write([fds[0] as i32, fds[1] as i32]);
+    pipe_fd.write([fds[0] as i32, fds[1] as i32]);
 
     Ok(0)
 }
@@ -358,7 +358,7 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
             debug!(
                 "dup fd {fd}({}) to {new_fd}, with close_on_exec = {}",
                 inner.fd_table.get(new_fd).unwrap().debug_name(),
-                cmd == F_DUPFD_CLOEXEC
+                { cmd == F_DUPFD_CLOEXEC }
             );
             Ok(new_fd)
         }
@@ -434,15 +434,15 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
 /// 参数：
 /// - `dir_fd` 开始搜索文件的目录，参考 [`sys_openat()`]
 /// - `path` 相对路径或绝对路径
-/// - `statbuf` 文件信息写入的目的地
+/// - `stat_buf` 文件信息写入的目的地
 /// - `flags` fstat 的一些 flags
-pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, statbuf: UserCheck<Stat>, flags: usize) -> KResult {
+pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, stat_buf: UserCheck<Stat>, flags: usize) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
     let path = path.check_cstr()?;
     if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
     }
-    let statbuf = unsafe { statbuf.check_ptr_mut()? };
+    let stat_buf = unsafe { stat_buf.check_ptr_mut()? };
     let stat = if path.is_empty() {
         let process = local_hart().curr_process();
         let inner = process.lock_inner();
@@ -453,19 +453,19 @@ pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, statbuf: UserCheck<Sta
         let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
         fs::stat_from_meta(dentry.meta())
     };
-    statbuf.write(stat);
+    stat_buf.write(stat);
 
     Ok(0)
 }
 
-pub fn sys_newfstat(fd: usize, statbuf: UserCheck<Stat>) -> KResult {
+pub fn sys_newfstat(fd: usize, stat_buf: UserCheck<Stat>) -> KResult {
     let process = local_hart().curr_process();
     let stat = process.lock_inner_with(|inner| {
         let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
         Ok(fs::stat_from_meta(file.meta()))
     })?;
-    let statbuf = unsafe { statbuf.check_ptr_mut()? };
-    statbuf.write(stat);
+    let stat_buf = unsafe { stat_buf.check_ptr_mut()? };
+    stat_buf.write(stat);
 
     Ok(0)
 }
@@ -808,6 +808,12 @@ pub fn sys_utimensat(
     Ok(0)
 }
 
+/// 重命名一个文件，并且可能移动其位置。
+///
+/// - 如果 `old_path` 是目录，则 `new_path` 要么不存在，要么指定一个空目录
+/// - 如果 `new_path` 已经存在，则其会被替换
+///
+/// `old_path` 和 `new_path` 需要指向同一个挂载的文件系统，否则返回 `EXDEV`
 pub fn sys_renameat2(
     old_dir_fd: usize,
     old_path: UserCheck<u8>,
@@ -828,8 +834,10 @@ pub fn sys_renameat2(
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
     let old_file = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
     let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
-    if old_file.is_dir() {
-        let _new_file = new_p2i.dir.lookup(&new_p2i.last_component);
+    match old_file {
+        DEntry::Dir(dir) => {}
+        DEntry::Bytes(bytes) => todo!(),
     }
+
     todo!("[high] impl sys_renameat2")
 }
