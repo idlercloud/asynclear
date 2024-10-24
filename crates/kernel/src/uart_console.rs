@@ -27,8 +27,7 @@ pub fn eprint(args: Arguments<'_>) {
     impl Write for Stderr {
         fn write_str(&mut self, s: &str) -> Result {
             for byte in s.bytes() {
-                #[allow(deprecated)]
-                sbi_rt::legacy::console_putchar(byte as usize);
+                sbi_rt::console_write_byte(byte);
             }
             Ok(())
         }
