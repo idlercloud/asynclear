@@ -10,7 +10,7 @@ edition = "2021"
 
 [workspace.dependencies]
 async-lock = { version = "3.3", default-features = false }
-buddy_system_allocator = { path = "deps/buddy_system_allocator" }
+buddy_system_allocator = { version = "0.11", default-features = false, features = ["alloc"] }
 atomic = "0.6"
 bytemuck = { version = "1.15", features = ["derive"] }
 derive_more = { version = "1", default-features = false }
