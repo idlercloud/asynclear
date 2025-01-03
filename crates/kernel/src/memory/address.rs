@@ -1,6 +1,7 @@
 use core::{
     iter::Step,
     ops::{Add, Sub},
+    usize,
 };
 
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};
@@ -53,8 +54,9 @@ impl Add<usize> for PhysPageNum {
 }
 
 impl Step for PhysPageNum {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        end.0.checked_sub(start.0)
+    fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
+        let ret = end.0.checked_sub(start.0);
+        (ret.unwrap_or(usize::MAX), ret)
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
@@ -178,8 +180,9 @@ impl Sub<usize> for VirtPageNum {
 }
 
 impl Step for VirtPageNum {
-    fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        end.0.checked_sub(start.0)
+    fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
+        let ret = end.0.checked_sub(start.0);
+        (ret.unwrap_or(usize::MAX), ret)
     }
 
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
