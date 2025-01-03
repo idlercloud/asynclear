@@ -40,7 +40,7 @@ pub struct PageTableEntry {
 impl PageTableEntry {
     pub fn new(ppn: PhysPageNum, flags: PTEFlags) -> Self {
         PageTableEntry {
-            bits: ppn.0 << 10 | flags.bits() as usize,
+            bits: (ppn.0 << 10) | flags.bits() as usize,
         }
     }
 
@@ -146,7 +146,7 @@ impl PageTable {
     }
 
     fn token(&self) -> usize {
-        (satp::Mode::Sv39 as usize) << 60 | self.root_frame.ppn().0
+        ((satp::Mode::Sv39 as usize) << 60) | self.root_frame.ppn().0
     }
 
     pub fn activate(&self) {

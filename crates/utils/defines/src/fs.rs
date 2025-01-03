@@ -20,19 +20,19 @@ bitflags! {
     pub struct StatMode: u32 {
         // 以下类型只为其一
         /// 是普通文件
-        const REGULAR       = 1 << 15;
+        const REGULAR       = (1 << 15);
         /// 是符号链接
-        const SYM_LINK      = 1 << 15 | 1 << 13;
+        const SYM_LINK      = (1 << 15) | (1 << 13);
         /// 是 socket
-        const SOCKET        = 1 << 15 | 1 << 14;
+        const SOCKET        = (1 << 15) | (1 << 14);
         /// 是块设备
-        const BLOCK_DEVICE  = 1 << 14 | 1 << 13;
+        const BLOCK_DEVICE  = (1 << 14) | (1 << 13);
         /// 是目录
-        const DIR           = 1 << 14;
+        const DIR           = (1 << 14);
         /// 是字符设备
-        const CHAR_DEVICE   = 1 << 13;
+        const CHAR_DEVICE   = (1 << 13);
         /// 是 FIFO
-        const FIFO          = 1 << 12;
+        const FIFO          = (1 << 12);
 
         // /// 是否设置 uid/gid/sticky
         // // const S_ISUID = 1 << 11;

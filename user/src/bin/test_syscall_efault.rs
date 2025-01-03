@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(strict_provenance)]
 
 use defines::error::errno;
 use user::{sys_execve, sys_uname, sys_write, test_main, STDOUT};

@@ -191,7 +191,7 @@ pub const DEFAULT_FCSR: u32 = {
     // exception when NV(invalid operation)
     let fflags: u32 = 0b10000;
     let round_mode: u32 = 0;
-    round_mode << 4 | fflags
+    (round_mode << 4) | fflags
 };
 
 fn enable_float() {

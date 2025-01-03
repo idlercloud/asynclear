@@ -6,12 +6,15 @@ use core::{ops::ControlFlow, ptr::NonNull};
 pub use context::TrapContext;
 use defines::{error::errno, signal::SignalActionFlags};
 use kernel_tracer::Instrument;
-use riscv::register::{
-    scause::{self, Exception, Interrupt, Trap},
-    sie,
-    sstatus::{self, FS},
-    stval,
-    stvec::{self, TrapMode},
+use riscv::{
+    interrupt::{Exception, Interrupt},
+    register::{
+        scause::{self, Trap},
+        sie,
+        sstatus::{self, FS},
+        stval,
+        stvec::{self, TrapMode},
+    },
 };
 
 use crate::{
@@ -41,7 +44,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
     }
 
     match scause.cause() {
-        Trap::Exception(Exception::UserEnvCall) => {
+        Trap::Exception(const { Exception::UserEnvCall as usize }) => {
             let (syscall_id, syscall_args) = {
                 let trap_context = unsafe { local_hart().curr_trap_context().as_mut() };
                 // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
@@ -74,10 +77,10 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
         }
 
         Trap::Exception(
-            e @ (Exception::StoreFault
-            | Exception::StorePageFault
-            | Exception::InstructionPageFault
-            | Exception::LoadPageFault),
+            e @ (const { Exception::StoreFault as usize }
+            | const { Exception::StorePageFault as usize }
+            | const { Exception::InstructionPageFault as usize }
+            | const { Exception::LoadPageFault as usize }),
         ) => {
             let _enter = info_span!("pagefault").entered();
             let thread = local_hart().curr_thread();
@@ -85,7 +88,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             let ok = thread.process.lock_inner_with(|inner| {
                 inner
                     .memory_space
-                    .handle_memory_exception(stval, e == Exception::StoreFault)
+                    .handle_memory_exception(stval, e == Exception::StoreFault as usize)
             });
 
             if ok {
@@ -103,7 +106,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                 ControlFlow::Break(())
             }
         }
-        Trap::Exception(Exception::IllegalInstruction) => {
+        Trap::Exception(const { Exception::IllegalInstruction as usize }) => {
             let thread = local_hart().curr_thread();
             let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
             info!("regs: {:x?}", trap_context.user_regs);
@@ -114,7 +117,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             process::exit_process(&thread.process, -3);
             ControlFlow::Break(())
         }
-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+        Trap::Interrupt(const { Interrupt::SupervisorTimer as usize }) => {
             {
                 let _enter = debug_span!("timer_irq").entered();
                 time::check_timer();
@@ -123,7 +126,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             executor::yield_now().await;
             ControlFlow::Continue(())
         }
-        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+        Trap::Interrupt(const { Interrupt::SupervisorExternal as usize }) => {
             let _enter = debug_span!("external_irq").entered();
             interrupt_handler();
             ControlFlow::Continue(())

@@ -1,8 +1,10 @@
-use riscv::register::{
-    scause,
-    scause::{Interrupt, Trap},
-    sepc, stval,
-    stvec::{self, TrapMode},
+use riscv::{
+    interrupt::Interrupt,
+    register::{
+        scause::{self, Trap},
+        sepc, stval,
+        stvec::{self, TrapMode},
+    },
 };
 
 use crate::time;
@@ -20,13 +22,13 @@ pub fn set_kernel_trap_entry() {
 #[no_mangle]
 pub extern "C" fn kernel_trap_handler() {
     match scause::read().cause() {
-        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+        Trap::Interrupt(const { Interrupt::SupervisorTimer as usize }) => {
             let _enter = debug_span!("timer_irq").entered();
             // TODO: 想办法通知线程让出 hart
             time::check_timer();
             riscv_time::set_next_trigger();
         }
-        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+        Trap::Interrupt(const { Interrupt::SupervisorExternal as usize }) => {
             let _enter = debug_span!("external_irq").entered();
             super::interrupt_handler();
         }

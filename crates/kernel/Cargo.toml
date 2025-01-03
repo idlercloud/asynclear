@@ -18,7 +18,7 @@ extend.workspace = true
 hashbrown.workspace = true
 heapless.workspace = true
 pin-project.workspace = true
-riscv.workspace = true
+riscv = { workspace = true, features = ["s-mode"] }
 sbi-rt.workspace = true
 scopeguard.workspace = true
 smallvec.workspace = true

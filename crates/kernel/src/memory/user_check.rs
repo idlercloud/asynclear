@@ -7,9 +7,10 @@ use core::{
 
 use common::config::{LOW_ADDRESS_END, MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::error::{errno, KResult};
-use riscv::register::{
-    scause::Exception,
-    stvec::{self, TrapMode},
+use riscv::{
+    interrupt::Exception,
+    register::stvec::{self, TrapMode},
+    ExceptionNumber,
 };
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
@@ -304,7 +305,10 @@ fn try_read_user_byte(addr: usize) -> KResult<()> {
     if ret.is_err {
         // 因为关中断，发生的必然是 `Exception`
         debug_assert!(ret.scause & (1 << (usize::BITS as usize - 1)) == 0);
-        let e = Exception::from(ret.scause & !(1 << (usize::BITS as usize - 1)));
+        let e = Exception::from_number(ret.scause & !(1 << (usize::BITS as usize - 1))).map_err(|err| {
+            error!("Unknown riscv error in try write: {err}");
+            errno::EFAULT
+        })?;
         handle_memory_exception(addr, e)?;
     }
     Ok(())
@@ -315,7 +319,10 @@ fn try_write_user_byte(addr: usize) -> KResult<()> {
     if ret.is_err {
         // 因为关中断，发生的必然是 `Exception`
         debug_assert!(ret.scause & (1 << (usize::BITS as usize - 1)) == 0);
-        let e = Exception::from(ret.scause & !(1 << (usize::BITS as usize - 1)));
+        let e = Exception::from_number(ret.scause & !(1 << (usize::BITS as usize - 1))).map_err(|err| {
+            error!("Unknown riscv error in try write: {err}");
+            errno::EFAULT
+        })?;
         handle_memory_exception(addr, e)?;
     }
     Ok(())

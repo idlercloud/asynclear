@@ -1,7 +1,6 @@
 use core::{
     iter::Step,
     ops::{Add, Sub},
-    usize,
 };
 
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS, PTE_PER_PAGE};

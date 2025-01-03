@@ -13,12 +13,11 @@
 #![feature(sync_unsafe_cell)]
 #![feature(naked_functions)]
 #![feature(slice_ptr_get)]
-#![feature(strict_provenance)]
 #![feature(iter_intersperse)]
 #![feature(let_chains)]
 #![feature(debug_closure_helpers)]
 #![feature(negative_impls)]
-#![feature(build_hasher_default_const_new)]
+#![feature(inline_const_pat)]
 
 #[macro_use]
 extern crate kernel_tracer;
