@@ -6,6 +6,8 @@ use core::ffi::CStr;
 use defines::error::errno::ENOENT;
 use user::{chdir, exec, exit, fork, println, waitpid};
 
+include!(concat!(env!("OUT_DIR"), "/ktest_list.rs"));
+
 const PRELIMINARY_TESTS: [&CStr; 32] = [
     c"brk",
     c"chdir",
@@ -39,20 +41,6 @@ const PRELIMINARY_TESTS: [&CStr; 32] = [
     c"waitpid",
     c"write",
     c"yield",
-];
-
-const KTESTS: [&CStr; 11] = [
-    c"test_echo",
-    c"test_fork",
-    c"test_lazy_stack",
-    c"test_pid",
-    c"test_power",
-    c"test_should_fail_bad_address",
-    c"test_should_fail_bad_instructions",
-    c"test_should_fail_bad_register",
-    c"test_syscall_efault",
-    c"test_yield",
-    c"test_float_ctx",
 ];
 
 #[no_mangle]
