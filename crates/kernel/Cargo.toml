@@ -5,48 +5,44 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-atomic.workspace = true
 async-lock.workspace = true
+atomic.workspace = true
+bitflags.workspace = true
+buddy_system_allocator.workspace = true
 bytemuck.workspace = true
 chrono.workspace = true
 derive_more = { workspace = true, features = ["display"] }
-riscv.workspace = true
 ecow.workspace = true
-hashbrown.workspace = true
-bitflags.workspace = true
-sbi-rt.workspace = true
-smallvec.workspace = true
-pin-project.workspace = true
 event-listener.workspace = true
-triomphe.workspace = true
-scopeguard.workspace = true
-unsize.workspace = true
 extend.workspace = true
+hashbrown.workspace = true
 heapless.workspace = true
-buddy_system_allocator.workspace = true
-riscv_time = { path = "../arch/riscv_time" }
-riscv_guard = { path = "../arch/riscv_guard" }
-idallocator = { path = "../utils/idallocator" }
+pin-project.workspace = true
+riscv.workspace = true
+sbi-rt.workspace = true
+scopeguard.workspace = true
+smallvec.workspace = true
+triomphe.workspace = true
+unsize.workspace = true
+
 common = { path = "../utils/common" }
 defines = { path = "../utils/defines" }
+elf = { path = "../utils/elf" }
+idallocator = { path = "../utils/idallocator" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
-crossbeam-utils = { version = "0.8", default-features = false }
-crossbeam-queue = { version = "0.3.11", default-features = false, features = [
-  "alloc",
-] }
+riscv_guard = { path = "../arch/riscv_guard" }
+riscv_time = { path = "../arch/riscv_time" }
+
 anstyle = { version = "1.0", default-features = false }
 async-channel = { version = "2.3", default-features = false }
-slab = { version = "0.4", default-features = false }
-virtio-drivers = "0.7"
-uart_16550 = "0.3"
 async-task = { version = "4.7", default-features = false }
-futures = { version = "0.3", default-features = false, features = [
-  "alloc",
-  "async-await",
-] }
-elf = { path = "../utils/elf" }
-
+crossbeam-queue = { version = "0.3.11", default-features = false, features = ["alloc"] }
+crossbeam-utils = { version = "0.8", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc", "async-await"] }
+slab = { version = "0.4", default-features = false }
+uart_16550 = "0.3"
+virtio-drivers = "0.7"
 
 [features]
 default = []

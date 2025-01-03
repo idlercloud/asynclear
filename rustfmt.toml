@@ -9,7 +9,7 @@ imports_granularity = "Crate"
 
 normalize_comments = true
 
-reorder_impl_items = true
 condense_wildcard_suffixes = true
-use_field_init_shorthand = true
 format_macro_matchers = true
+reorder_impl_items = true
+use_field_init_shorthand = true

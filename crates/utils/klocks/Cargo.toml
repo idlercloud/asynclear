@@ -8,8 +8,9 @@ edition.workspace = true
 
 [dependencies]
 spin = { workspace = true, features = ["rwlock"] }
-riscv_time = { path = "../../arch/riscv_time" }
+
 riscv_guard = { path = "../../arch/riscv_guard" }
+riscv_time = { path = "../../arch/riscv_time" }
 
 [lints]
 workspace = true

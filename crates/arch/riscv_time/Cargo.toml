@@ -9,6 +9,7 @@ edition.workspace = true
 [dependencies]
 riscv.workspace = true
 sbi-rt.workspace = true
+
 common = { path = "../../utils/common" }
 
 [lints]

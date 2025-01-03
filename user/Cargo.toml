@@ -8,6 +8,7 @@ edition = "2021"
 buddy_system_allocator.workspace = true
 fastrand = { workspace = true, default-features = false }
 spin.workspace = true
+
 defines = { path = "../crates/utils/defines" }
 
 [lints]

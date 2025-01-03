@@ -9,12 +9,13 @@ edition.workspace = true
 [dependencies]
 fastrand = { workspace = true, default-features = true }
 tap.workspace = true
-clap = { version = "4.5", features = ["derive"] }
-fatfs = "0.3"
-const_format = "0.2"
-serde_json = "1.0"
-regex = "1.10"
+
 anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+const_format = "0.2"
+fatfs = "0.3"
+regex = "1.10"
+serde_json = "1.0"
 
 [lints]
 workspace = true
