@@ -15,52 +15,35 @@
 本项目采用 cargo workspace 维护。一个项目中包含多个 crate。crate 之间的依赖形成有向无环图
 
 - crates/kernel
-    - 内核的主模块，生成内核二进制文件
-    - 包含 trap 处理、进程/线程管理、hart 管理、外设管理、文件系统、内存管理等
-    - 内核的入口在 src/hart/entry.S 中
-    - 加载内核栈和临时页表后，跳转到 src/hart/mod.rs::__hart_entry()
-    - 主 hart 进行一些必要的初始化工作，并启动其他 hart
-    - 最后进入 src/main::kernel_loop()，即内核主循环，不断运行用户任务
+  - 内核的主模块，生成内核二进制文件
+  - 包含 trap 处理、进程/线程管理、hart 管理、外设管理、文件系统、内存管理等
+  - 内核的入口在 src/hart/entry.S 中
+  - 加载内核栈和临时页表后，跳转到 src/hart/mod.rs::__hart_entry()
+  - 主 hart 进行一些必要的初始化工作，并启动其他 hart
+  - 最后进入 src/main::kernel_loop()，即内核主循环，不断运行用户任务
 - crates/arch
-    - 一些特定于架构的东西，比如 riscv 的 time 读取
+  - 一些特定于架构的东西，比如 riscv 的 time 读取
 - crates/utils
-    - 一些通用组件
-    - defines 包括一些内核和用户空间都会用到的定义
-    - idallocator 是用于分配整数（pid、tid）的分配器实现
-    - kernel_tracer 是内核的日志系统的基础
-    - klocks 实现自旋锁、关中断自旋锁等原语
-- deps（这个实际上不包含在 workspace 中，暂时）
-    - 一些第三方库，但是需要做一些修改
-    - 后期也可能基于它们扩展
+  - 一些通用组件
+  - defines 包括一些内核和用户空间都会用到的定义
+  - idallocator 是用于分配整数（pid、tid）的分配器实现
+  - kernel_tracer 是内核的日志系统的基础
+  - klocks 实现自旋锁、关中断自旋锁等原语
 - user
-    - 一些用户应用，可以用做测试
-    - 包括 initproc 和 shell
+  - 一些用户应用，可以用做测试
+  - 包括 initproc 和 shell
 - xtask
-    - xtask 方式管理内核的构建、运行等
-    - 它是一个运行在开发环境（而非目标环境如 qemu）下的 cli
+  - xtask 方式管理内核的构建、运行等
+  - 它是一个运行在开发环境（而非目标环境如 qemu）下的 cli
 
 ## 如何运行
 
-1. 安装 qemu-system-riscv64，版本 7.0.x 或 7.1.x（7.2.0 有未知问题）
-   - Windows: <https://qemu.weilnetz.de/w64/2022/qemu-w64-setup-20220831.exe>，这是 7.1.0 版的
-   - Linux：<https://www.qemu.org/download/#linux>。找不到合适版本可能得自己从源码编译，[参考下文](#在-linux-上编译-qemu-system-riscv64)
+1. 安装 qemu-system-riscv64，建议版本不低于 7.0
 2. 安装 rust 环境，请**务必**用[官方提供的安装方式](https://www.rust-lang.org/learn/get-started)
 3. 运行 cargo env
 4. 运行 cargo qemu
 
 可以用 `cargo qemu --clog="INFO" --flog="DEBUG" --slog="DEBUG"` 来具体指定日志级别。
-
-### 在 Linux 上编译 qemu-system-riscv64
-
-```sh
-wget https://download.qemu.org/qemu-7.0.0.tar.xz
-tar xvJf qemu-7.0.0.tar.xz
-cd qemu-7.0.0
-./configure --target-list=riscv64-softmmu --prefix=/opt/qemu-7.0.0 --enable-virtfs
-make -j12
-sudo make install
-# 然后将 qemu-system-riscv64 添加到 PATH 里
-```
 
 ## 开发指南
 
@@ -230,11 +213,11 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 按优先级排列：
 
 - [ ] 添加文件系统的测试，包括且不限于：
-    - 多次打开同一文件
-    - append
-    - lseek 超出文件末尾后再写
-    - mmap 后读写与 read、write
-    - munmap 后测试是否已经无效
+  - 多次打开同一文件
+  - append
+  - lseek 超出文件末尾后再写
+  - mmap 后读写与 read、write
+  - munmap 后测试是否已经无效
 - [ ] CoW、零页映射、mmap 私有映射
 - [ ] mmap 和用户栈以及共享映射的区域划分要重新考虑
 - [ ] 内核线程
@@ -243,16 +226,17 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 ## 参考资料
 
 - [riscv sbi 规范](https://github.com/riscv-non-isa/riscv-sbi-doc)
-    - binary-encoding 是调用约定
-    - ext-debug-console 是一种更好的输入和输出控制台的方式
-    - ext-legacy 是一些旧版的功能
+  - binary-encoding 是调用约定
+  - ext-debug-console 是一种更好的输入和输出控制台的方式
+  - ext-legacy 是一些旧版的功能
+- [linux riscv syscall table](https://jborza.com/post/2021-05-11-riscv-linux-syscalls/)
 - 其他 OS 实现
-    - <https://github.com/greenhandzpx/Titanix.git>
-    - <https://gitlab.eduxiji.net/DarkAngelEX/oskernel2022-ftlos>
-    - <https://gitlab.eduxiji.net/scPointer/maturin>
-    - <https://gitlab.eduxiji.net/dh2zz/oskernel2022>
-    - <https://gitee.com/LoanCold/ultraos_backup>
-    - <https://github.com/xiaoyang-sde/rust-kernel-riscv>
-    - <https://github.com/equation314/nimbos>
-    - <https://gitlab.eduxiji.net/202310007101563/Alien>
-    - [适用于 Cortex-M 的小型异步 RTOS](https://github.com/cbiffle/lilos)
+  - <https://github.com/greenhandzpx/Titanix.git>
+  - <https://gitlab.eduxiji.net/DarkAngelEX/oskernel2022-ftlos>
+  - <https://gitlab.eduxiji.net/scPointer/maturin>
+  - <https://gitlab.eduxiji.net/dh2zz/oskernel2022>
+  - <https://gitee.com/LoanCold/ultraos_backup>
+  - <https://github.com/xiaoyang-sde/rust-kernel-riscv>
+  - <https://github.com/equation314/nimbos>
+  - <https://gitlab.eduxiji.net/202310007101563/Alien>
+  - [适用于 Cortex-M 的小型异步 RTOS](https://github.com/cbiffle/lilos)
