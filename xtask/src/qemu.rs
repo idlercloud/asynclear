@@ -13,7 +13,7 @@ use crate::{
 #[derive(Parser)]
 pub struct QemuArgs {
     #[clap(flatten)]
-    build: BuildArgs,
+    build_args: BuildArgs,
     /// Hart 数量（SMP 代表 Symmetrical Multiple Processor）.
     #[clap(long, default_value_t = 2)]
     smp: u8,
@@ -28,7 +28,7 @@ impl QemuArgs {
     pub fn run(self) {
         // 构建内核和用户应用
         if !self.skip_build {
-            self.build.build();
+            self.build_args.build();
             tool::prepare_os();
         }
 
@@ -36,18 +36,14 @@ impl QemuArgs {
 
         Self::base_qemu()
             .args(["-smp", &self.smp.to_string()])
-            .optional_arg(self.debug.then_some("-s"))
-            .optional_arg(self.debug.then_some("-S"))
+            .optional_args(self.debug.then_some(["-s", "-S"]))
             .invoke();
     }
 
     pub fn base_qemu() -> Cmd {
         let mut cmd = Cmd::new("qemu-system-riscv64");
-        cmd.args(["-machine", "virt"])
-            .args(["-kernel", KERNEL_BIN_PATH])
-            .args(["-m", "128M"])
-            .args(["-nographic"])
-            .args(["-bios", SBI_PATH])
+        cmd.args(["-machine", "virt", "-m", "128M", "-nographic"])
+            .args(["-kernel", KERNEL_BIN_PATH, "-bios", SBI_PATH])
             .args(["-drive", formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0")])
             .args(["-device", "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0"]);
         cmd

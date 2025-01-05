@@ -1,7 +1,6 @@
 use std::{fs, sync::LazyLock};
 
 use clap::Parser;
-use tap::Tap;
 
 use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
 
@@ -27,11 +26,11 @@ pub struct BuildArgs {
 
 impl BuildArgs {
     pub fn build(&self) {
-        Self::build_user_apps();
+        self.build_user_apps();
         self.build_kernel();
     }
 
-    fn build_user_apps() {
+    fn build_user_apps(&self) {
         println!("Building user apps...");
         Cmd::parse("cargo build --package user --release")
             .args(["--target", TARGET_ARCH])
@@ -43,11 +42,7 @@ impl BuildArgs {
         Cmd::parse("cargo build --package kernel")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
-            .tap_mut(|cmd| {
-                if self.profiling {
-                    cmd.args(["--features", "profiling"]);
-                }
-            })
+            .optional_args(self.profiling.then_some(["--features", "profiling"]))
             .envs([
                 ("KERNEL_CLOG", &self.clog),
                 ("KERNEL_FLOG", &self.flog),

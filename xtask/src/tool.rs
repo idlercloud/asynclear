@@ -115,14 +115,13 @@ impl FatProbeArgs {
 }
 
 pub fn prepare_env() {
-    Cmd::parse(&format!("rustup target add {TARGET_ARCH}")).invoke();
+    Cmd::parse(format!("rustup target add {TARGET_ARCH}")).invoke();
     Cmd::parse("rustup component add llvm-tools-preview").invoke();
     Cmd::parse("cargo install cargo-binutils").invoke();
 }
 
 // 将一系列 elf 打包入 fat32 镜像中
 pub fn pack() {
-    // 复制一个原始镜像
     let mut fs = File::options()
         .read(true)
         .write(true)
@@ -195,9 +194,10 @@ pub fn pack() {
 }
 
 pub fn lint() {
-    Cmd::parse("cargo clippy --workspace --exclude xtask")
-        .args(["--target", TARGET_ARCH])
-        .invoke();
+    Cmd::parse(format!(
+        "cargo clippy --workspace --exclude xtask --target {TARGET_ARCH}"
+    ))
+    .invoke();
     Cmd::parse("cargo clippy --package xtask").invoke();
 }
 

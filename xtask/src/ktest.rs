@@ -36,25 +36,26 @@ impl KtestArgs {
         #[expect(clippy::zombie_processes, reason = "In normal case, `wait()` will be called")]
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
-            .optional_arg(self.debug.then_some("-s"))
-            .optional_arg(self.debug.then_some("-S"))
+            .optional_args(self.debug.then_some(["-s", "-S"]))
             .spawn();
         let stdin = child.stdin.as_mut().unwrap();
         let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
-        // 等待 shell 准备完毕
-        || -> anyhow::Result<()> {
+        let output = || -> anyhow::Result<Vec<String>> {
+            // 等待 shell 准备完毕
             loop {
                 let line = lines.next().unwrap()?;
                 if line.contains("Rust user shell") {
                     break;
                 }
             }
-            writeln!(stdin, "testrunner")?;
 
+            // 开始运行测试
+            writeln!(stdin, "testrunner")?;
             let mut output = Vec::new();
 
             loop {
-                let line = lines.next().unwrap().unwrap();
+                let line = lines.next().unwrap()?;
+                // 按照约定，testrunner 运行完后会输出这个，作为测试结束的标志
                 if line.contains("==ALL TESTS OK==") {
                     break;
                 }
@@ -62,82 +63,83 @@ impl KtestArgs {
                 output.push(line);
             }
             writeln!(stdin, "exit")?;
-
-            let mut passed = Vec::new();
-            let mut failed = Vec::new();
-
-            let ptest_re = Regex::new("========== START (test_.+) ==========").unwrap();
-            let ktest_re = Regex::new("----(test_.+) begins----").unwrap();
-
-            let mut parts = Vec::new();
-            #[derive(Clone, Debug)]
-            struct OutputPart<'a> {
-                name: &'a str,
-                is_ptest: bool,
-                range: Range<usize>,
-            }
-            let mut curr_part = OutputPart {
-                name: "",
-                is_ptest: true,
-                range: 0..0,
-            };
-            let mut in_part = false;
-
-            for (i, line) in output.iter().enumerate() {
-                if let Some(caps) = ptest_re.captures(line) {
-                    if in_part {
-                        parts.push(curr_part.clone());
-                        curr_part.is_ptest = true;
-                    }
-                    curr_part.name = caps.get(1).unwrap().as_str();
-                    curr_part.range = i..i + 1;
-                    in_part = true;
-                } else if let Some(caps) = ktest_re.captures(line) {
-                    if in_part {
-                        parts.push(curr_part.clone());
-                        curr_part.is_ptest = false;
-                    }
-                    curr_part.name = caps.get(1).unwrap().as_str();
-                    curr_part.range = i..i + 1;
-                    in_part = true;
-                } else if in_part {
-                    curr_part.range.end = i + 1;
-                }
-            }
-
-            if in_part {
-                parts.push(curr_part);
-            }
-
-            for part in parts {
-                if (part.is_ptest && ptest_checker(part.name, &output[part.range.clone()]))
-                    || (!part.is_ptest && ktest_checker(part.name, &output[part.range.clone()]))
-                {
-                    passed.push(part);
-                } else {
-                    failed.push(part);
-                }
-            }
-
-            println!("Passed tests:");
-            for part in passed {
-                if part.is_ptest {
-                    println!("    ptest {}", part.name);
-                } else {
-                    println!("    ktest {}", part.name);
-                }
-            }
-            println!("Failed tests:");
-            for part in failed {
-                if part.is_ptest {
-                    println!("    ptest {}", part.name);
-                } else {
-                    println!("    ktest {}", part.name);
-                }
-            }
-            Ok(())
+            Ok(output)
         }()
         .unwrap();
+
+        let mut passed = Vec::new();
+        let mut failed = Vec::new();
+
+        // 根据文本内容解析所有测试输出
+        let ptest_re = Regex::new("========== START (test_.+) ==========").unwrap();
+        let ktest_re = Regex::new("----(test_.+) begins----").unwrap();
+        let mut parts = Vec::new();
+        #[derive(Clone, Debug)]
+        struct OutputPart<'a> {
+            name: &'a str,
+            is_ptest: bool,
+            range: Range<usize>,
+        }
+        let mut curr_part = OutputPart {
+            name: "",
+            is_ptest: true,
+            range: 0..0,
+        };
+        let mut in_part = false;
+
+        for (i, line) in output.iter().enumerate() {
+            if let Some(caps) = ptest_re.captures(line) {
+                if in_part {
+                    parts.push(curr_part.clone());
+                    curr_part.is_ptest = true;
+                }
+                curr_part.name = caps.get(1).unwrap().as_str();
+                curr_part.range = i..i + 1;
+                in_part = true;
+            } else if let Some(caps) = ktest_re.captures(line) {
+                if in_part {
+                    parts.push(curr_part.clone());
+                    curr_part.is_ptest = false;
+                }
+                curr_part.name = caps.get(1).unwrap().as_str();
+                curr_part.range = i..i + 1;
+                in_part = true;
+            } else if in_part {
+                curr_part.range.end = i + 1;
+            }
+        }
+
+        if in_part {
+            parts.push(curr_part);
+        }
+
+        for part in parts {
+            if (part.is_ptest && ptest_checker(part.name, &output[part.range.clone()]))
+                || (!part.is_ptest && ktest_checker(part.name, &output[part.range.clone()]))
+            {
+                passed.push(part);
+            } else {
+                failed.push(part);
+            }
+        }
+
+        println!("Passed tests:");
+        for part in passed {
+            if part.is_ptest {
+                println!("    ptest {}", part.name);
+            } else {
+                println!("    ktest {}", part.name);
+            }
+        }
+        println!("Failed tests:");
+        for part in failed {
+            if part.is_ptest {
+                println!("    ptest {}", part.name);
+            } else {
+                println!("    ktest {}", part.name);
+            }
+        }
+
         let mut shutdown = false;
         for line in lines {
             if line.unwrap().contains("[initproc] No child process. OS shutdown") {
