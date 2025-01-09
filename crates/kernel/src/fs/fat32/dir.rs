@@ -92,25 +92,22 @@ impl FatDir {
         })
     }
 
-    pub fn dir_entry_iter<'a>(
-        &'a self,
-        clusters: &'a RwLockReadGuard<'a, SmallVec<[u32; 4]>>,
-    ) -> impl Iterator<Item = KResult<DirEntry>> + 'a {
+    pub fn dir_entry_iter(&self) -> impl Iterator<Item = KResult<DirEntry>> + '_ {
+        let clusters = self.clusters.read();
         let mut raw_entry_iter = core::iter::from_coroutine(
             #[coroutine]
-            || {
+            move || {
                 let mut buf = local_hart().block_buffer.borrow_mut();
-                for sector_id in clusters
-                    .iter()
-                    .flat_map(|&cluster_id| self.fat.cluster_sectors(cluster_id))
-                {
-                    self.fat.block_device.read_blocks_cached(sector_id as usize, &mut buf);
-                    for dentry_index in 0..BLOCK_SIZE / DIR_ENTRY_SIZE {
-                        let entry_start = dentry_index * DIR_ENTRY_SIZE;
-                        if buf[entry_start] == 0 {
-                            return;
+                for index in 0..clusters.len() {
+                    for sector_id in self.fat.cluster_sectors(clusters[index]) {
+                        self.fat.block_device.read_blocks_cached(sector_id as usize, &mut buf);
+                        for dentry_index in 0..BLOCK_SIZE / DIR_ENTRY_SIZE {
+                            let entry_start = dentry_index * DIR_ENTRY_SIZE;
+                            if buf[entry_start] == 0 {
+                                return;
+                            }
+                            yield buf[entry_start..entry_start + DIR_ENTRY_SIZE].try_into().unwrap();
                         }
-                        yield buf[entry_start..entry_start + DIR_ENTRY_SIZE].try_into().unwrap();
                     }
                 }
             },
@@ -148,7 +145,7 @@ impl DirInodeBackend for FatDir {
     fn lookup(&self, name: &str) -> Option<DynInode> {
         let curr_time = time::curr_time_spec();
         self.meta.lock_inner_with(|inner| inner.access_time = curr_time);
-        for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
+        for dir_entry in self.dir_entry_iter() {
             let Ok(dir_entry) = dir_entry else {
                 continue;
             };
@@ -192,7 +189,7 @@ impl DirInodeBackend for FatDir {
     fn read_dir(&self, parent: &Arc<DEntryDir>) -> KResult<()> {
         debug!("fat32 read dir");
         let mut children = parent.lock_children();
-        for dir_entry in self.dir_entry_iter(&self.clusters.read()) {
+        for dir_entry in self.dir_entry_iter() {
             let Ok(mut dir_entry) = dir_entry else {
                 continue;
             };
