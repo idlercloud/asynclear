@@ -212,6 +212,7 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 
 按优先级排列：
 
+- [ ] 升级到 edition 2024
 - [ ] 添加文件系统的测试，包括且不限于：
   - 多次打开同一文件
   - append
