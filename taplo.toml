@@ -8,6 +8,9 @@ column_width = 120
 include = ["**/Cargo.toml"]
 keys = ["dependencies", "workspace.dependencies", "lints", "workspace.lints"]
 
+[rule.formatting]
+reorder_keys = true
+
 [[rule]]
 include = ["rustfmt.toml"]
 
