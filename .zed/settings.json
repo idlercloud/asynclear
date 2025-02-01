@@ -1,0 +1,43 @@
+// Folder-specific settings
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        // get more cargo-less diagnostics from rust-analyzer,
+        // which might include false-positives (those can be turned off by their names)
+        "diagnostics": {
+          "experimental": {
+            "enable": true
+          }
+        },
+        "cargo": {
+          "features": [
+            "profiling"
+          ]
+        },
+        "check": {
+          "overrideCommand": [
+            "cargo",
+            "check",
+            "--message-format=json",
+            /* for kernel and user apps */
+            "--target",
+            "riscv64gc-unknown-none-elf",
+            "--package",
+            "kernel",
+            "--features",
+            "profiling",
+            "--package",
+            "user"
+            /* for xtask */
+            // "--package",
+            // "xtask",
+          ]
+        }
+      }
+    }
+  }
+}
