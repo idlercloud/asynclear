@@ -65,14 +65,14 @@ impl FatFile {
 
     /// 返回对应的簇索引和簇内的扇区索引
     pub fn page_id_to_cluster_pos(&self, page_id: u64) -> (u32, u8) {
-        let sector_index = (page_id * SECOTR_COUNT_PER_PAGE as u64) as u32;
+        let sector_index = (page_id * SECTOR_COUNT_PER_PAGE as u64) as u32;
         let cluster_index = sector_index / self.fat.sector_per_cluster() as u32;
         let sector_offset = sector_index % self.fat.sector_per_cluster() as u32;
         (cluster_index, sector_offset as u8)
     }
 }
 
-const SECOTR_COUNT_PER_PAGE: usize = PAGE_SIZE / SECTOR_SIZE;
+const SECTOR_COUNT_PER_PAGE: usize = PAGE_SIZE / SECTOR_SIZE;
 
 impl BytesInodeBackend for FatFile {
     fn meta(&self) -> &InodeMeta {
@@ -146,7 +146,7 @@ impl FatFile {
                         .unwrap(),
                 );
                 sector_count += 1;
-                if sector_count >= SECOTR_COUNT_PER_PAGE {
+                if sector_count >= SECTOR_COUNT_PER_PAGE {
                     break 'ok;
                 }
             }
