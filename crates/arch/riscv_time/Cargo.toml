@@ -8,9 +8,11 @@ edition.workspace = true
 
 [dependencies]
 riscv.workspace = true
-sbi-rt.workspace = true
 
 common = { path = "../../utils/common" }
+
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+sbi-rt.workspace = true
 
 [lints]
 workspace = true
