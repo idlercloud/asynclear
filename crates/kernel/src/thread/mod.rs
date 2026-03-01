@@ -130,4 +130,4 @@ pub enum ThreadStatus {
 
 unsafe impl bytemuck::NoUninit for ThreadStatus {}
 
-const _: () = assert!(USER_STACK_SIZE % PAGE_SIZE == 0 && LOW_ADDRESS_END % PAGE_SIZE == 0);
+const _: () = assert!(USER_STACK_SIZE.is_multiple_of(PAGE_SIZE) && LOW_ADDRESS_END.is_multiple_of(PAGE_SIZE));

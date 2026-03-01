@@ -220,7 +220,7 @@ impl DirEntryBuilder {
             Ok(DirEntryBuilderResult::Builder(self))
         } else {
             if self.curr_order != 1 {
-                warn!("read standard entry withou order 1 lfn entry");
+                warn!("read standard entry without order 1 lfn entry");
                 return Err(errno::EINVAL);
             }
             let mut dir_entry = read_standard_entry(entry)?;
@@ -246,17 +246,17 @@ impl DirEntryBuilder {
 }
 
 fn lfn_part(entry: &[u8; DIR_ENTRY_SIZE]) -> [u16; LNAME_PART_LEN] {
-    let mut array = MaybeUninit::uninit_array();
+    let mut array = [MaybeUninit::uninit(); _];
     let mut i = 0;
-    for &ucs2 in entry[1..1 + 10].array_chunks::<2>() {
+    for ucs2 in entry[1..1 + 10].iter().copied().array_chunks::<2>() {
         array[i] = MaybeUninit::new(u16::from_le_bytes(ucs2));
         i += 1;
     }
-    for &ucs2 in entry[14..14 + 12].array_chunks::<2>() {
+    for ucs2 in entry[14..14 + 12].iter().copied().array_chunks::<2>() {
         array[i] = MaybeUninit::new(u16::from_le_bytes(ucs2));
         i += 1;
     }
-    for &ucs2 in entry[28..28 + 4].array_chunks::<2>() {
+    for ucs2 in entry[28..28 + 4].iter().copied().array_chunks::<2>() {
         array[i] = MaybeUninit::new(u16::from_le_bytes(ucs2));
         i += 1;
     }

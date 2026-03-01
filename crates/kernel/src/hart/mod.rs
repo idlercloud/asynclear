@@ -146,18 +146,18 @@ fn clear_bss() {
         fn sbss();
         fn ebss();
     }
-    let len = ebss as usize - sbss as usize;
+    let len = ebss as *const () as usize - sbss as *const () as usize;
     // 为 debug 模式做的优化，减少启动时间
     #[cfg(debug_assertions)]
     {
         // 似乎 `BATCH_SIZE` 为 4096 时效果最好
         // 是因为恰好为一个 `PAGE_SIZE` 吗
         const BATCH_SIZE: usize = 4096;
-        let batch_end = sbss as usize + len / BATCH_SIZE * BATCH_SIZE;
+        let batch_end = sbss as *const () as usize + len / BATCH_SIZE * BATCH_SIZE;
         unsafe {
-            core::slice::from_raw_parts_mut(sbss as usize as *mut [u8; BATCH_SIZE], len / BATCH_SIZE)
+            core::slice::from_raw_parts_mut(sbss as *const () as usize as *mut [u8; BATCH_SIZE], len / BATCH_SIZE)
                 .fill([0; BATCH_SIZE]);
-            core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as usize - batch_end).fill(0);
+            core::slice::from_raw_parts_mut(batch_end as *mut u8, ebss as *const () as usize - batch_end).fill(0);
         }
     }
     #[cfg(not(debug_assertions))]
@@ -174,7 +174,7 @@ fn clear_bss() {
 unsafe fn set_local_hart(hart_id: usize) {
     unsafe {
         let hart_ptr = HARTS[hart_id].get();
-        (*hart_ptr).hart_id = hart_id;
+        (&mut (*hart_ptr)).hart_id = hart_id;
         asm!("mv tp, {}", in(reg) hart_ptr as usize);
     }
 }

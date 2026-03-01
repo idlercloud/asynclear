@@ -21,8 +21,10 @@ pub struct FileAllocTable {
     /// 每张 Fat 表所用的扇区数
     fat_length: u32,
     sector_per_cluster: u8,
-    /// 数据区总共可用的簇数。注意第 0 簇和第 1
-    /// 簇不对应数据区中的簇，所以真正的总簇数应该是这个字段加 2
+    /// 数据区总共可用的簇数。
+    ///
+    /// 注意第 0 簇和第 1 簇不对应数据区中的簇，
+    /// 所以真正的总簇数应该是这个字段加 2
     data_clusters_count: u32,
     alloc_meta: SpinMutex<FatAllocMeta>,
     fat_entries: RwLock<Vec<u32>>,
@@ -55,7 +57,7 @@ impl FileAllocTable {
         let mut fat_entries = Vec::with_capacity(fat_length as usize * SECTOR_SIZE / FAT_ENTRY_SIZE);
         for sector_id in fat_start_sector_id as u32..fat_start_sector_id as u32 + fat_length {
             block_device.read_blocks(sector_id as usize, &mut buf);
-            for &entry in buf.array_chunks::<FAT_ENTRY_SIZE>() {
+            for entry in buf.iter().copied().array_chunks::<FAT_ENTRY_SIZE>() {
                 if fat_entries.len() as u32 >= data_clusters_count + RESERVED_FAT_ENTRY_COUNT {
                     break;
                 }

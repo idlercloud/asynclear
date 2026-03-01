@@ -181,10 +181,7 @@ impl DEntryDir {
         let mut dirs = SmallVec::<[&DEntryDir; 4]>::new();
         let mut dir = self;
         // 根目录 `/` 和 `\0`
-        loop {
-            let Some(parent) = dir.parent() else {
-                break;
-            };
+        while let Some(parent) = dir.parent() {
             dirs.push(dir);
             dir = parent;
         }

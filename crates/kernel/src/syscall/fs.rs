@@ -577,10 +577,7 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
     let mut dir = &cwd;
     // 根目录 `/` 和 `\0`
     let mut path_len = 2;
-    loop {
-        let Some(parent) = dir.parent() else {
-            break;
-        };
+    while let Some(parent) = dir.parent() {
         path_len += dir.name().len();
         dirs.push(dir);
         dir = parent;
@@ -833,10 +830,10 @@ pub fn sys_renameat2(
     debug!("rename '{}' to '{}' with flags: {flags:?}", &*old_path, &*new_path);
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
     let old_file = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
-    let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
+    let _new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
     match old_file {
-        DEntry::Dir(dir) => {}
-        DEntry::Bytes(bytes) => todo!(),
+        DEntry::Dir(_dir) => {}
+        DEntry::Bytes(_bytes) => todo!(),
     }
 
     todo!("[high] impl sys_renameat2")

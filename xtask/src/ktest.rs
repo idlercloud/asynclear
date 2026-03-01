@@ -33,7 +33,6 @@ impl KtestArgs {
 
         println!("Running qemu...");
 
-        #[expect(clippy::zombie_processes, reason = "In normal case, `wait()` will be called")]
         let mut child = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
             .optional_args(self.debug.then_some(["-s", "-S"]))

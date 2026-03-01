@@ -44,7 +44,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
     }
 
     match scause.cause() {
-        Trap::Exception(const { Exception::UserEnvCall as usize }) => {
+        Trap::Exception(e) if e == Exception::UserEnvCall as usize => {
             let (syscall_id, syscall_args) = {
                 let trap_context = unsafe { local_hart().curr_trap_context().as_mut() };
                 // TODO: syscall 的返回位置是下一条指令，不过一定是 +4 吗？
@@ -76,12 +76,12 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             }
         }
 
-        Trap::Exception(
-            e @ (const { Exception::StoreFault as usize }
-            | const { Exception::StorePageFault as usize }
-            | const { Exception::InstructionPageFault as usize }
-            | const { Exception::LoadPageFault as usize }),
-        ) => {
+        Trap::Exception(e)
+            if e == Exception::StoreFault as usize
+                || e == Exception::StorePageFault as usize
+                || e == Exception::InstructionPageFault as usize
+                || e == Exception::LoadPageFault as usize =>
+        {
             let _enter = info_span!("pagefault").entered();
             let thread = local_hart().curr_thread();
 
@@ -106,7 +106,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
                 ControlFlow::Break(())
             }
         }
-        Trap::Exception(const { Exception::IllegalInstruction as usize }) => {
+        Trap::Exception(e) if e == Exception::IllegalInstruction as usize => {
             let thread = local_hart().curr_thread();
             let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
             info!("regs: {:x?}", trap_context.user_regs);
@@ -117,7 +117,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             process::exit_process(&thread.process, -3);
             ControlFlow::Break(())
         }
-        Trap::Interrupt(const { Interrupt::SupervisorTimer as usize }) => {
+        Trap::Interrupt(e) if e == Interrupt::SupervisorTimer as usize => {
             {
                 let _enter = debug_span!("timer_irq").entered();
                 time::check_timer();
@@ -126,7 +126,7 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
             executor::yield_now().await;
             ControlFlow::Continue(())
         }
-        Trap::Interrupt(const { Interrupt::SupervisorExternal as usize }) => {
+        Trap::Interrupt(e) if e == Interrupt::SupervisorExternal as usize => {
             let _enter = debug_span!("external_irq").entered();
             interrupt_handler();
             ControlFlow::Continue(())
@@ -264,7 +264,7 @@ fn set_user_trap_entry() {
     }
 
     unsafe {
-        stvec::write(__trap_from_user as usize, TrapMode::Direct);
+        stvec::write(__trap_from_user as *const () as usize, TrapMode::Direct);
     }
 }
 

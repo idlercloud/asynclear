@@ -46,7 +46,7 @@ impl Plic {
         const PLIC_VA: usize = PA_TO_VA + QEMU_PLIC_ADDR;
         #[allow(clippy::assertions_on_constants)]
         const {
-            assert!(PLIC_VA % 4096 == 0);
+            assert!(PLIC_VA.is_multiple_of(4096));
         }
         PLIC_VA as *mut Plic
     }

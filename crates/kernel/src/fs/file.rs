@@ -174,7 +174,7 @@ impl FdTable {
             n_ok += 1;
             new_fd += 1;
         }
-        for (fd, desc) in ret.into_iter().zip(descs.into_iter()) {
+        for (fd, desc) in ret.into_iter().zip(descs) {
             self.files.insert(fd, desc);
         }
         Some(ret)

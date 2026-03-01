@@ -14,7 +14,7 @@ pub fn set_kernel_trap_entry() {
         fn __trap_from_kernel();
     }
     unsafe {
-        stvec::write(__trap_from_kernel as usize, TrapMode::Direct);
+        stvec::write(__trap_from_kernel as *const () as usize, TrapMode::Direct);
     }
 }
 
@@ -22,13 +22,13 @@ pub fn set_kernel_trap_entry() {
 #[no_mangle]
 pub extern "C" fn kernel_trap_handler() {
     match scause::read().cause() {
-        Trap::Interrupt(const { Interrupt::SupervisorTimer as usize }) => {
+        Trap::Interrupt(i) if i == Interrupt::SupervisorTimer as usize => {
             let _enter = debug_span!("timer_irq").entered();
             // TODO: 想办法通知线程让出 hart
             time::check_timer();
             riscv_time::set_next_trigger();
         }
-        Trap::Interrupt(const { Interrupt::SupervisorExternal as usize }) => {
+        Trap::Interrupt(i) if i == Interrupt::SupervisorExternal as usize => {
             let _enter = debug_span!("external_irq").entered();
             super::interrupt_handler();
         }

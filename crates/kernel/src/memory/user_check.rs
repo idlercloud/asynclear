@@ -164,7 +164,7 @@ impl UserCheck<u8> {
         {
             let _guard = NoIrqGuard::new();
             unsafe {
-                stvec::write(trap_from_access_user as usize, TrapMode::Direct);
+                stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
             }
             defer! {
                 set_kernel_trap_entry();
@@ -334,11 +334,9 @@ struct TryOpRet {
     is_err: bool,
 }
 
-#[naked]
+#[unsafe(naked)]
 extern "C" fn try_read_user_byte_impl(addr: usize) -> TryOpRet {
-    unsafe {
-        arch::naked_asm!("mv a1, zero", "lb a0, 0(a0)", "ret");
-    }
+    arch::naked_asm!("mv a1, zero", "lb a0, 0(a0)", "ret");
 }
 
 /// NOTE: 这里其实有一个隐式的假设：不存在只写页，也就是只要可写就可读
@@ -346,18 +344,14 @@ extern "C" fn try_read_user_byte_impl(addr: usize) -> TryOpRet {
 /// 一些资料表示没有支持只写页的处理器：
 /// - <https://devblogs.microsoft.com/oldnewthing/20230306-00/?p=107902>
 /// - <https://stackoverflow.com/questions/49421125/what-is-the-use-of-a-page-table-entry-being-write-only>
-#[naked]
+#[unsafe(naked)]
 extern "C" fn try_write_user_byte_impl(addr: usize) -> TryOpRet {
-    unsafe {
-        arch::naked_asm!("mv a1, zero", "lb a2, 0(a0)", "sb a2, 0(a0)", "ret",);
-    }
+    arch::naked_asm!("mv a1, zero", "lb a2, 0(a0)", "sb a2, 0(a0)", "ret",);
 }
 
-#[naked]
+#[unsafe(naked)]
 extern "C" fn trap_from_access_user() {
-    unsafe {
-        arch::naked_asm!(".align 2", "csrw sepc, ra", "li a1, 1", "csrr a0, scause", "sret",);
-    }
+    arch::naked_asm!(".align 2", "csrw sepc, ra", "li a1, 1", "csrr a0, scause", "sret",);
 }
 
 pub fn set_kernel_trap_entry() {
@@ -365,7 +359,7 @@ pub fn set_kernel_trap_entry() {
         fn __trap_from_kernel();
     }
     unsafe {
-        stvec::write(__trap_from_kernel as usize, TrapMode::Direct);
+        stvec::write(__trap_from_kernel as *const () as usize, TrapMode::Direct);
     }
 }
 
@@ -397,7 +391,7 @@ fn check_read_impl<T>(user_ptr: *const T, len: usize) -> KResult<AccessUserGuard
     }
     let _guard = NoIrqGuard::new();
     unsafe {
-        stvec::write(trap_from_access_user as usize, TrapMode::Direct);
+        stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
     }
     let access_user_guard = AccessUserGuard::new();
     let mut va = user_addr_start;
@@ -417,7 +411,7 @@ fn check_write_impl<T>(user_ptr: *mut T, len: usize) -> KResult<AccessUserGuard>
     }
     let _guard = NoIrqGuard::new();
     unsafe {
-        stvec::write(trap_from_access_user as usize, TrapMode::Direct);
+        stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
     }
     let access_user_guard = AccessUserGuard::new();
     let mut va = user_addr_start;

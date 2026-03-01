@@ -50,40 +50,40 @@ impl MemorySpace {
 
         unsafe {
             memory_set.kernel_map(
-                VirtAddr(stext as usize),
-                VirtAddr(etext as usize),
+                VirtAddr(stext as *const () as usize),
+                VirtAddr(etext as *const () as usize),
                 MapPermission::R | MapPermission::X | MapPermission::G,
             );
 
             // 注：旧版的 Linux 中，text 段和 rodata 段是合并在一起的，这样可以减少一次映射
             // 新版本则独立开来了，参考 https://stackoverflow.com/questions/44938745/rodata-section-loaded-in-executable-page
             memory_set.kernel_map(
-                VirtAddr(srodata as usize),
-                VirtAddr(erodata as usize),
+                VirtAddr(srodata as *const () as usize),
+                VirtAddr(erodata as *const () as usize),
                 MapPermission::R | MapPermission::G,
             );
 
             memory_set.kernel_map(
-                VirtAddr(sdata as usize),
-                VirtAddr(edata as usize),
+                VirtAddr(sdata as *const () as usize),
+                VirtAddr(edata as *const () as usize),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             );
 
             memory_set.kernel_map(
-                VirtAddr(sstack as usize),
-                VirtAddr(estack as usize),
+                VirtAddr(sstack as *const () as usize),
+                VirtAddr(estack as *const () as usize),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             );
 
             memory_set.kernel_map(
-                VirtAddr(sbss as usize),
-                VirtAddr(ebss as usize),
+                VirtAddr(sbss as *const () as usize),
+                VirtAddr(ebss as *const () as usize),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             );
 
             // TODO: 这里也许可以 Huge Page 映射？
             memory_set.kernel_map(
-                VirtAddr(ekernel as usize),
+                VirtAddr(ekernel as *const () as usize),
                 kernel_pa_to_va(PhysAddr(MEMORY_END)),
                 MapPermission::R | MapPermission::W | MapPermission::G,
             );
@@ -494,10 +494,29 @@ extern "C" {
 }
 
 pub fn log_kernel_sections() {
-    info!("kernel     text {:#x}..{:#x}", stext as usize, etext as usize);
-    info!("kernel   rodata {:#x}..{:#x}", srodata as usize, erodata as usize);
-    info!("kernel     data {:#x}..{:#x}", sdata as usize, edata as usize);
-    info!("kernel    stack {:#x}..{:#x}", sstack as usize, estack as usize);
-    info!("kernel      bss {:#x}..{:#x}", sbss as usize, ebss as usize);
-    info!("physical memory {:#x}..{:#x}", ekernel as usize, PA_TO_VA + MEMORY_END);
+    info!(
+        "kernel     text {:#x}..{:#x}",
+        stext as *const () as usize, etext as *const () as usize
+    );
+    info!(
+        "kernel   rodata {:#x}..{:#x}",
+        srodata as *const () as usize, erodata as *const () as usize
+    );
+    info!(
+        "kernel     data {:#x}..{:#x}",
+        sdata as *const () as usize, edata as *const () as usize
+    );
+    info!(
+        "kernel    stack {:#x}..{:#x}",
+        sstack as *const () as usize, estack as *const () as usize
+    );
+    info!(
+        "kernel      bss {:#x}..{:#x}",
+        sbss as *const () as usize, ebss as *const () as usize
+    );
+    info!(
+        "physical memory {:#x}..{:#x}",
+        ekernel as *const () as usize,
+        PA_TO_VA + MEMORY_END
+    );
 }

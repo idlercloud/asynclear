@@ -75,7 +75,7 @@ impl<'a, 'b> FramedVmArea {
     fn sp_down(&'b mut self, len: usize, ctx: &mut StackInitCtx<'a>) {
         ctx.user_sp -= len;
 
-        if (ctx.user_sp + len) % PAGE_SIZE == 0 {
+        if (ctx.user_sp + len).is_multiple_of(PAGE_SIZE) {
             let vpn = VirtAddr(ctx.user_sp).vpn_floor();
             ctx.page = Some(Arc::clone(self.ensure_allocated(vpn, ctx.page_table)));
         }

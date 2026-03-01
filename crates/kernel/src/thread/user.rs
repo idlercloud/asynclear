@@ -35,8 +35,9 @@ mod user_thread_loop {
 
     use crate::{hart::local_hart, trap};
 
-    pub type UserThreadFuture = impl Future<Output = ()> + Send;
+    pub type UserThreadFuture = impl Future<Output = ()>;
 
+    #[define_opaque(UserThreadFuture)]
     pub fn user_thread_loop() -> UserThreadFuture {
         async {
             loop {
