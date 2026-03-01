@@ -1,11 +1,17 @@
-default: dev
+default: list
 
+alias d := dev
 alias r := run
 alias rr := runrelease
 alias t := test
 alias i := info
 alias f := fmt
+alias l := lint
 
+list:
+    just --list
+
+# 在 QEMU 中调试运行内核
 dev:
     cargo qemu --clog="DEBUG" --flog="NONE" --slog="TRACE"
 
@@ -23,6 +29,9 @@ run:
 
 runrelease:
     cargo qemu --clog="NONE" --flog="NONE" --slog="NONE" --release
+
+lint:
+    cargo lint
 
 test:
     cargo ktest --clog="NONE" --flog="NONE" --slog="NONE"
