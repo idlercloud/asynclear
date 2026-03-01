@@ -5,3 +5,4 @@
 !/res/rootfs
 /logs
 /.vscode/settings.json
+/.claude/*.local.*

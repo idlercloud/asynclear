@@ -1,3 +1,4 @@
 [default.extend-words]
 STRUC = "STRUC"
 sie = "sie"
+WRONLY = "WRONLY"

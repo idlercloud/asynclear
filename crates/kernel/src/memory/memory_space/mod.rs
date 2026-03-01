@@ -479,7 +479,7 @@ pub fn flush_tlb(vaddr: Option<VirtAddr>) {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     fn stext();
     fn etext();
     fn srodata();

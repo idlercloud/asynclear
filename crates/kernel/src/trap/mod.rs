@@ -149,7 +149,7 @@ pub fn trap_return(trap_context: NonNull<TrapContext>) {
     }
     set_user_trap_entry();
 
-    extern "C" {
+    unsafe extern "C" {
         fn __return_to_user(cx: NonNull<TrapContext>);
     }
 
@@ -259,7 +259,7 @@ pub fn init() {
 }
 
 fn set_user_trap_entry() {
-    extern "C" {
+    unsafe extern "C" {
         fn __trap_from_user();
     }
 

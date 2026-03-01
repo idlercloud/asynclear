@@ -86,7 +86,7 @@ impl Hart {
 
 pub static BOOT_HART: AtomicUsize = AtomicUsize::new(usize::MAX);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
     static INIT_FINISHED: AtomicBool = AtomicBool::new(false);
 
@@ -142,7 +142,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 }
 
 fn clear_bss() {
-    extern "C" {
+    unsafe extern "C" {
         fn sbss();
         fn ebss();
     }

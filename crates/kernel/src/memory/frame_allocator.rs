@@ -129,7 +129,7 @@ impl BuddySystemFrameAllocator {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     fn ekernel();
 }
 

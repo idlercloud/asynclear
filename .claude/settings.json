@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if tr -d '\\n' | grep -qE '\"file_path\"[[:space:]]*:[[:space:]]*\"[^\"]+\\.rs\"'; then cargo fmt; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -355,7 +355,7 @@ extern "C" fn trap_from_access_user() {
 }
 
 pub fn set_kernel_trap_entry() {
-    extern "C" {
+    unsafe extern "C" {
         fn __trap_from_kernel();
     }
     unsafe {

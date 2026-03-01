@@ -10,7 +10,7 @@ use riscv::{
 use crate::time;
 
 pub fn set_kernel_trap_entry() {
-    extern "C" {
+    unsafe extern "C" {
         fn __trap_from_kernel();
     }
     unsafe {
@@ -19,7 +19,7 @@ pub fn set_kernel_trap_entry() {
 }
 
 /// Kernel trap handler
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn kernel_trap_handler() {
     match scause::read().cause() {
         Trap::Interrupt(i) if i == Interrupt::SupervisorTimer as usize => {

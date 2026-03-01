@@ -10,34 +10,40 @@
         // which might include false-positives (those can be turned off by their names)
         "diagnostics": {
           "experimental": {
-            "enable": true
-          }
+            "enable": true,
+          },
         },
+
+        /* for kernel and user apps */
         "cargo": {
-          "features": [
-            "profiling"
-          ]
+          "features": ["profiling"],
         },
         "check": {
           "overrideCommand": [
             "cargo",
             "check",
             "--message-format=json",
-            /* for kernel and user apps */
-            "--target",
-            "riscv64gc-unknown-none-elf",
-            "--package",
-            "kernel",
+            "--workspace",
+            "--exclude",
+            "xtask",
             "--features",
             "profiling",
-            "--package",
-            "user"
-            /* for xtask */
-            // "--package",
-            // "xtask",
-          ]
-        }
-      }
-    }
-  }
+            "--target",
+            "riscv64gc-unknown-none-elf",
+          ],
+        },
+
+        /* for xtask */
+        // "check": {
+        //   "overrideCommand": [
+        //     "cargo",
+        //     "check",
+        //     "--message-format=json",
+        //     "--package",
+        //     "xtask",
+        //   ],
+        // },
+      },
+    },
+  },
 }
