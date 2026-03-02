@@ -22,7 +22,7 @@ use self::{
     vm_area::{BackedInode, FramedVmArea},
 };
 use super::{kernel_pa_to_va, kernel_vpn_to_ppn, PTEFlags, PageTable, PhysAddr, VirtAddr, VirtPageNum};
-use crate::thread::Thread;
+use crate::{extern_symbols::*, thread::Thread};
 
 pub mod init_stack;
 pub mod page_table;
@@ -477,20 +477,6 @@ pub fn flush_tlb(vaddr: Option<VirtAddr>) {
     } else {
         riscv::asm::sfence_vma_all();
     }
-}
-
-unsafe extern "C" {
-    fn stext();
-    fn etext();
-    fn srodata();
-    fn erodata();
-    fn sdata();
-    fn edata();
-    fn sstack();
-    fn estack();
-    fn sbss();
-    fn ebss();
-    fn ekernel();
 }
 
 pub fn log_kernel_sections() {

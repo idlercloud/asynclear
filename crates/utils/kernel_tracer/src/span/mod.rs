@@ -64,18 +64,20 @@ impl Span {
     #[track_caller]
     pub(crate) fn enter(&self) -> RefEnterGuard<'_> {
         if let Some(tracer) = KERNEL_TRACER.get()
-            && let Some(id) = &self.id {
-                tracer.enter(id);
-            }
+            && let Some(id) = &self.id
+        {
+            tracer.enter(id);
+        }
         RefEnterGuard { span: self }
     }
 
     #[track_caller]
     pub fn entered(self) -> OwnedEnterGuard {
         if let Some(tracer) = KERNEL_TRACER.get()
-            && let Some(id) = &self.id {
-                tracer.enter(id);
-            }
+            && let Some(id) = &self.id
+        {
+            tracer.enter(id);
+        }
         OwnedEnterGuard { span: self }
     }
 }
@@ -84,9 +86,10 @@ impl Drop for Span {
     #[inline]
     fn drop(&mut self) {
         if let Some(tracer) = KERNEL_TRACER.get()
-            && let Some(id) = self.id.take() {
-                tracer.drop_span(id);
-            }
+            && let Some(id) = self.id.take()
+        {
+            tracer.drop_span(id);
+        }
     }
 }
 
@@ -101,9 +104,10 @@ impl !Send for RefEnterGuard<'_> {}
 impl Drop for RefEnterGuard<'_> {
     fn drop(&mut self) {
         if let Some(tracer) = KERNEL_TRACER.get()
-            && let Some(id) = &self.span.id {
-                tracer.exit(id);
-            }
+            && let Some(id) = &self.span.id
+        {
+            tracer.exit(id);
+        }
     }
 }
 
@@ -118,9 +122,10 @@ impl !Send for OwnedEnterGuard {}
 impl Drop for OwnedEnterGuard {
     fn drop(&mut self) {
         if let Some(tracer) = KERNEL_TRACER.get()
-            && let Some(id) = &self.span.id {
-                tracer.exit(id);
-            }
+            && let Some(id) = &self.span.id
+        {
+            tracer.exit(id);
+        }
     }
 }
 

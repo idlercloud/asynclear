@@ -141,6 +141,8 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
 ///
 /// 注意：会切换控制流和栈
 pub fn trap_return(trap_context: NonNull<TrapContext>) {
+    use crate::extern_symbols::__return_to_user;
+
     check_signal(&local_hart().curr_thread());
 
     // 因为 trap entry 要切换为用户的，在回到用户态之前不能触发中断
@@ -148,10 +150,6 @@ pub fn trap_return(trap_context: NonNull<TrapContext>) {
         sstatus::clear_sie();
     }
     set_user_trap_entry();
-
-    unsafe extern "C" {
-        fn __return_to_user(cx: NonNull<TrapContext>);
-    }
 
     unsafe {
         // 对内核来说，调用 __return_to_user 返回内核态就好像一次函数调用
@@ -259,9 +257,7 @@ pub fn init() {
 }
 
 fn set_user_trap_entry() {
-    unsafe extern "C" {
-        fn __trap_from_user();
-    }
+    use crate::extern_symbols::__trap_from_user;
 
     unsafe {
         stvec::write(__trap_from_user as *const () as usize, TrapMode::Direct);

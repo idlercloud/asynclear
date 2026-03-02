@@ -29,6 +29,7 @@ use crate::{
 
 mod drivers;
 mod executor;
+mod extern_symbols;
 mod fs;
 mod hart;
 mod lang_items;

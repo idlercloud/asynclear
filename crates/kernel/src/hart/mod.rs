@@ -142,10 +142,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 }
 
 fn clear_bss() {
-    unsafe extern "C" {
-        fn sbss();
-        fn ebss();
-    }
+    use crate::extern_symbols::{ebss, sbss};
     let len = ebss as *const () as usize - sbss as *const () as usize;
     // 为 debug 模式做的优化，减少启动时间
     #[cfg(debug_assertions)]

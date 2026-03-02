@@ -7,12 +7,9 @@ use riscv::{
     },
 };
 
-use crate::time;
+use crate::{extern_symbols::__trap_from_kernel, time};
 
 pub fn set_kernel_trap_entry() {
-    unsafe extern "C" {
-        fn __trap_from_kernel();
-    }
     unsafe {
         stvec::write(__trap_from_kernel as *const () as usize, TrapMode::Direct);
     }

@@ -5,6 +5,7 @@
 
 #[macro_use]
 pub mod console;
+mod extern_symbols;
 mod lang_items;
 mod syscall;
 
@@ -101,10 +102,7 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 }
 
 fn clear_bss() {
-    extern "C" {
-        fn start_bss();
-        fn end_bss();
-    }
+    use extern_symbols::{end_bss, start_bss};
     unsafe {
         core::slice::from_raw_parts_mut(
             start_bss as *const () as usize as *mut u8,

@@ -7,6 +7,7 @@ use common::config::{MEMORY_END, MEMORY_SIZE, PAGE_SIZE};
 use klocks::SpinMutex;
 
 use super::{address::PhysAddr, kernel_ppn_to_vpn, kernel_va_to_pa, PhysPageNum, VirtAddr};
+use crate::extern_symbols::ekernel;
 
 #[derive(Debug)]
 pub struct Frame {
@@ -127,10 +128,6 @@ impl BuddySystemFrameAllocator {
             allocator: buddy_system_allocator::FrameAllocator::new(),
         }
     }
-}
-
-unsafe extern "C" {
-    fn ekernel();
 }
 
 impl FrameAllocator for BuddySystemFrameAllocator {

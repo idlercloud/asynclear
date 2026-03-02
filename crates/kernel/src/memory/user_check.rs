@@ -15,7 +15,7 @@ use riscv::{
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
 
-use crate::hart::local_hart;
+use crate::{extern_symbols::__trap_from_kernel, hart::local_hart};
 
 // 内核有时也有读写文件的需求，比如 sendfile 的实现
 
@@ -355,9 +355,6 @@ extern "C" fn trap_from_access_user() {
 }
 
 pub fn set_kernel_trap_entry() {
-    unsafe extern "C" {
-        fn __trap_from_kernel();
-    }
     unsafe {
         stvec::write(__trap_from_kernel as *const () as usize, TrapMode::Direct);
     }
