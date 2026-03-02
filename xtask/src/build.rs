@@ -43,11 +43,6 @@ impl BuildArgs {
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
             .optional_args(self.profiling.then_some(["--features", "profiling"]))
-            .envs([
-                ("KERNEL_CLOG", &self.clog),
-                ("KERNEL_FLOG", &self.flog),
-                ("KERNEL_SLOG", &self.slog),
-            ])
             .invoke();
         let kernel_path = format!(
             "target/{TARGET_ARCH}/{}/kernel",

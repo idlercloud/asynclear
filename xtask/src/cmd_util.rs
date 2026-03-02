@@ -44,6 +44,7 @@ impl Cmd {
         self
     }
 
+    #[expect(unused)]
     pub fn envs(&mut self, vars: impl IntoIterator<Item = (impl AsRef<OsStr>, impl AsRef<OsStr>)>) -> &mut Self {
         self.0.envs(vars);
         self

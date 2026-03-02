@@ -2,38 +2,37 @@ default: list
 
 alias d := dev
 alias r := run
-alias rr := runrelease
+alias rr := run_release
 alias t := test
-alias i := info
 alias l := lint
 
 list:
     just --list
 
 # 在 QEMU 中调试运行内核
-dev:
-    cargo qemu --clog="DEBUG" --flog="NONE" --slog="TRACE"
+dev $KERNEL_CLOG="INFO" $KERNEL_FLOG="NONE" $KERNEL_SLOG="TRACE":
+    @echo KERNEL_CLOG="$KERNEL_CLOG" KERNEL_FLOG="$KERNEL_FLOG" KERNEL_SLOG="$KERNEL_SLOG"
+    cargo qemu
 
-info:
-    cargo qemu --clog="INFO" --flog="NONE" --slog="TRACE"
+# 在 QEMU 中调试运行内核，并等待调试器连接
+dbg $KERNEL_CLOG="DEBUG" $KERNEL_FLOG="NONE" $KERNEL_SLOG="TRACE":
+    @echo KERNEL_CLOG="$KERNEL_CLOG" KERNEL_FLOG="$KERNEL_FLOG" KERNEL_SLOG="$KERNEL_SLOG"
+    cargo qemu --debug
 
-trace:
-    cargo qemu --clog="TRACE" --flog="NONE" --slog="TRACE"
+run: (dev "NONE" "NONE" "NONE")
 
-dbg:
-    cargo qemu --clog="DEBUG" --flog="NONE" --slog="TRACE" --debug
-
-run:
-    cargo qemu --clog="NONE" --flog="NONE" --slog="NONE"
-
-runrelease:
-    cargo qemu --clog="NONE" --flog="NONE" --slog="NONE" --release
+run_release:
+    cargo qemu --release
 
 lint:
     cargo lint
 
-test:
-    cargo ktest --clog="NONE" --flog="NONE" --slog="NONE"
+test $KERNEL_CLOG="NONE" $KERNEL_FLOG="NONE" $KERNEL_SLOG="NONE":
+    @echo KERNEL_CLOG="$KERNEL_CLOG" KERNEL_FLOG="$KERNEL_FLOG" KERNEL_SLOG="$KERNEL_SLOG"
+    cargo ktest
 
 gdb:
     riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'
+
+print_home_folder:
+    echo "HOME is: '${HOME}'"
