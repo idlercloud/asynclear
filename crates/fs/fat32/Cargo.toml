@@ -1,0 +1,18 @@
+[package]
+name = "fat32"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+chrono.workspace = true
+ecow.workspace = true
+smallvec.workspace = true
+
+defines = { path = "../../utils/defines" }
+kernel_tracer = { path = "../../utils/kernel_tracer" }
+klocks = { path = "../../utils/klocks" }
+
+[lints]
+workspace = true

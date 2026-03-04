@@ -4,27 +4,21 @@ use defines::{
     error::{errno, KResult},
     misc::TimeSpec,
 };
-use klocks::{RwLock, RwLockReadGuard};
+use fat32::{DirEntry, DirEntryBuilder, DirEntryBuilderResult, FileAllocTable, DIR_ENTRY_SIZE, SECTOR_SIZE};
+use klocks::RwLock;
 use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 use unsize::CoerceUnsize;
 
-use super::{
-    dir_entry::{DirEntry, DirEntryBuilder, DIR_ENTRY_SIZE},
-    fat::FileAllocTable,
-    SECTOR_SIZE,
-};
+use super::file::FatFile;
 use crate::{
-    drivers::qemu_block::BLOCK_SIZE,
     fs::{
         dentry::{DEntry, DEntryBytes, DEntryDir},
-        fat32::{dir_entry::DirEntryBuilderResult, file::FatFile},
         inode::{
             DirInodeBackend, DynBytesInode, DynBytesInodeCoercion, DynDirInode, DynDirInodeCoercion, DynInode,
             InodeMeta, InodeMode,
         },
     },
-    hart::local_hart,
     time,
 };
 
@@ -97,11 +91,11 @@ impl FatDir {
         let mut raw_entry_iter = core::iter::from_coroutine(
             #[coroutine]
             move || {
-                let mut buf = local_hart().block_buffer.borrow_mut();
+                let mut buf = [0; SECTOR_SIZE];
                 for index in 0..clusters.len() {
                     for sector_id in self.fat.cluster_sectors(clusters[index]) {
-                        self.fat.block_device.read_blocks_cached(sector_id as usize, &mut buf);
-                        for dentry_index in 0..BLOCK_SIZE / DIR_ENTRY_SIZE {
+                        self.fat.block_device().read_block_cached(sector_id as usize, &mut buf);
+                        for dentry_index in 0..SECTOR_SIZE / DIR_ENTRY_SIZE {
                             let entry_start = dentry_index * DIR_ENTRY_SIZE;
                             if buf[entry_start] == 0 {
                                 return;

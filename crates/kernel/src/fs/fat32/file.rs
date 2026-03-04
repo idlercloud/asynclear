@@ -1,5 +1,6 @@
 use alloc::boxed::Box;
 
+use ::fat32::{DirEntry, FileAllocTable, SECTOR_SIZE};
 use common::config::{PAGE_OFFSET_MASK, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::{
     error::{errno, AKResult, KResult},
@@ -9,7 +10,6 @@ use klocks::RwLock;
 use smallvec::{smallvec, SmallVec};
 use triomphe::Arc;
 
-use super::{dir_entry::DirEntry, fat::FileAllocTable, SECTOR_SIZE};
 use crate::{
     fs::inode::{BytesInodeBackend, InodeMeta, InodeMode},
     memory::{ReadBuffer, UserCheck, WriteBuffer},
@@ -139,7 +139,7 @@ impl FatFile {
             let mut sectors = self.fat.cluster_sectors(cluster_id);
             sectors.start += sector_offset as u32;
             for sector_id in sectors {
-                self.fat.block_device.read_blocks(
+                self.fat.block_device().read_block(
                     sector_id as usize,
                     (&mut page[sector_count * SECTOR_SIZE..(sector_count + 1) * SECTOR_SIZE])
                         .try_into()

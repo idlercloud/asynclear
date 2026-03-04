@@ -33,6 +33,7 @@ kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
 riscv_guard = { path = "../arch/riscv_guard" }
 riscv_time = { path = "../arch/riscv_time" }
+fat32 = { path = "../fs/fat32" }
 
 anstyle = { version = "1.0", default-features = false }
 async-channel = { version = "2.3", default-features = false }

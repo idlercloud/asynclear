@@ -7,12 +7,10 @@
 
 // TODO: [mid] 现在整个磁盘文件系统都没有将修改同步回磁盘
 
-mod bpb;
 mod dir;
-mod dir_entry;
-mod fat;
 mod file;
 
+use ::fat32::{BiosParameterBlock, BlockDevice, FileAllocTable, BOOT_SECTOR_ID, SECTOR_SIZE};
 use defines::{
     error::{errno, KResult},
     fs::StatFsFlags,
@@ -24,16 +22,18 @@ use unsize::CoerceUnsize;
 use super::FileSystem;
 use crate::{
     drivers::qemu_block::DiskDriver,
-    fs::{
-        dentry::DEntryDir,
-        fat32::{bpb::BiosParameterBlock, dir::FatDir, fat::FileAllocTable},
-        inode::DynDirInodeCoercion,
-    },
-    hart::local_hart,
+    fs::{dentry::DEntryDir, fat32::dir::FatDir, inode::DynDirInodeCoercion},
 };
 
-const SECTOR_SIZE: usize = 512;
-const BOOT_SECTOR_ID: usize = 0;
+impl BlockDevice for DiskDriver {
+    fn read_block(&self, block_id: usize, buf: &mut [u8; SECTOR_SIZE]) {
+        self.read_blocks(block_id, buf);
+    }
+
+    fn read_block_cached(&self, block_id: usize, buf: &mut [u8; SECTOR_SIZE]) {
+        self.read_blocks_cached(block_id, buf);
+    }
+}
 
 pub fn new_fat32_fs(
     block_device: &'static DiskDriver,
@@ -44,8 +44,8 @@ pub fn new_fat32_fs(
     let _enter = debug_span!("fat32_fs_init").entered();
     let bpb = {
         let _enter = trace_span!("fat_bpb").entered();
-        let mut buf = local_hart().block_buffer.borrow_mut();
-        block_device.read_blocks(BOOT_SECTOR_ID, &mut buf);
+        let mut buf = [0; SECTOR_SIZE];
+        block_device.read_block(BOOT_SECTOR_ID, &mut buf);
         BiosParameterBlock::new(&buf)
     };
     if bpb.sector_size as usize != SECTOR_SIZE

@@ -14,8 +14,7 @@ use riscv::register::sstatus::{self, FS};
 use triomphe::Arc;
 
 use crate::{
-    drivers::{self, qemu_block::BLOCK_SIZE},
-    fs, memory,
+    drivers, fs, memory,
     process::{self, Process, PROCESS_MANAGER},
     thread::{self, Thread},
     trap::TrapContext,
@@ -41,8 +40,6 @@ pub struct Hart {
     /// 当前 hart 上正在运行的线程。
     thread: RefCell<Option<Arc<Thread>>>,
     pub span_stack: RefCell<Vec<SpanId>>,
-    /// 用于读磁盘的缓冲区，避免在栈上反复开辟空间
-    pub block_buffer: RefCell<[u8; BLOCK_SIZE]>,
     pub panicked: Cell<bool>,
 }
 
@@ -52,7 +49,6 @@ impl Hart {
             hart_id: 0,
             thread: RefCell::new(None),
             span_stack: RefCell::new(Vec::new()),
-            block_buffer: RefCell::new([0; BLOCK_SIZE]),
             panicked: Cell::new(false),
         }
     }

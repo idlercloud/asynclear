@@ -424,6 +424,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "fat32"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.6.0",
+ "chrono",
+ "defines",
+ "ecow",
+ "kernel_tracer",
+ "klocks",
+ "smallvec",
+]
+
+[[package]]
 name = "fatfs"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -632,6 +645,7 @@ dependencies = [
  "elf",
  "event-listener",
  "extend",
+ "fat32",
  "futures",
  "hashbrown",
  "heapless",
