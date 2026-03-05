@@ -3,7 +3,8 @@ default: list
 alias d := dev
 alias r := run
 alias rr := run_release
-alias t := test
+alias kt := ktest
+alias ct := cargo_test
 alias l := lint
 
 list:
@@ -27,9 +28,12 @@ run_release:
 lint:
     cargo lint
 
-test $KERNEL_CLOG="NONE" $KERNEL_FLOG="NONE" $KERNEL_SLOG="NONE":
+ktest $KERNEL_CLOG="NONE" $KERNEL_FLOG="NONE" $KERNEL_SLOG="NONE":
     @echo KERNEL_CLOG="$KERNEL_CLOG" KERNEL_FLOG="$KERNEL_FLOG" KERNEL_SLOG="$KERNEL_SLOG"
     cargo ktest
+
+cargo_test:
+    cargo test --package fat32 --no-default-features --features std
 
 gdb:
     riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'

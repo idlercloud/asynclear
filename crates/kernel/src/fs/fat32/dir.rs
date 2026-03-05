@@ -22,6 +22,8 @@ use crate::{
     time,
 };
 
+// TODO: 写入 FAT32 表项时，要记得高 4 位保持不变
+
 pub struct FatDir {
     meta: InodeMeta,
     clusters: RwLock<SmallVec<[u32; 4]>>,

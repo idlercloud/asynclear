@@ -1,4 +1,6 @@
-#![no_std]
+//! fat32 的相关标准可以参考 https://elm-chan.org/docs/fat_e.html
+
+#![cfg_attr(not(feature = "std"), no_std)]
 #![feature(iter_array_chunks)]
 #![feature(coroutines, iter_from_coroutine)]
 #![feature(maybe_uninit_array_assume_init)]
@@ -8,6 +10,9 @@ extern crate alloc;
 
 #[macro_use]
 extern crate kernel_tracer;
+
+#[cfg(all(feature = "std", feature = "kernel"))]
+compile_error!("Feature `std` 与 `kernel` 互斥，只能开启");
 
 mod bpb;
 mod dir_entry;
@@ -25,5 +30,39 @@ pub trait BlockDevice: Send + Sync {
 
     fn read_block_cached(&self, block_id: usize, buf: &mut [u8; SECTOR_SIZE]) {
         self.read_block(block_id, buf);
+    }
+}
+
+#[cfg(feature = "std")]
+mod lock {
+    pub use std::sync::{Mutex as SpinMutex, RwLock};
+
+    pub fn lock_spin<T>(lock: &SpinMutex<T>) -> std::sync::MutexGuard<'_, T> {
+        lock.lock().unwrap()
+    }
+
+    pub fn read_rw<T>(lock: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
+        lock.read().unwrap()
+    }
+
+    pub fn write_rw<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
+        lock.write().unwrap()
+    }
+}
+
+#[cfg(feature = "kernel")]
+mod lock {
+    pub use klocks::{RwLock, SpinMutex};
+
+    pub fn lock_spin<T>(lock: &SpinMutex<T>) -> klocks::SpinMutexGuard<'_, T> {
+        lock.lock()
+    }
+
+    pub fn read_rw<T>(lock: &RwLock<T>) -> klocks::RwLockReadGuard<'_, T> {
+        lock.read()
+    }
+
+    pub fn write_rw<T>(lock: &RwLock<T>) -> klocks::RwLockWriteGuard<'_, T> {
+        lock.write()
     }
 }

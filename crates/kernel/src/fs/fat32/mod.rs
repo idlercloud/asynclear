@@ -46,7 +46,7 @@ pub fn new_fat32_fs(
         let _enter = trace_span!("fat_bpb").entered();
         let mut buf = [0; SECTOR_SIZE];
         block_device.read_block(BOOT_SECTOR_ID, &mut buf);
-        BiosParameterBlock::new(&buf)
+        BiosParameterBlock::new(&buf)?
     };
     if bpb.sector_size as usize != SECTOR_SIZE
         || bpb.total_sector_count < 65525

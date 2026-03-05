@@ -40,7 +40,7 @@ impl DirEntry {
     }
 
     pub fn is_dir(&self) -> bool {
-        self.attr == DirEntryAttr::DIRECTORY
+        self.attr.contains(DirEntryAttr::DIRECTORY)
     }
 
     pub fn file_size(&self) -> u64 {
@@ -143,7 +143,7 @@ impl DirEntryBuilder {
             warn!("dir entry attr is invalid: {}", entry[11]);
             return Err(errno::EINVAL);
         };
-        if attr.contains(DirEntryAttr::LFN) {
+        if attr == DirEntryAttr::LFN {
             let mut builder = Self {
                 curr_order: 0,
                 checksum: 0,
@@ -186,11 +186,11 @@ impl DirEntryBuilder {
         }
 
         // 12: Long entry type，对 fat32 的 lfn 来说应该是 0？
-        // 26: Starting cluster，对 lfn 应始终为 0
-        if entry[12] != 0 || entry[26] != 0 {
+        // 26~27: Starting cluster，对 lfn 应始终为 0
+        if entry[12] != 0 || entry[26] != 0 || entry[27] != 0 {
             warn!(
-                "Should be zero. long entry type: {} starting cluster: {}",
-                entry[12], entry[26]
+                "Should be zero. long entry type: {}, starting cluster: {} {}",
+                entry[12], entry[26], entry[27]
             );
             return Err(errno::EINVAL);
         }
@@ -264,14 +264,26 @@ fn lfn_part(entry: &[u8; DIR_ENTRY_SIZE]) -> [u16; LNAME_PART_LEN] {
 }
 
 fn read_standard_entry(entry: &[u8; DIR_ENTRY_SIZE]) -> KResult<DirEntry> {
-    let mut short_name_len = 0;
-    while short_name_len < SNAME_MAX_LEN && entry[short_name_len] != 0 {
-        short_name_len += 1;
-    }
-    let Ok(short_name) = EcoString::from_utf8(&entry[..short_name_len]) else {
-        warn!("short name is not valid utf8: {:?}", &entry[..short_name_len]);
+    let body_len = entry[..8].iter().rposition(|&ch| ch != b' ').map_or(0, |idx| idx + 1);
+    let ext_len = entry[8..11].iter().rposition(|&ch| ch != b' ').map_or(0, |idx| idx + 1);
+
+    let body = &entry[..body_len];
+    let ext = &entry[8..8 + ext_len];
+
+    let Ok(body) = core::str::from_utf8(body) else {
+        warn!("short name body is not valid utf8: {:?}", body);
         return Err(errno::EINVAL);
     };
+    let Ok(ext) = core::str::from_utf8(ext) else {
+        warn!("short name ext is not valid utf8: {:?}", ext);
+        return Err(errno::EINVAL);
+    };
+    let mut short_name = EcoString::from(body);
+    if !ext.is_empty() {
+        short_name.push('.');
+        short_name.push_str(ext);
+    }
+
     let Some(attr) = DirEntryAttr::from_bits(entry[11]) else {
         warn!("dir entry attr is invalid: {}", entry[11]);
         return Err(errno::EINVAL);

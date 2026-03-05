@@ -18,4 +18,5 @@
 - `just dev`：在开发模式下运行内核
 - `just lint`：代码检查
 - `just dbg`：调试启动内核并等待调试器连接
-- `just test`：运行内核测试
+- `just ktest`：运行内核测试
+- `just cargo_test`：运行 cargo 测试，即不依赖于内核环境，可以直接在宿主机上运行的测试

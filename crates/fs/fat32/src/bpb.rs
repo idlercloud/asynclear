@@ -1,5 +1,7 @@
 use core::{mem::MaybeUninit, ptr::addr_of_mut};
 
+use defines::error::{errno, KResult};
+
 /// 参考 <https://elixir.bootlin.com/linux/v2.6.39.4/source/include/linux/msdos_fs.h#L105/>
 pub struct BiosParameterBlock {
     pub system_id: [u8; 8], // 通常是 "MSWIN4.1"
@@ -27,7 +29,13 @@ pub struct BiosParameterBlock {
 }
 
 impl BiosParameterBlock {
-    pub fn new(src: &[u8; 512]) -> Self {
+    pub fn new(src: &[u8; 512]) -> KResult<Self> {
+        let boot_sig = u16::from_le_bytes(src[510..512].try_into().unwrap());
+        if boot_sig != 0xAA55 {
+            warn!("invalid boot sector signature: {boot_sig:#x}");
+            return Err(errno::EINVAL);
+        }
+
         let mut ret = MaybeUninit::<BiosParameterBlock>::uninit();
         struct LittleEndianReader<'a> {
             src: &'a [u8; 512],
@@ -84,7 +92,7 @@ impl BiosParameterBlock {
         debug_assert_eq!(reader.offset, 0x34);
         let ret = unsafe { ret.assume_init() };
         debug!("{ret}");
-        ret
+        Ok(ret)
     }
 }
 
