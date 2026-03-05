@@ -16,7 +16,7 @@
 
 ## 常用指令
 - `just dev`：在开发模式下运行内核
-- `just lint`：代码检查
+- `just lint`：编译检查、代码风格检查。优先使用这个而非 `cargo check`
 - `just dbg`：调试启动内核并等待调试器连接
 - `just ktest`：运行内核测试
 - `just cargo_test`：运行 cargo 测试，即不依赖于内核环境，可以直接在宿主机上运行的测试

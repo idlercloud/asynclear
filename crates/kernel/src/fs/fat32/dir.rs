@@ -73,6 +73,7 @@ impl FatDir {
 
     fn create(fat: Arc<FileAllocTable>, name: &str) -> KResult<Self> {
         let allocated_cluster = fat.alloc_cluster(None).ok_or(errno::ENOSPC)?;
+        // TODO: 初始化新目录的 '.' 和 '..' 目录项（暂不落盘）。
         let mut meta = InodeMeta::new(InodeMode::Dir);
         let meta_inner = meta.get_inner_mut();
         meta_inner.data_len = clusters_disk_space(&fat, 1);

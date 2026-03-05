@@ -72,6 +72,19 @@ impl FileAllocTable {
 
     fn maintain_alloc_meta(&self) {
         let mut meta = lock::lock_spin(&self.alloc_meta);
+        let total_cluster_count = self.data_clusters_count + RESERVED_FAT_ENTRY_COUNT;
+        if meta.free_count > self.data_clusters_count
+            || (meta.next_free != INVALID_ALLOC_META
+                && !(RESERVED_FAT_ENTRY_COUNT..total_cluster_count).contains(&meta.next_free))
+        {
+            warn!(
+                "invalid fsinfo alloc meta, free_count: {}, next_free: {}, fallback to FAT scan",
+                meta.free_count, meta.next_free
+            );
+            meta.free_count = INVALID_ALLOC_META;
+            meta.next_free = INVALID_ALLOC_META;
+        }
+
         if meta.free_count == INVALID_ALLOC_META || meta.next_free == INVALID_ALLOC_META {
             meta.next_free = INVALID_ALLOC_META;
             meta.free_count = 0;
@@ -124,7 +137,11 @@ impl FileAllocTable {
         });
 
         if let Some(cluster_id) = ret {
-            meta.free_count -= 1;
+            if meta.free_count > 0 {
+                meta.free_count -= 1;
+            } else {
+                warn!("alloc meta free_count underflow, this usually means stale fsinfo");
+            }
             meta.next_free = cluster_id + 1;
             if let Some(prev_cluster_id) = prev_cluster {
                 entries[prev_cluster_id as usize] = cluster_id;
@@ -161,6 +178,7 @@ impl FileAllocTable {
                 let mut curr_cluster_id = first_cluster_id;
                 while curr_cluster_id < 0x0fff_fff8 {
                     yield curr_cluster_id;
+                    // TODO: 遇到 bad/reserved/越界簇时应报错并使文件系统重新挂载为只读。
                     curr_cluster_id = entries[curr_cluster_id as usize] & FAT_ENTRY_MASK;
                 }
             },

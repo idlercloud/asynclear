@@ -48,13 +48,7 @@ pub fn new_fat32_fs(
         block_device.read_block(BOOT_SECTOR_ID, &mut buf);
         BiosParameterBlock::new(&buf)?
     };
-    if bpb.sector_size as usize != SECTOR_SIZE
-        || bpb.total_sector_count < 65525
-        || bpb._root_entry_count != 0
-        || bpb._sector_count != 0
-        || bpb._fat_length != 0
-        || bpb._version != 0
-    {
+    if !is_valid_fat32_bpb(&bpb) {
         return Err(errno::EINVAL);
     }
 
@@ -71,4 +65,47 @@ pub fn new_fat32_fs(
         mount_point,
         flags,
     })
+}
+
+fn is_valid_fat32_bpb(bpb: &BiosParameterBlock) -> bool {
+    // FAT32 基础字段检查：几何参数、计数字段、FAT32 专属字段
+    if bpb.sector_size as usize != SECTOR_SIZE
+        || bpb.sector_per_cluster == 0
+        || !bpb.sector_per_cluster.is_power_of_two()
+        || bpb.sector_per_cluster > 128
+        || bpb.reserved_sector_count == 0
+        || bpb.fat_count == 0
+        || bpb.fat32_length == 0
+        || bpb.total_sector_count == 0
+        || bpb._root_entry_count != 0
+        || bpb._sector_count != 0
+        || bpb._fat_length != 0
+        || bpb._version != 0
+        || bpb.info_sector >= bpb.reserved_sector_count
+    {
+        return false;
+    }
+
+    // 先按 BPB 推导数据区范围，防止出现负数/越界布局
+    let fat_start_sector = bpb.reserved_sector_count as u32;
+    let fat_sectors = bpb.fat_count as u32 * bpb.fat32_length;
+    let data_start_sector = fat_start_sector + fat_sectors;
+    if data_start_sector >= bpb.total_sector_count {
+        return false;
+    }
+
+    // 按 CountOfClusters 判定 FAT 子类型，而不是用总扇区数
+    let data_sectors = bpb.total_sector_count - data_start_sector;
+    let count_of_clusters = data_sectors / bpb.sector_per_cluster as u32;
+    if count_of_clusters < 65_526 {
+        return false;
+    }
+
+    // 根目录起始簇必须落在有效簇号范围内
+    let max_valid_cluster = count_of_clusters + 1;
+    if bpb.root_cluster < 2 || bpb.root_cluster > max_valid_cluster {
+        return false;
+    }
+
+    true
 }

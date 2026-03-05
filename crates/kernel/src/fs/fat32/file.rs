@@ -95,7 +95,8 @@ impl BytesInodeBackend for FatFile {
         let old_len = self.meta.lock_inner_with(|inner| inner.data_len);
         #[allow(clippy::comparison_chain)]
         if len < old_len {
-            let new_cluster_count = len.div_floor(self.fat.bytes_per_cluster()) as usize;
+            let bytes_per_cluster = self.fat.bytes_per_cluster();
+            let new_cluster_count = len.div_ceil(bytes_per_cluster) as usize;
             let mut clusters = self.clusters.write();
             self.fat.free_clusters(
                 &clusters[new_cluster_count..],
@@ -105,6 +106,7 @@ impl BytesInodeBackend for FatFile {
                     Some(clusters[new_cluster_count - 1])
                 },
             );
+            clusters.truncate(new_cluster_count);
             let now = time::curr_time_spec();
             self.meta.lock_inner_with(|inner| {
                 inner.data_len = len;

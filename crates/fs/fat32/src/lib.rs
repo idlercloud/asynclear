@@ -1,4 +1,4 @@
-//! fat32 的相关标准可以参考 https://elm-chan.org/docs/fat_e.html
+//! fat32 的相关标准可以参考 <https://elm-chan.org/docs/fat_e.html>
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(iter_array_chunks)]
