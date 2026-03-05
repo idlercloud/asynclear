@@ -1,7 +1,7 @@
 #![no_std]
 
 use common::{
-    config::{CLOCK_FREQ, TICKS_PER_SEC},
+    config::CLOCK_FREQ,
     constant::{MICRO_PER_SEC, MILLI_PER_SEC, NANO_PER_SEC},
 };
 use riscv::register::time;
@@ -32,5 +32,5 @@ pub fn get_time_ms() -> usize {
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 /// 设置下一次定时器中断
 pub fn set_next_trigger() {
-    sbi_rt::set_timer((get_time() + CLOCK_FREQ / TICKS_PER_SEC) as u64);
+    sbi_rt::set_timer((get_time() + CLOCK_FREQ / common::config::TICKS_PER_SEC) as u64);
 }
