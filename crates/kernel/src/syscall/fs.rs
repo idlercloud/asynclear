@@ -427,9 +427,8 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
         return Err(errno::EINVAL);
     }
     let mut new_desc = desc.clone();
-    if flags.contains(OpenFlags::CLOEXEC) {
-        new_desc.set_close_on_exec(true);
-    }
+    // dup 得到的文件描述符 CLOEXEC 默认应该是 false，除非 flags 专门指定
+    new_desc.set_close_on_exec(flags.contains(OpenFlags::CLOEXEC));
     inner.fd_table.insert(new_fd, new_desc);
     Ok(new_fd)
 }
