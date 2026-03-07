@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File, ReadDir},
-    io::{self, Write},
+    io::{self, Cursor, Write},
     iter,
     path::PathBuf,
 };
@@ -8,12 +8,13 @@ use std::{
 use anyhow::anyhow;
 use clap::Parser;
 use fastrand::Rng;
-use fatfs::{Dir, FatType, FileSystem, FormatVolumeOptions, FsOptions};
+use fatfs::{Dir, FatType, FileSystem, FormatVolumeOptions, FsOptions, ReadWriteSeek};
 use tap::Tap;
 
 use crate::{
     build::{BuildArgs, USER_BINS},
     cmd_util::Cmd,
+    timing::ScopedTimer,
     tool,
     variables::{FS_IMG_PATH, TARGET_ARCH},
     KERNEL_BIN_PATH, KERNEL_ELF_PATH,
@@ -122,75 +123,79 @@ pub fn prepare_env() {
 
 // 将一系列 elf 打包入 fat32 镜像中
 pub fn pack() {
-    let mut fs = File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(FS_IMG_PATH)
+    let _timer = ScopedTimer::start("pack filesystem");
+    let mut data = vec![0; 64 * 1024 * 1024];
+    {
+        let mut fs = Cursor::new(&mut data);
+        fatfs::format_volume(
+            &mut fs,
+            FormatVolumeOptions::new()
+                .bytes_per_cluster(512)
+                .fat_type(FatType::Fat32),
+        )
         .unwrap();
-    fs.set_len(64 * 1024 * 1024).unwrap();
-    fatfs::format_volume(
-        &mut fs,
-        FormatVolumeOptions::new()
-            .bytes_per_cluster(512)
-            .fat_type(FatType::Fat32),
-    )
-    .unwrap();
-    let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
-    let root_dir = fs.root_dir();
+        let fs = FileSystem::new(fs, FsOptions::new()).unwrap();
+        let root_dir = fs.root_dir();
 
-    fn pack_dir(source_dir: ReadDir, target_dir: Dir<'_, File>) -> anyhow::Result<()> {
-        for dir_entry in source_dir {
-            let dir_entry = dir_entry?;
-            let file_type = dir_entry.file_type()?;
-            let name = dir_entry.file_name();
-            let name = name.to_str().expect("should be valid utf8");
-            if file_type.is_dir() {
-                let new_source_dir = fs::read_dir(dir_entry.path())?;
-                let new_target_dir = target_dir.create_dir(name)?;
-                pack_dir(new_source_dir, new_target_dir)?;
-            } else if file_type.is_file() {
-                let mut source_file = File::open(dir_entry.path())?;
-                let mut target_file = target_dir.create_file(name)?;
-                io::copy(&mut source_file, &mut target_file)?;
-            } else {
-                return Err(anyhow!("Unsupported file type: {:?}", file_type));
+        fn pack_dir<T: ReadWriteSeek>(source_dir: ReadDir, target_dir: Dir<'_, T>) -> anyhow::Result<()> {
+            for dir_entry in source_dir {
+                let dir_entry = dir_entry?;
+                let file_type = dir_entry.file_type()?;
+                let name = dir_entry.file_name();
+                let name = name.to_str().expect("should be valid utf8");
+                if file_type.is_dir() {
+                    let new_source_dir = fs::read_dir(dir_entry.path())?;
+                    let new_target_dir = target_dir.create_dir(name)?;
+                    pack_dir(new_source_dir, new_target_dir)?;
+                } else if file_type.is_file() {
+                    let mut source_file = File::open(dir_entry.path())?;
+                    let mut target_file = target_dir.create_file(name)?;
+                    io::copy(&mut source_file, &mut target_file)?;
+                } else {
+                    return Err(anyhow!("Unsupported file type: {:?}", file_type));
+                }
+            }
+            Ok(())
+        }
+
+        {
+            let _timer = ScopedTimer::start("pack: copy rootfs");
+            let rootfs = fs::read_dir("res/rootfs").unwrap();
+            pack_dir(rootfs, fs.root_dir()).unwrap();
+        }
+
+        {
+            let _timer = ScopedTimer::start("pack: copy user bins");
+            let pack_into = |place_in_host: &str, path: &str| {
+                let elf = fs::read(place_in_host).expect(place_in_host);
+                let mut dir = root_dir.clone();
+                let components = path.split('/').collect::<Vec<_>>();
+                for &component in &components[0..components.len() - 1] {
+                    dir = dir.create_dir(component).unwrap();
+                }
+                let mut file = dir.create_file(components[components.len() - 1]).unwrap();
+                file.truncate().unwrap();
+                file.write_all(&elf).unwrap();
+            };
+            for elf_name in USER_BINS.iter() {
+                let src_path = format!("target/{TARGET_ARCH}/release/{elf_name}");
+                if elf_name.starts_with("test_") {
+                    pack_into(&src_path, &format!("ktest/{elf_name}"));
+                } else if elf_name.starts_with("bench_") || elf_name == "_empty" {
+                    pack_into(&src_path, &format!("kbench/{elf_name}"));
+                } else {
+                    pack_into(&src_path, elf_name);
+                }
             }
         }
-        Ok(())
-    }
-
-    let rootfs = fs::read_dir("res/rootfs").unwrap();
-    pack_dir(rootfs, fs.root_dir()).unwrap();
-
-    let pack_into = |place_in_host: &str, path: &str| {
-        let elf = fs::read(place_in_host).expect(place_in_host);
-        let mut dir = root_dir.clone();
-        let components = path.split('/').collect::<Vec<_>>();
-        for &component in &components[0..components.len() - 1] {
-            dir = dir.create_dir(component).unwrap();
-        }
-        let mut file = dir.create_file(components[components.len() - 1]).unwrap();
-        file.truncate().unwrap();
-        file.write_all(&elf).unwrap();
-    };
-    for elf_name in USER_BINS.iter() {
-        let src_path = format!("target/{TARGET_ARCH}/release/{elf_name}");
-        if elf_name.starts_with("test_") {
-            pack_into(&src_path, &format!("ktest/{elf_name}"));
-        } else if elf_name.starts_with("bench_") || elf_name == "_empty" {
-            pack_into(&src_path, &format!("kbench/{elf_name}"));
-        } else {
-            pack_into(&src_path, elf_name);
+        {
+            let mut pg = root_dir.open_dir("kbench").unwrap().create_file("_playground").unwrap();
+            let mut rng = Rng::with_seed(19260817);
+            let buf = iter::repeat_with(|| rng.u8(..)).take(1234 * 1024).collect::<Vec<u8>>();
+            pg.write_all(&buf).unwrap();
         }
     }
-    {
-        let mut pg = root_dir.open_dir("kbench").unwrap().create_file("_playground").unwrap();
-        let mut rng = Rng::with_seed(19260817);
-        let buf = iter::repeat_with(|| rng.u8(..)).take(1234 * 1024).collect::<Vec<u8>>();
-        pg.write_all(&buf).unwrap();
-    }
+    fs::write(FS_IMG_PATH, data).unwrap();
 }
 
 pub fn lint() {
@@ -203,6 +208,8 @@ pub fn lint() {
 
 /// 准备 OS 运行需要的二进制文件，包括内核二进制和文件镜像
 pub fn prepare_os() {
+    let _timer = ScopedTimer::start("prepare os artifacts");
+
     // Make kernel bin
     println!("Making kernel bin...");
     Cmd::new("rust-objcopy")

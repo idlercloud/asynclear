@@ -3,6 +3,7 @@ mod cmd_util;
 mod ktest;
 mod profiling;
 mod qemu;
+mod timing;
 mod tool;
 mod variables;
 
@@ -14,6 +15,8 @@ use profiling::ProfilingArgs;
 use qemu::QemuArgs;
 use tool::{AsmArgs, FatProbeArgs};
 use variables::TARGET_ARCH;
+
+use crate::timing::TimerSession;
 
 const KERNEL_ELF_PATH: &str = formatcp!("target/{TARGET_ARCH}/kernel");
 const KERNEL_BIN_PATH: &str = formatcp!("{KERNEL_ELF_PATH}.bin");
@@ -43,7 +46,10 @@ fn main() {
     #[allow(clippy::enum_glob_use)]
     use Commands::*;
     match Cli::parse().command {
-        Build(args) => args.build(),
+        Build(args) => {
+            let _session = TimerSession::start();
+            args.build();
+        }
         Asm(args) => args.dump(),
         Ktest(args) => args.run_test(),
         Lint => tool::lint(),

@@ -4,6 +4,7 @@ use const_format::formatcp;
 use crate::{
     build::BuildArgs,
     cmd_util::Cmd,
+    timing::TimerSession,
     tool,
     variables::{FS_IMG_PATH, SBI_PATH},
     KERNEL_BIN_PATH,
@@ -28,6 +29,7 @@ impl QemuArgs {
     pub fn run(self) {
         // 构建内核和用户应用
         if !self.skip_build {
+            let _session = TimerSession::start();
             self.build_args.build();
             tool::prepare_os();
         }

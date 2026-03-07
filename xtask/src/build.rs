@@ -2,7 +2,7 @@ use std::{fs, sync::LazyLock};
 
 use clap::Parser;
 
-use crate::{cmd_util::Cmd, variables::TARGET_ARCH};
+use crate::{cmd_util::Cmd, timing::ScopedTimer, variables::TARGET_ARCH};
 
 /// 构建内核和用户程序
 #[derive(Parser)]
@@ -26,12 +26,14 @@ pub struct BuildArgs {
 
 impl BuildArgs {
     pub fn build(&self) {
+        let _timer = ScopedTimer::start("build all");
         self.build_user_apps();
         self.build_kernel();
     }
 
     fn build_user_apps(&self) {
         println!("Building user apps...");
+        let _timer = ScopedTimer::start("build user apps");
         Cmd::parse("cargo build --package user --release")
             .args(["--target", TARGET_ARCH])
             .invoke();
@@ -39,6 +41,7 @@ impl BuildArgs {
 
     pub fn build_kernel(&self) {
         println!("Building kernel...");
+        let _timer = ScopedTimer::start("build kernel");
         Cmd::parse("cargo build --package kernel")
             .args(["--target", TARGET_ARCH])
             .optional_arg(self.release.then_some("--release"))
