@@ -36,6 +36,7 @@ pub fn init() {
 
 pub struct Process {
     pid: usize,
+    name: SpinMutex<EcoString>,
     /// 用于 `sys_wait4` 唤醒
     pub wait4_event: Event,
     /// 进程状态，指示是否成为僵尸或已退出。如已退出，则其中还包含了退出码
@@ -47,6 +48,19 @@ pub struct Process {
 
 impl Process {
     // TODO: 整理这些函数，抽出共同部分
+
+    fn process_name_from_args(path_fallback: Option<&str>, args: &[EcoString]) -> Option<EcoString> {
+        if let Some(arg0) = args.first() {
+            let mut name = arg0.clone();
+            if let Some(arg1) = args.get(1) {
+                name.push(' ');
+                name.push_str(arg1);
+            }
+            Some(name)
+        } else {
+            path_fallback.map(EcoString::from)
+        }
+    }
 
     /// `path` 需要是绝对路径
     fn from_path(path: &str, args: Vec<EcoString>) -> KResult<Arc<Self>> {
@@ -68,6 +82,7 @@ impl Process {
         };
 
         // 在用户栈上推入参数、环境变量、辅助向量等
+        let process_name = Self::process_name_from_args(Some(path), &args).expect("path_fallback guarantees name");
         let argc = args.len();
         let (user_sp, argv_base) = memory_space.init_stack(0, args, Vec::new(), auxv);
 
@@ -81,6 +96,7 @@ impl Process {
         *trap_context.a1_mut() = argv_base;
         let process = Arc::new(Process {
             pid: PID_ALLOCATOR.lock().alloc(),
+            name: SpinMutex::new(process_name),
             wait4_event: Event::new(),
             status: Atomic::new(ProcessStatus::normal()),
             exit_signal: None,
@@ -115,6 +131,7 @@ impl Process {
     ///
     /// `stack` 若不为 0 则指定新进程的栈顶
     pub fn fork(self: &Arc<Self>, stack: Option<NonZeroUsize>, exit_signal: Option<Signal>) -> Arc<Self> {
+        let child_name = self.name();
         let child = self.lock_inner_with(|inner| {
             assert_eq!(inner.threads.len(), 1);
             let parent_main_thread = inner.main_thread();
@@ -127,6 +144,7 @@ impl Process {
             *trap_context.a0_mut() = 0;
             let child = Arc::new(Self {
                 pid: PID_ALLOCATOR.lock().alloc(),
+                name: SpinMutex::new(child_name),
                 wait4_event: Event::new(),
                 status: Atomic::new(self.status.load(Ordering::SeqCst)),
                 exit_signal,
@@ -151,7 +169,8 @@ impl Process {
                         trap_context,
                         signal_mask,
                     )),
-                )
+                );
+                debug!("fd table: {:?}", inner.fd_table);
             });
             PROCESS_MANAGER.add(child.pid(), Arc::clone(&child));
             // 新进程添入原进程的子进程表
@@ -231,6 +250,7 @@ impl Process {
             warn!("parse elf error {e}");
             errno::ENOEXEC
         })?;
+        let process_name = Self::process_name_from_args(None, &args);
         let ret = self.lock_inner_with(|inner| {
             // TODO: 如果是多线程情况下，应该需要先终结其它线程？有子进程可能也类似？
             assert_eq!(inner.threads.len(), 1);
@@ -243,6 +263,7 @@ impl Process {
                 brk..brk
             };
             inner.fd_table.close_on_exec();
+            debug!("fd table: {:?}", inner.fd_table);
             inner.signal_handlers = SignalHandlers::new();
 
             let argc = args.len();
@@ -257,10 +278,14 @@ impl Process {
             *trap_context.a1_mut() = argv_base;
             Ok(())
         });
-        if ret.is_err() {
+        if let Err(err) = ret {
             exit_process(self, -10);
+            return Err(err);
         }
-        ret
+        if let Some(process_name) = process_name {
+            self.set_name(process_name);
+        }
+        Ok(())
     }
 
     pub fn lock_inner(&self) -> SpinMutexGuard<'_, ProcessInner> {
@@ -274,6 +299,14 @@ impl Process {
 
     pub fn pid(&self) -> usize {
         self.pid
+    }
+
+    pub fn name(&self) -> EcoString {
+        self.name.lock().clone()
+    }
+
+    fn set_name(&self, name: EcoString) {
+        *self.name.lock() = name;
     }
 
     // pub fn is_normal(&self) -> bool {
@@ -311,7 +344,11 @@ static PID_ALLOCATOR: SpinMutex<RecycleAllocator> = SpinMutex::new(RecycleAlloca
 ///
 /// 其他线程在进入内核时会检查对应的进程是否已标记为退出从而决定是否退出
 pub fn exit_process(process: &Process, exit_code: i8) {
-    info!("Process exits with code {exit_code}");
+    info!(
+        "Process {} ({}) exits with code {exit_code}",
+        process.pid(),
+        process.name()
+    );
     let new_status = ProcessStatus::exited(exit_code);
     let old_status = process.status.swap(new_status, Ordering::SeqCst);
     assert_eq!(old_status, ProcessStatus::normal());

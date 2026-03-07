@@ -32,6 +32,7 @@ pub fn spawn_user_thread(thread: Arc<Thread>) {
 
 mod user_thread_loop {
     use futures::Future;
+    use kernel_tracer::Instrument;
 
     use crate::{hart::local_hart, trap};
 
@@ -48,7 +49,12 @@ mod user_thread_loop {
                 trace!("enter kernel mode");
 
                 // 在内核态处理 trap。注意这里也可能切换控制流，让出 Hart 给其他线程
-                let next_op = trap::user_trap_handler().await;
+                let next_op = trap::user_trap_handler()
+                    .instrument({
+                        let process_name = { local_hart().curr_process().name() };
+                        info_span!("process", name = process_name)
+                    })
+                    .await;
 
                 if next_op.is_break() || local_hart().curr_process().is_exited() {
                     break;
