@@ -443,6 +443,11 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
 pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, stat_buf: UserCheck<Stat>, flags: usize) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
     let path = path.check_cstr()?;
+    if dir_fd == AT_FDCWD {
+        info!("newfstatat {} in cwd, flags {flags:?}", &*path);
+    } else {
+        info!("newfstatat {} from fd {dir_fd}, flags {flags:?}", &*path);
+    }
     if path.is_empty() && !flags.contains(FstatFlags::AT_EMPTY_PATH) {
         return Err(errno::ENOENT);
     }

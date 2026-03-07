@@ -183,6 +183,7 @@ pub async fn sys_execve(pathname: UserCheck<u8>, argv: UserCheck<usize>, envp: O
 
     let argc = args.len();
     let elf_data = fs::read_file(bytes.inode()).await?;
+    debug!("args = {args:?}");
     local_hart().curr_process().exec(&elf_data, args, envs)?;
     Ok(argc)
 }
