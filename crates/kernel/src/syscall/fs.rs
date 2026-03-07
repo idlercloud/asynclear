@@ -335,8 +335,8 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
     /// 将文件描述符标志设置为 `arg` 指定的值
     const F_SETFD: usize = 2;
     // 下面两个是文件状态标志操作
-    // /// 返回文件访问模式和文件状态标志，`arg` 将被忽略
-    // const F_GETFL: i32 = 3;
+    /// 返回文件访问模式和文件状态标志，`arg` 将被忽略
+    const F_GETFL: usize = 3;
     // /// 将文件状态标志设置为 `arg` 指定的值。
     // ///
     // /// 在 Linux 上，此命令只能更改 `O_APPEND`、`O_ASYNC`、`O_DIRECT`、`O_NOATIME`` 和 `O_NONBLOCK` 标志。
@@ -380,6 +380,11 @@ pub fn sys_fcntl64(fd: usize, cmd: usize, arg: usize) -> KResult {
             );
             desc.set_close_on_exec(arg & 1 != 0);
             Ok(0)
+        }
+        F_GETFL => {
+            let desc = inner.fd_table.get_mut(fd).ok_or(errno::EBADF)?;
+            debug!("get the file status flag of fd {fd}({})", desc.debug_name());
+            Ok(desc.flags().bits() as usize)
         }
         _ => {
             error!("unsupported cmd: {cmd}, with arg: {arg}");
