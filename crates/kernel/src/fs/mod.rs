@@ -174,6 +174,31 @@ impl VirtFileSystem {
         self.mount_table.lock()
     }
 
+    // TODO: 下面的函数也许可以改成直接拿锁过的 mount_table，考虑到原子性问题
+
+    pub fn is_mount_root(&self, dentry: &DEntry) -> bool {
+        self.mount_table.lock().contains_key(dentry)
+    }
+
+    pub fn mounted_root_of(&self, mut dentry: DEntry) -> DEntry {
+        let mount_table = self.mount_table.lock();
+        loop {
+            if mount_table.contains_key(&dentry) {
+                return dentry;
+            }
+            dentry = match dentry {
+                DEntry::Dir(dir) => DEntry::Dir(Arc::clone(
+                    dir.parent().expect("mount root should be reachable from dentry"),
+                )),
+                DEntry::Bytes(bytes) => DEntry::Dir(Arc::clone(bytes.parent())),
+            };
+        }
+    }
+
+    pub fn same_mounted_fs(&self, a: DEntry, b: DEntry) -> bool {
+        self.mounted_root_of(a) == self.mounted_root_of(b)
+    }
+
     fn list_root_dir(&self) {
         self.root_dir.read_dir().expect("read root dir failed");
         let mut curr_col = 0;

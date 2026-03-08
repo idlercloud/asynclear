@@ -32,7 +32,7 @@ pub mod errno {
     declare_errno!(
         UNSUPPORTED, -1024, "Do not support",
         BREAK,       -1023, "Thread should exit",
-        
+
         EPERM,          -1,     "Operation not permitted.",
         ENOENT,         -2,     "No such file or directory.",
         ESRCH,          -3,     "No such process.",
@@ -48,6 +48,7 @@ pub mod errno {
         EFAULT,         -14,    "Bad address.",
         EBUSY,          -16,    "Device or resource busy.",
         EEXIST,         -17,    "File exists.",
+        EXDEV,          -18,    "Cross-device link.",
         ENODEV,         -19,    "No such device",
         ENOTDIR,        -20,    "Not a directory.",
         EISDIR,         -21,    "Is a directory.",

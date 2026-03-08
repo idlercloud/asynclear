@@ -838,9 +838,29 @@ pub fn sys_renameat2(
     let new_path = new_path.check_cstr()?;
     debug!("rename '{}' to '{}' with flags: {flags:?}", &*old_path, &*new_path);
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
-    let old_file = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
-    let _new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
-    match old_file {
+    let old_dentry = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
+    if VFS.is_mount_root(&old_dentry) {
+        return Err(errno::EBUSY);
+    }
+
+    let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
+    let new_dentry = new_p2i.dir.lookup(&new_p2i.last_component);
+    if let Some(new_dentry) = &new_dentry
+        && VFS.is_mount_root(new_dentry)
+    {
+        return Err(errno::EBUSY);
+    }
+
+    let new_anchor = match new_dentry {
+        Some(new_dentry) => new_dentry,
+        None => DEntry::Dir(Arc::clone(&new_p2i.dir)),
+    };
+    if !VFS.same_mounted_fs(old_dentry.clone(), new_anchor) {
+        return Err(errno::EXDEV);
+    }
+
+    // TODO: [mid] 需要消除与 mount/umount 并发时，校验与实际 rename 执行间的竞态窗口。
+    match old_dentry {
         DEntry::Dir(_dir) => {}
         DEntry::Bytes(_bytes) => todo!(),
     }
