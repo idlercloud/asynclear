@@ -299,10 +299,23 @@ impl FromStr for FileSystemType {
 /// 也就是路径最后一个 component 和前面的其他部分解析得到的目录 dentry
 pub struct PathToInode {
     pub dir: Arc<DEntryDir>,
+    pub last_type: LastComponentType,
     pub last_component: EcoString,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum LastComponentType {
+    Normal,
+    Dot,
+    DotDot,
+    Root,
+}
+
+/// `path` 不应为空，否则返回 [`errno::ENOENT`]
 pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInode> {
+    if path.is_empty() {
+        return Err(errno::ENOENT);
+    }
     let start_dir;
     // 绝对路径则忽视 fd
     if path.starts_with('/') {
@@ -326,20 +339,27 @@ pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInod
     path_walk(start_dir, path)
 }
 
+/// `path` 不应为空，否则返回 [`errno::ENOENT`]
 pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> {
     debug!("walk path: {path}, from {}", start_dir.name());
+
+    // 边缘情况：
+    // 多个连续 `/` 等价于单个 `/`
+    // 因此 `///` 视作根目录，`a//b` 视作 a/b
     let mut split = path
         .trim_start_matches('/')
         .trim_end_matches('/')
         .split('/')
-        .skip_while(|c| c.is_empty());
+        .filter(|c| !c.is_empty());
 
     let mut ret = PathToInode {
         dir: start_dir,
+        last_type: LastComponentType::Normal,
         last_component: EcoString::from("."),
     };
 
     let Some(mut curr_component) = split.next() else {
+        ret.last_type = LastComponentType::Root;
         return Ok(ret);
     };
 
@@ -350,6 +370,11 @@ pub fn path_walk(start_dir: Arc<DEntryDir>, path: &str) -> KResult<PathToInode> 
             None => return Err(errno::ENOENT),
         }
         curr_component = next_component;
+    }
+    if curr_component == "." {
+        ret.last_type = LastComponentType::Dot;
+    } else if curr_component == ".." {
+        ret.last_type = LastComponentType::DotDot;
     }
     ret.last_component = EcoString::from(curr_component);
     Ok(ret)

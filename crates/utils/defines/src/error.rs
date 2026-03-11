@@ -60,5 +60,6 @@ pub mod errno {
         ERANGE,         -34,    "Exceed range.",
         EOVERFLOW,      -75,    "Value too large for data type",
         ENAMETOOLONG,   -78,    "Filename too long",
+        ENOTEMPTY,      -93,    "Directory not empty",
     );
 }

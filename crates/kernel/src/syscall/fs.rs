@@ -16,8 +16,8 @@ use virtio_drivers::device::blk::SECTOR_SIZE;
 
 use crate::{
     fs::{
-        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode, SeekFrom,
-        SeekableFile, VFS,
+        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode,
+        LastComponentType, SeekFrom, SeekableFile, VFS,
     },
     hart::local_hart,
     memory::{ReadBuffer, UserCheck, WriteBuffer},
@@ -492,15 +492,36 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
     };
     info!("flags {flags:?}");
     let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
-    let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+    // rmdir 的情况
     if flags.contains(FstatFlags::AT_REMOVEDIR) {
-        todo!("[mid] impl rmdir");
+        match p2i.last_type {
+            LastComponentType::Normal => {}
+            LastComponentType::Dot => return Err(errno::EINVAL),
+            LastComponentType::DotDot => return Err(errno::ENOTEMPTY),
+            LastComponentType::Root => return Err(errno::EBUSY),
+        }
+        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+        if VFS.is_mount_root(&dentry) {
+            return Err(errno::EBUSY);
+        }
+        let DEntry::Dir(dir) = dentry else {
+            return Err(errno::ENOTDIR);
+        };
+        p2i.dir.remove_dir(dir)?;
     } else {
+        if p2i.last_type != LastComponentType::Normal {
+            return Err(errno::EISDIR);
+        }
+        let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
+        if VFS.is_mount_root(&dentry) {
+            return Err(errno::EBUSY);
+        }
         let DEntry::Bytes(bytes) = dentry else {
             return Err(errno::EISDIR);
         };
         bytes.parent().unlink(bytes.name())?;
     }
+
     Ok(0)
 }
 
@@ -816,10 +837,38 @@ pub fn sys_utimensat(
 
 /// 重命名一个文件，并且可能移动其位置。
 ///
-/// - 如果 `old_path` 是目录，则 `new_path` 要么不存在，要么指定一个空目录
-/// - 如果 `new_path` 已经存在，则其会被替换
+/// # 参数
+/// - `old_dir_fd`: 从这个 fd 代表的目录开始解析旧路径
+/// - `old_path`: 旧路径
+/// - `new_dir_fd`: 从这个 fd 代表的目录开始解析新路径
+/// - `new_path`: 新路径
+/// - `flags`: 重命名标志，参考 [`Renameat2Flags`]
 ///
-/// `old_path` 和 `new_path` 需要指向同一个挂载的文件系统，否则返回 `EXDEV`
+/// # 语义
+/// - 旧路径是目录
+///     - 新路径不存在则正常
+///     - 新路径存在
+///         - `flags` 含有 [`Renameat2Flags::RENAME_NOREPLACE`] 则返回 [`errno::EEXIST`]
+///         - 新路径为目录但不为空则返回 [`errno::ENOTEMPTY`]
+///         - 替换
+/// - 旧路径是文件
+///     - 新路径不存在则正常
+///     - 新路径存在
+///         - `flags` 含有 [`Renameat2Flags::RENAME_NOREPLACE`] 则返回 [`errno::EEXIST`]
+///         - 新路径是目录，返回 [`errno::EISDIR`]
+///         - 替换
+///
+/// # 返回值
+/// 成功时返回 0
+///
+/// # 错误
+/// - `EXDEV`：`old_path` 和 `new_path` 需要指向同一个挂载的文件系统，否则返回此错误
+/// - `EINVAL`：`flags` 中包含不支持的标志组合；试图将一个目录设为其自身的子目录
+/// - `EBUSY`：旧路径和/或新路径是挂载点
+/// - `ENOENT`：旧路径和/或新路径路径解析失败
+/// - `ENOTEMPTY`：旧路径为目录，新路径为目录但不为空
+/// - `EEXIST`：新路径已存在且 `flags` 含有 [`Renameat2Flags::RENAME_NOREPLACE`]
+/// - `EISDIR`：旧路径为文件，新路径为目录
 pub fn sys_renameat2(
     old_dir_fd: usize,
     old_path: UserCheck<u8>,
@@ -828,42 +877,84 @@ pub fn sys_renameat2(
     flags: u32,
 ) -> KResult {
     let flags = Renameat2Flags::from_bits(flags).ok_or(errno::EINVAL)?;
+    // TODO: RENAME_EXCHANGE 和 RENAME_WHITEOUT 尚未实现
+    if flags.intersects(Renameat2Flags::RENAME_EXCHANGE | Renameat2Flags::RENAME_WHITEOUT) {
+        return Err(errno::UNSUPPORTED);
+    }
     if flags.contains(Renameat2Flags::RENAME_EXCHANGE)
         && flags.intersects(Renameat2Flags::RENAME_NOREPLACE | Renameat2Flags::RENAME_WHITEOUT)
     {
         return Err(errno::EINVAL);
     }
 
+    // TODO: [high] `.` 与 `..` 需要特殊处理，顺便检查下其它系统调用
+
     let old_path = old_path.check_cstr()?;
     let new_path = new_path.check_cstr()?;
     debug!("rename '{}' to '{}' with flags: {flags:?}", &*old_path, &*new_path);
     let old_p2i = fs::resolve_path_with_dir_fd(old_dir_fd, &old_path)?;
+    if old_p2i.last_type != LastComponentType::Normal {
+        return Err(errno::EBUSY);
+    }
     let old_dentry = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
     if VFS.is_mount_root(&old_dentry) {
         return Err(errno::EBUSY);
     }
 
     let new_p2i = fs::resolve_path_with_dir_fd(new_dir_fd, &new_path)?;
-    let new_dentry = new_p2i.dir.lookup(&new_p2i.last_component);
-    if let Some(new_dentry) = &new_dentry
-        && VFS.is_mount_root(new_dentry)
-    {
+    if new_p2i.last_type != LastComponentType::Normal {
         return Err(errno::EBUSY);
     }
+    let new_dentry = new_p2i.dir.lookup(&new_p2i.last_component);
+    if let Some(new_dentry) = &new_dentry {
+        if &old_dentry == new_dentry {
+            return Ok(0);
+        }
+        if VFS.is_mount_root(new_dentry) {
+            return Err(errno::EBUSY);
+        }
+    }
 
-    let new_anchor = match new_dentry {
-        Some(new_dentry) => new_dentry,
-        None => DEntry::Dir(Arc::clone(&new_p2i.dir)),
-    };
-    if !VFS.same_mounted_fs(old_dentry.clone(), new_anchor) {
-        return Err(errno::EXDEV);
+    {
+        let new_anchor = match new_dentry.clone() {
+            Some(new_dentry) => new_dentry,
+            None => DEntry::Dir(Arc::clone(&new_p2i.dir)),
+        };
+        if !VFS.same_mounted_fs(old_dentry.clone(), new_anchor) {
+            return Err(errno::EXDEV);
+        }
     }
 
     // TODO: [mid] 需要消除与 mount/umount 并发时，校验与实际 rename 执行间的竞态窗口。
     match old_dentry {
-        DEntry::Dir(_dir) => {}
-        DEntry::Bytes(_bytes) => todo!(),
-    }
+        DEntry::Dir(old_dir) => {
+            {
+                // 检查是否试图将一个目录设为其自身的子目录
+                let mut curr = Some(&new_p2i.dir);
+                while let Some(parent) = curr {
+                    if core::ptr::eq(parent.as_ptr(), old_dir.as_ptr()) {
+                        return Err(errno::EINVAL);
+                    }
+                    curr = parent.parent();
+                }
+            }
+            match new_dentry {
+                Some(_) if flags.contains(Renameat2Flags::RENAME_NOREPLACE) => return Err(errno::EEXIST),
+                Some(DEntry::Dir(_)) => return Err(errno::UNSUPPORTED), // TODO: 检查是否为空目录
+                Some(DEntry::Bytes(_)) => return Err(errno::UNSUPPORTED), // TODO: rename 目录为文件？
+                None => {}
+            }
 
-    todo!("[high] impl sys_renameat2")
+            return old_dir.rename(&new_p2i.dir, new_p2i.last_component);
+        }
+        DEntry::Bytes(old_bytes) => {
+            match new_dentry {
+                Some(_) if flags.contains(Renameat2Flags::RENAME_NOREPLACE) => return Err(errno::EEXIST),
+                Some(DEntry::Dir(_)) => return Err(errno::EISDIR),
+                Some(DEntry::Bytes(_)) | None => {}
+            }
+
+            return old_bytes.rename(&new_p2i.dir, new_p2i.last_component);
+        }
+    }
 }

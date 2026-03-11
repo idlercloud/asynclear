@@ -156,6 +156,20 @@ impl DEntryDir {
         self.inode.unlink(name)
     }
 
+    pub fn remove_dir(&self, child: Arc<DEntryDir>) -> KResult<()> {
+        assert_eq!(
+            Some((self as *const DEntryDir).addr()),
+            child.parent.as_ref().map(|d| d.as_ptr().addr())
+        );
+        let mut children = self.lock_children();
+        // 只允许移除空目录，也就是除了 `.` 和 `..` 没有别的条目
+        if children.len() == 2 {
+            return Err(errno::ENOTEMPTY);
+        }
+        children.remove(child.name());
+        Ok(())
+    }
+
     pub fn read_dir(self: &Arc<Self>) -> KResult<()> {
         let _enter = debug_span!("read_dir", name = self.name).entered();
         self.inode.read_dir(self)
@@ -194,6 +208,43 @@ impl DEntryDir {
 
         path
     }
+
+    pub fn rename(self: &Arc<Self>, new_dir: &Arc<DEntryDir>, new_name: EcoString) -> KResult {
+        let mut old_children;
+        let mut new_children;
+        let Some(old_dir) = &self.parent else {
+            // 根目录不许重命名
+            return Err(errno::EBUSY);
+        };
+        // 按地址顺序加锁，防止死锁
+        if old_dir.as_ptr().addr() < new_dir.as_ptr().addr() {
+            old_children = old_dir.lock_children();
+            new_children = new_dir.lock_children();
+        } else if old_dir.as_ptr().addr() > new_dir.as_ptr().addr() {
+            new_children = new_dir.lock_children();
+            old_children = old_dir.lock_children();
+        } else {
+            // TODO: 看看能不能优化
+            let mut children = new_dir.lock_children();
+            children.remove(self.name());
+            let new_entry = Arc::new(DEntryDir::new(
+                Some(Arc::clone(new_dir)),
+                new_name.clone(),
+                Arc::clone(self.inode()),
+            ));
+            children.insert(new_name, DEntry::Dir(new_entry));
+            return Ok(0);
+        }
+
+        old_children.remove(self.name());
+        let new_entry = Arc::new(DEntryDir::new(
+            Some(Arc::clone(new_dir)),
+            new_name.clone(),
+            Arc::clone(self.inode()),
+        ));
+        new_children.insert(new_name, DEntry::Dir(new_entry));
+        Ok(0)
+    }
 }
 
 pub struct DEntryBytes {
@@ -217,5 +268,38 @@ impl DEntryBytes {
 
     pub fn inode(&self) -> &Arc<DynBytesInode> {
         &self.inode
+    }
+
+    pub fn rename(self: &Arc<Self>, new_dir: &Arc<DEntryDir>, new_name: EcoString) -> KResult {
+        let mut old_children;
+        let mut new_children;
+        // 按地址顺序加锁，防止死锁
+        if self.parent.as_ptr().addr() < new_dir.as_ptr().addr() {
+            old_children = self.parent.lock_children();
+            new_children = new_dir.lock_children();
+        } else if self.parent.as_ptr().addr() > new_dir.as_ptr().addr() {
+            new_children = new_dir.lock_children();
+            old_children = self.parent.lock_children();
+        } else {
+            // TODO: 看看能不能优化
+            let mut children = new_dir.lock_children();
+            children.remove(self.name());
+            let new_entry = Arc::new(DEntryBytes::new(
+                Arc::clone(new_dir),
+                new_name.clone(),
+                Arc::clone(self.inode()),
+            ));
+            children.insert(new_name, DEntry::Bytes(new_entry));
+            return Ok(0);
+        }
+
+        old_children.remove(self.name());
+        let new_entry = Arc::new(DEntryBytes::new(
+            Arc::clone(new_dir),
+            new_name.clone(),
+            Arc::clone(self.inode()),
+        ));
+        new_children.insert(new_name, DEntry::Bytes(new_entry));
+        Ok(0)
     }
 }
