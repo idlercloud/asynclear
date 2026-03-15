@@ -9,7 +9,7 @@ use triomphe::Arc;
 
 use super::Process;
 use crate::{
-    fs::{DEntryDir, FdTable},
+    fs::{dentry::DEntryDir, file::FdTable},
     memory,
     signal::{KSignalSet, Signal, SignalHandlers},
     thread::Thread,

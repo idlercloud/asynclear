@@ -1,0 +1,17 @@
+[package]
+name = "tmpfs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+ecow.workspace = true
+triomphe.workspace = true
+unsize.workspace = true
+
+libkernel = { path = "../../libkernel" }
+defines = { path = "../../utils/defines" }
+executor = { path = "../../utils/executor" }
+
+[lints]
+workspace = true

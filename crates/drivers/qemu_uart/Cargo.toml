@@ -1,0 +1,16 @@
+[package]
+name = "qemu_uart"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+heapless.workspace = true
+
+common = { path = "../../utils/common" }
+klocks = { path = "../../utils/klocks" }
+
+uart_16550 = "0.3"
+
+[lints]
+workspace = true

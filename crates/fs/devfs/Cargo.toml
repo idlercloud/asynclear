@@ -1,0 +1,24 @@
+[package]
+name = "devfs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+ecow.workspace = true
+triomphe.workspace = true
+unsize.workspace = true
+futures.workspace = true
+
+libkernel = { path = "../../libkernel" }
+qemu_uart = { path = "../../drivers/qemu_uart" }
+common = { path = "../../utils/common" }
+console_output = { path = "../../utils/console_output" }
+defines = { path = "../../utils/defines" }
+executor = { path = "../../utils/executor" }
+kernel_tracer = { path = "../../utils/kernel_tracer" }
+klocks = { path = "../../utils/klocks" }
+tmpfs = { path = "../tmpfs" }
+
+[lints]
+workspace = true

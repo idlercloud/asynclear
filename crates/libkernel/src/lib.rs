@@ -16,7 +16,6 @@
 extern crate kernel_tracer;
 extern crate alloc;
 
-pub mod drivers;
 pub mod extern_symbols;
 pub mod fs;
 pub mod hart;
@@ -25,4 +24,4 @@ pub mod process;
 pub mod signal;
 pub mod thread;
 pub mod trap;
-pub mod uart_console;
+// pub mod uart_console;

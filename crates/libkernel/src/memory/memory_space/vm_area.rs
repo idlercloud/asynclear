@@ -5,7 +5,7 @@ use common::config::PAGE_SIZE;
 use triomphe::Arc;
 
 use crate::{
-    fs::{DynBytesInode, InodeMode},
+    fs::inode::{DynBytesInode, InodeMode},
     memory::{frame_allocator::Frame, kernel_ppn_to_vpn, page::Page, MapPermission, PTEFlags, PageTable, VirtPageNum},
 };
 

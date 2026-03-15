@@ -1,0 +1,14 @@
+[package]
+name = "console_output"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+sbi-rt.workspace = true
+
+klocks = { path = "../klocks" }
+qemu_uart = { path = "../../drivers/qemu_uart" }
+
+[lints]
+workspace = true

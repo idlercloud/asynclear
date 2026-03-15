@@ -1,15 +1,11 @@
 // FIXME: 完整实现 fs 模块并去除 `#![allow(unused)]`
 #![allow(unused)]
 
-mod dentry;
-mod devfs;
-mod fat32;
-mod file;
-mod inode;
+pub mod dentry;
+pub mod file;
+pub mod inode;
 mod page_cache;
-mod pipe;
-mod procfs;
-mod tmpfs;
+pub mod pipe;
 
 use alloc::{string::String, vec::Vec};
 use core::{fmt::Write, str::FromStr};
@@ -22,38 +18,45 @@ use defines::{
 };
 use derive_more::Display;
 use ecow::EcoString;
+use hal::block_device::BLOCK_SIZE;
 use hashbrown::HashMap;
-use klocks::{Lazy, SpinMutex, SpinMutexGuard};
+use klocks::{Lazy, Once, SpinMutex, SpinMutexGuard};
 use triomphe::Arc;
 
-use self::inode::InodeMeta;
-pub use self::{
-    dentry::{DEntry, DEntryBytes, DEntryDir},
-    file::{DirFile, FdTable, File, FileDescriptor, SeekFrom, SeekableFile},
-    inode::{DynBytesInode, InodeMode},
-    pipe::make_pipe,
-};
 use crate::{
-    drivers::qemu_block::{BLOCK_DEVICE, BLOCK_SIZE},
+    fs::{
+        dentry::{DEntry, DEntryDir},
+        file::File,
+        inode::{DynBytesInode, InodeMeta},
+    },
     hart::local_hart,
     memory::ReadBuffer,
-    uart_console::println,
 };
-
-pub fn init() {
-    Lazy::force(&VFS);
-    use FileSystemType::{DevTmpFs, ProcFs};
-    VFS.mount("/dev", "udev", DevTmpFs, MountFlags::empty());
-    VFS.mount("/proc", "proc", ProcFs, MountFlags::empty());
-    VFS.list_root_dir();
-}
 
 pub struct VirtFileSystem {
     root_dir: Arc<DEntryDir>,
     mount_table: SpinMutex<HashMap<DEntry, FileSystem>>,
 }
 
+static INSTANCE: Once<VirtFileSystem> = Once::new();
+
 impl VirtFileSystem {
+    pub fn new(root_dir: Arc<DEntryDir>, mount_table: HashMap<DEntry, FileSystem>) -> Self {
+        Self {
+            root_dir,
+            mount_table: SpinMutex::new(mount_table),
+        }
+    }
+
+    pub fn init_instance(instance: VirtFileSystem) {
+        INSTANCE.call_once(|| instance);
+    }
+
+    #[track_caller]
+    pub fn instance() -> &'static Self {
+        INSTANCE.get().unwrap()
+    }
+
     pub fn root_dir(&self) -> &Arc<DEntryDir> {
         &self.root_dir
     }
@@ -62,10 +65,9 @@ impl VirtFileSystem {
         &self,
         mount_point: &str,
         device_path: &str,
-        fs_type: FileSystemType,
+        create_fs: impl FnOnce(Arc<DEntryDir>, EcoString, EcoString, StatFsFlags) -> KResult<FileSystem>,
         flags: MountFlags,
     ) -> KResult<()> {
-        debug!("mount {device_path} under {mount_point}, fs_type: {fs_type:?}, flags: {flags:?}",);
         let p2i = resolve_path_with_dir_fd(AT_FDCWD, mount_point)?;
         // TODO: [low] 不太确定 stat fs flags 是怎么来的，目前是从 mount flags 里截取一部分
         let statfs_flags = StatFsFlags::from_bits_truncate(flags.bits() & 0b1_1101_1111);
@@ -99,27 +101,12 @@ impl VirtFileSystem {
             p2i.dir
         };
 
-        let mut fs = match fs_type {
-            // TODO: [high] 挂载 vfat 时是放了一个 tmpfs 进去
-            FileSystemType::VFat | FileSystemType::TmpFs => tmpfs::new_tmp_fs(
-                Arc::clone(&parent),
-                name.clone(),
-                EcoString::from(device_path),
-                statfs_flags,
-            )?,
-            FileSystemType::DevTmpFs => devfs::new_dev_fs(
-                Arc::clone(&parent),
-                name.clone(),
-                EcoString::from(device_path),
-                statfs_flags,
-            )?,
-            FileSystemType::ProcFs => procfs::new_proc_fs(
-                Arc::clone(&parent),
-                name.clone(),
-                EcoString::from(device_path),
-                statfs_flags,
-            )?,
-        };
+        let mut fs = create_fs(
+            Arc::clone(&parent),
+            name.clone(),
+            EcoString::from(device_path),
+            statfs_flags,
+        )?;
         {
             let mut children = parent.lock_children();
             children.insert(name, DEntry::Dir(Arc::clone(&fs.root_dentry)));
@@ -198,100 +185,15 @@ impl VirtFileSystem {
     pub fn same_mounted_fs(&self, a: DEntry, b: DEntry) -> bool {
         self.mounted_root_of(a) == self.mounted_root_of(b)
     }
-
-    fn list_root_dir(&self) {
-        self.root_dir.read_dir().expect("read root dir failed");
-        let mut curr_col = 0;
-        let mut output = String::with_capacity(128);
-        for (name, dentry) in self.root_dir.lock_children().iter() {
-            let mut this_end = curr_col + name.len();
-            // 当前行超过硬上限了，且至少输出了一个名字，因此换行
-            if this_end > 120 && curr_col != 0 {
-                curr_col = 0;
-                this_end = name.len();
-                output.push('\n');
-            }
-
-            if dentry.is_dir() {
-                write!(output, "{}{name}{}", AnsiColor::Blue.render_fg(), Reset.render()).unwrap();
-            } else {
-                output.push_str(name);
-            }
-            // 当前行达到硬上限，但一个名字都没输出；或者达到了软上限。输出后立刻换行
-            if this_end >= 120 && curr_col == 0 || this_end >= 80 {
-                output.push('\n');
-                curr_col = 0;
-            }
-            // 当前行未达到上限，继续尝试在当前行输出
-            else {
-                output.push_str("  ");
-                curr_col = this_end + 2;
-            }
-        }
-        println!("{output}");
-    }
 }
-
-pub static VFS: Lazy<VirtFileSystem> = Lazy::new(|| {
-    debug!("Init vfs");
-    let root_fs = fat32::new_fat32_fs(
-        &BLOCK_DEVICE,
-        EcoString::from("/"),
-        EcoString::from("/dev/mmcblk0"),
-        StatFsFlags::empty(),
-    )
-    .expect("root_fs init failed");
-
-    let root_dir = Arc::clone(&root_fs.root_dentry);
-    let mount_table = HashMap::from([(DEntry::Dir(Arc::clone(&root_dir)), root_fs)]);
-    VirtFileSystem {
-        root_dir,
-        mount_table: SpinMutex::new(mount_table),
-    }
-});
 
 pub struct FileSystem {
-    root_dentry: Arc<DEntryDir>,
-    device_path: EcoString,
-    fs_type: FileSystemType,
-    mounted_dentry: Option<DEntry>,
-    mount_point: EcoString,
-    flags: StatFsFlags,
-}
-
-impl FileSystem {
-    pub fn flags(&self) -> StatFsFlags {
-        self.flags
-    }
-}
-
-#[derive(Debug, Display)]
-pub enum FileSystemType {
-    #[display("vfat")]
-    VFat,
-    #[display("tmpfs")]
-    TmpFs,
-    #[display("devtmpfs")]
-    DevTmpFs,
-    #[display("proc")]
-    ProcFs,
-}
-
-impl FromStr for FileSystemType {
-    type Err = defines::error::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "vfat" => Ok(FileSystemType::VFat),
-            "tmpfs" => Ok(FileSystemType::TmpFs),
-            "devtmpfs" => Ok(FileSystemType::DevTmpFs),
-            "proc" => Ok(FileSystemType::ProcFs),
-            _ => {
-                warn!("invalid fs type {s}");
-                Err(errno::ENODEV)
-            }
-        }
-    }
+    pub root_dentry: Arc<DEntryDir>,
+    pub device_path: EcoString,
+    pub fs_type: &'static str,
+    pub mounted_dentry: Option<DEntry>,
+    pub mount_point: EcoString,
+    pub flags: StatFsFlags,
 }
 
 /// 类似于 linux 的 `struct nameidata`，存放 path walk 的结果。
@@ -319,7 +221,7 @@ pub fn resolve_path_with_dir_fd(dir_fd: usize, path: &str) -> KResult<PathToInod
     let start_dir;
     // 绝对路径则忽视 fd
     if path.starts_with('/') {
-        start_dir = Arc::clone(VFS.root_dir());
+        start_dir = Arc::clone(VirtFileSystem::instance().root_dir());
     } else {
         let process = local_hart().curr_process();
         let inner = process.lock_inner();

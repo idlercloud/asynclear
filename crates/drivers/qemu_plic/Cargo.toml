@@ -1,0 +1,11 @@
+[package]
+name = "qemu_plic"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+common = { path = "../../utils/common" }
+
+[lints]
+workspace = true

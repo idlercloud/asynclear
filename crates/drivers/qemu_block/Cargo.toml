@@ -1,0 +1,18 @@
+[package]
+name = "qemu_block"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+hashbrown.workspace = true
+
+hal = { path = "../hal" }
+libkernel = { path = "../../libkernel" }
+common = { path = "../../utils/common" }
+klocks = { path = "../../utils/klocks" }
+
+virtio-drivers = "0.7"
+
+[lints]
+workspace = true

@@ -10,12 +10,14 @@ use defines::{
 use klocks::SpinMutex;
 use triomphe::Arc;
 
-use super::{
-    inode::{DynDirInode, InodeMeta, InodeMode},
-    pipe::Pipe,
-    DEntry, DEntryBytes, DEntryDir, DynBytesInode,
+use crate::{
+    fs::{
+        dentry::{DEntry, DEntryBytes, DEntryDir},
+        inode::{DynBytesInode, DynDirInode, InodeMeta, InodeMode},
+        pipe::Pipe,
+    },
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
 };
-use crate::memory::{ReadBuffer, UserCheck, WriteBuffer};
 
 #[derive(Clone)]
 pub enum File {

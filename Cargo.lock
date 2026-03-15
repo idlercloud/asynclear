@@ -276,6 +276,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_output"
+version = "0.1.0"
+dependencies = [
+ "klocks",
+ "qemu_uart",
+ "sbi-rt",
+]
+
+[[package]]
 name = "const_format"
 version = "0.2.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -349,6 +358,25 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "devfs"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "console_output",
+ "defines",
+ "ecow",
+ "executor",
+ "futures",
+ "kernel_tracer",
+ "klocks",
+ "libkernel",
+ "qemu_uart",
+ "tmpfs",
+ "triomphe",
+ "unsize",
 ]
 
 [[package]]
@@ -445,9 +473,28 @@ dependencies = [
  "chrono",
  "defines",
  "ecow",
+ "hal",
  "kernel_tracer",
  "klocks",
  "smallvec",
+]
+
+[[package]]
+name = "fat32_vfs"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "defines",
+ "ecow",
+ "executor",
+ "fat32",
+ "hal",
+ "kernel_tracer",
+ "klocks",
+ "libkernel",
+ "smallvec",
+ "triomphe",
+ "unsize",
 ]
 
 [[package]]
@@ -553,6 +600,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hal"
+version = "0.1.0"
+dependencies = [
+ "klocks",
+]
+
+[[package]]
 name = "hash32"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -644,21 +698,32 @@ dependencies = [
  "anstyle",
  "atomic",
  "common",
+ "console_output",
  "defines",
+ "derive_more",
+ "devfs",
  "ecow",
  "event-listener",
  "executor",
  "extend",
+ "fat32_vfs",
+ "hal",
+ "hashbrown",
  "kernel_tracer",
  "klocks",
  "libkernel",
  "pin-project",
+ "procfs",
+ "qemu_block",
+ "qemu_plic",
+ "qemu_uart",
  "riscv",
  "riscv_guard",
  "riscv_time",
  "sbi-rt",
  "slab",
  "smallvec",
+ "tmpfs",
  "triomphe",
 ]
 
@@ -708,6 +773,7 @@ dependencies = [
  "extend",
  "fat32",
  "futures",
+ "hal",
  "hashbrown",
  "heapless",
  "idallocator",
@@ -720,9 +786,7 @@ dependencies = [
  "scopeguard",
  "smallvec",
  "triomphe",
- "uart_16550",
  "unsize",
- "virtio-drivers",
 ]
 
 [[package]]
@@ -803,6 +867,50 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "procfs"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "defines",
+ "ecow",
+ "executor",
+ "kernel_tracer",
+ "libkernel",
+ "tmpfs",
+ "triomphe",
+ "unsize",
+]
+
+[[package]]
+name = "qemu_block"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "hal",
+ "hashbrown",
+ "klocks",
+ "libkernel",
+ "virtio-drivers",
+]
+
+[[package]]
+name = "qemu_plic"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
+
+[[package]]
+name = "qemu_uart"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "heapless",
+ "klocks",
+ "uart_16550",
 ]
 
 [[package]]
@@ -1038,6 +1146,18 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "tmpfs"
+version = "0.1.0"
+dependencies = [
+ "defines",
+ "ecow",
+ "executor",
+ "libkernel",
+ "triomphe",
+ "unsize",
+]
 
 [[package]]
 name = "triomphe"

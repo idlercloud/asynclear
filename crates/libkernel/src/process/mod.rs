@@ -18,7 +18,7 @@ use triomphe::Arc;
 
 use self::inner::ProcessInner;
 use crate::{
-    fs::{self, DEntry, FdTable, VFS},
+    fs::{self, dentry::DEntry, file::FdTable, VirtFileSystem},
     memory,
     signal::{KSignalSet, Signal, SignalHandlers},
     thread::Thread,
@@ -106,7 +106,7 @@ impl Process {
                 heap_range: brk..brk,
                 parent: None,
                 children: Vec::new(),
-                cwd: Arc::clone(VFS.root_dir()),
+                cwd: Arc::clone(VirtFileSystem::instance().root_dir()),
                 fd_table: FdTable::with_stdio(),
                 signal_handlers: SignalHandlers::new(),
                 tid_allocator,

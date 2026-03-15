@@ -3,8 +3,11 @@ use defines::error::{errno, KResult};
 use executor::time;
 use triomphe::Arc;
 
-use super::{inode::InodeMeta, InodeMode};
-use crate::memory::{ReadBuffer, UserCheck, WriteBuffer};
+use super::inode::InodeMeta;
+use crate::{
+    fs::inode::InodeMode,
+    memory::{ReadBuffer, UserCheck, WriteBuffer},
+};
 
 // TODO: [low] pipe 的实现可以优化
 

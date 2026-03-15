@@ -1,0 +1,11 @@
+[package]
+name = "hal"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+klocks = { path = "../../utils/klocks" }
+
+[lints]
+workspace = true

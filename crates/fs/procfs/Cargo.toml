@@ -1,0 +1,21 @@
+[package]
+name = "procfs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+ecow.workspace = true
+triomphe.workspace = true
+unsize.workspace = true
+
+libkernel = { path = "../../libkernel" }
+common = { path = "../../utils/common" }
+defines = { path = "../../utils/defines" }
+executor = { path = "../../utils/executor" }
+kernel_tracer = { path = "../../utils/kernel_tracer" }
+
+tmpfs = { path = "../tmpfs" }
+
+[lints]
+workspace = true

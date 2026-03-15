@@ -1,7 +1,8 @@
 use core::panic::PanicInfo;
 
 use atomic::Ordering;
-use libkernel::{hart, uart_console::eprintln};
+use console_output::eprintln;
+use libkernel::hart;
 use riscv_guard::NoIrqGuard;
 
 use crate::{tracer, BOOT_HART};

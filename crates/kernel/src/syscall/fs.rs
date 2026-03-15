@@ -10,12 +10,15 @@ use defines::{
     misc::{TimeSpec, UTIME_NOW, UTIME_OMIT},
 };
 use executor::time;
+use hal::block_device;
 use kernel_tracer::Instrument;
 use libkernel::{
-    drivers,
     fs::{
-        self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode,
-        LastComponentType, SeekFrom, SeekableFile, VFS,
+        self,
+        dentry::DEntry,
+        file::{DirFile, File, FileDescriptor, SeekFrom, SeekableFile},
+        inode::InodeMode,
+        pipe, LastComponentType, VirtFileSystem,
     },
     hart::local_hart,
     memory::{ReadBuffer, UserCheck, WriteBuffer},
@@ -291,7 +294,7 @@ pub fn sys_pipe2(pipe_fd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
     };
-    let (read_end, write_end) = fs::make_pipe();
+    let (read_end, write_end) = pipe::make_pipe();
     let read_end = FileDescriptor::new(File::Pipe(read_end), flags.with_read_only());
     let write_end = FileDescriptor::new(File::Pipe(write_end), flags.with_write_only());
     let fds = local_hart()
@@ -490,7 +493,7 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
     };
     info!("flags {flags:?}");
-    let p2i = resolve_path_with_dir_fd(dir_fd, &path)?;
+    let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
     // rmdir 的情况
     if flags.contains(FstatFlags::AT_REMOVEDIR) {
         match p2i.last_type {
@@ -500,7 +503,7 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
             LastComponentType::Root => return Err(errno::EBUSY),
         }
         let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
-        if VFS.is_mount_root(&dentry) {
+        if VirtFileSystem::instance().is_mount_root(&dentry) {
             return Err(errno::EBUSY);
         }
         let DEntry::Dir(dir) = dentry else {
@@ -512,7 +515,7 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
             return Err(errno::EISDIR);
         }
         let dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
-        if VFS.is_mount_root(&dentry) {
+        if VirtFileSystem::instance().is_mount_root(&dentry) {
             return Err(errno::EBUSY);
         }
         let DEntry::Bytes(bytes) = dentry else {
@@ -555,7 +558,7 @@ pub fn sys_umount(target: UserCheck<u8>, flags: u32) -> KResult {
         todo!("[low] unsupported MountFlags: {flags:#b}");
     };
     let target = target.check_cstr()?;
-    VFS.unmount(&target, flags)?;
+    VirtFileSystem::instance().unmount(&target, flags)?;
     Ok(0)
 }
 
@@ -577,8 +580,47 @@ pub fn sys_mount(
         let _data = data.check_cstr()?;
     }
 
-    VFS.mount(&target, &source, fs_type, flags)?;
+    debug!(
+        "mount {} under {}, fs_type: {fs_type:?}, flags: {flags:?}",
+        &*source, &*target
+    );
+    VirtFileSystem::instance().mount(
+        &target,
+        &source,
+        match fs_type {
+            // TODO: [high] 挂载 vfat 时是放了一个 tmpfs 进去
+            FileSystemType::VFat | FileSystemType::TmpFs => tmpfs::new_tmp_fs,
+            FileSystemType::DevTmpFs => devfs::new_dev_fs,
+            FileSystemType::ProcFs => procfs::new_proc_fs,
+        },
+        flags,
+    )?;
     Ok(0)
+}
+
+#[derive(Debug)]
+pub enum FileSystemType {
+    VFat,
+    TmpFs,
+    DevTmpFs,
+    ProcFs,
+}
+
+impl FromStr for FileSystemType {
+    type Err = defines::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            fat32_vfs::FS_TYPE => Ok(FileSystemType::VFat),
+            tmpfs::FS_TYPE => Ok(FileSystemType::TmpFs),
+            devfs::FS_TYPE => Ok(FileSystemType::DevTmpFs),
+            procfs::FS_TYPE => Ok(FileSystemType::ProcFs),
+            _ => {
+                warn!("invalid fs type {s}");
+                Err(errno::ENODEV)
+            }
+        }
+    }
 }
 
 /// 将调用进程的当前工作目录更改为 `path` 中指定的目录
@@ -749,10 +791,10 @@ pub async fn sys_sendfile64(out_fd: usize, in_fd: usize, offset_ptr: Option<User
 pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
     let path = path.check_cstr()?;
     debug!("path {}", &*path);
-    let p2i = fs::path_walk(Arc::clone(VFS.root_dir()), &path)?;
+    let p2i = fs::path_walk(Arc::clone(VirtFileSystem::instance().root_dir()), &path)?;
     let mut dentry = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)?;
 
-    let mount_table = VFS.lock_mount_table();
+    let mount_table = VirtFileSystem::instance().lock_mount_table();
     let fs = loop {
         if let Some(fs) = mount_table.get(&dentry) {
             break fs;
@@ -766,8 +808,8 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
     // TODO: [low] statfs 没有完整正确实现
     let buf = unsafe { buf.check_ptr_mut()? };
     buf.write(FsStat {
-        f_bsize: drivers::SECTOR_SIZE as u64,
-        f_flags: fs.flags().bits() as u64,
+        f_bsize: block_device::BLOCK_SIZE as u64,
+        f_flags: fs.flags.bits() as u64,
         f_namelen: NAME_MAX as u64,
         ..Default::default()
     });
@@ -896,7 +938,7 @@ pub fn sys_renameat2(
         return Err(errno::EBUSY);
     }
     let old_dentry = old_p2i.dir.lookup(old_p2i.last_component).ok_or(errno::ENOENT)?;
-    if VFS.is_mount_root(&old_dentry) {
+    if VirtFileSystem::instance().is_mount_root(&old_dentry) {
         return Err(errno::EBUSY);
     }
 
@@ -909,7 +951,7 @@ pub fn sys_renameat2(
         if &old_dentry == new_dentry {
             return Ok(0);
         }
-        if VFS.is_mount_root(new_dentry) {
+        if VirtFileSystem::instance().is_mount_root(new_dentry) {
             return Err(errno::EBUSY);
         }
     }
@@ -919,7 +961,7 @@ pub fn sys_renameat2(
             Some(new_dentry) => new_dentry,
             None => DEntry::Dir(Arc::clone(&new_p2i.dir)),
         };
-        if !VFS.same_mounted_fs(old_dentry.clone(), new_anchor) {
+        if !VirtFileSystem::instance().same_mounted_fs(old_dentry.clone(), new_anchor) {
             return Err(errno::EXDEV);
         }
     }

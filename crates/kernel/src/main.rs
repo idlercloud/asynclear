@@ -7,7 +7,8 @@
 extern crate kernel_tracer;
 extern crate alloc;
 
-mod integration;
+mod drivers;
+mod glue;
 mod lang_items;
 mod syscall;
 mod tracer;
@@ -18,7 +19,8 @@ use core::{
 };
 
 use common::config::{HART_START_ADDR, MAX_HART_NUM};
-use libkernel::{drivers, extern_symbols, fs, hart, memory, process, uart_console::println};
+use console_output::println;
+use libkernel::{extern_symbols, hart, memory, process};
 use riscv::register::sstatus::{self, FS};
 
 arch::global_asm!(include_str!("entry.S"));
@@ -48,10 +50,10 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
         enable_float();
         memory::log_kernel_sections();
 
-        fs::init();
+        glue::init_vfs();
 
         executor::block_on(process::init());
-        integration::spawn_user_thread(
+        glue::spawn_user_thread(
             process::PROCESS_MANAGER
                 .init_proc()
                 .lock_inner_with(|inner| inner.main_thread()),
@@ -80,7 +82,7 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
 
     let _enter = info_span!("hart", id = hart_id).entered();
 
-    integration::init_trap();
+    glue::init_trap();
 
     crate::kernel_loop();
 }

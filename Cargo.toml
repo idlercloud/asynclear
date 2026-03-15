@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/libkernel", "crates/kernel", "crates/arch/*", "crates/utils/*", "crates/fs/*", "xtask", "user"]
+members = ["crates/libkernel", "crates/kernel", "crates/arch/*", "crates/utils/*", "crates/fs/*", "crates/drivers/*", "xtask", "user"]
 exclude = ["deps"]
 resolver = "2"
 

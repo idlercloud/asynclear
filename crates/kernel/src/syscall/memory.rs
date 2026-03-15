@@ -7,7 +7,7 @@ use defines::{
     misc::{MmapFlags, MmapProt},
 };
 use libkernel::{
-    fs::{File, InodeMode},
+    fs::{file::File, inode::InodeMode},
     hart::local_hart,
     memory::{BackedInode, MapPermission, VirtAddr, VirtPageNum},
 };

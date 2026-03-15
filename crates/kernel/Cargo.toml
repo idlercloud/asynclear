@@ -6,9 +6,11 @@ edition.workspace = true
 
 [dependencies]
 atomic.workspace = true
+derive_more.workspace = true
 ecow.workspace = true
 event-listener.workspace = true
 extend.workspace = true
+hashbrown.workspace = true
 pin-project.workspace = true
 riscv = { workspace = true, features = ["s-mode"] }
 sbi-rt.workspace = true
@@ -16,13 +18,22 @@ smallvec.workspace = true
 triomphe.workspace = true
 
 common = { path = "../utils/common" }
+console_output = { path = "../utils/console_output" }
 defines = { path = "../utils/defines" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
 executor = { path = "../utils/executor" }
 riscv_guard = { path = "../arch/riscv_guard" }
 riscv_time = { path = "../arch/riscv_time" }
+hal = { path = "../drivers/hal" }
+qemu_block = { path = "../drivers/qemu_block" }
+qemu_plic = { path = "../drivers/qemu_plic" }
+qemu_uart = { path = "../drivers/qemu_uart" }
 libkernel = { path = "../libkernel" }
+devfs = { path = "../fs/devfs" }
+tmpfs = { path = "../fs/tmpfs" }
+procfs = { path = "../fs/procfs" }
+fat32_vfs = { path = "../fs/fat32_vfs" }
 
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }

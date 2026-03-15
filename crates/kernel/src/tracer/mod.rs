@@ -7,12 +7,10 @@ mod profiling;
 use core::{fmt::Write, num::NonZeroU32};
 
 use anstyle::{AnsiColor, Reset};
+use console_output::{eprint, eprintln, STDOUT};
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
-use libkernel::{
-    hart,
-    uart_console::{eprint, eprintln, STDOUT},
-};
+use libkernel::hart;
 #[cfg(feature = "profiling")]
 pub use profiling::report_profiling;
 use slab::Slab;

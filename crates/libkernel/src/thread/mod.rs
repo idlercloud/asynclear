@@ -10,7 +10,7 @@ use triomphe::Arc;
 
 use self::inner::{ThreadInner, ThreadOwned};
 use crate::{
-    fs,
+    fs::VirtFileSystem,
     memory::{self, MapPermission, MemorySpace, VirtAddr, VirtPageNum},
     process::{self, Process, ProcessStatus},
     signal::KSignalSet,
@@ -133,7 +133,7 @@ impl Thread {
         if process_inner.threads.is_empty() {
             info!("all threads exit");
             // 不太想让 `cwd` 加个 `Option`，但是也最好不要保持原来的引用了，所以引到根目录去得了
-            process_inner.cwd = Arc::clone(fs::VFS.root_dir());
+            process_inner.cwd = Arc::clone(VirtFileSystem::instance().root_dir());
             process_inner.memory_space.recycle_user_pages();
             process_inner.threads = HashMap::new();
             process_inner.tid_allocator.release();
