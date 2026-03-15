@@ -20,7 +20,7 @@ fn main() -> i32 {
                 return 0;
             }
             if pid < 0 {
-                panic!("Error with {}", pid);
+                panic!("Error with {pid}");
             }
             println!(
                 "[initproc] Released a zombie process, pid={}, exit_code={}",

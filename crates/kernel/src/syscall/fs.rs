@@ -9,20 +9,19 @@ use defines::{
     },
     misc::{TimeSpec, UTIME_NOW, UTIME_OMIT},
 };
+use executor::time;
 use kernel_tracer::Instrument;
-use smallvec::SmallVec;
-use triomphe::Arc;
-use virtio_drivers::device::blk::SECTOR_SIZE;
-
-use crate::{
+use libkernel::{
+    drivers,
     fs::{
         self, resolve_path_with_dir_fd, DEntry, DirFile, File, FileDescriptor, FileSystemType, InodeMode,
         LastComponentType, SeekFrom, SeekableFile, VFS,
     },
     hart::local_hart,
     memory::{ReadBuffer, UserCheck, WriteBuffer},
-    time,
 };
+use smallvec::SmallVec;
+use triomphe::Arc;
 
 /// 操纵某个特殊文件的底层设备，尤其是字符特殊文件
 ///
@@ -767,7 +766,7 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
     // TODO: [low] statfs 没有完整正确实现
     let buf = unsafe { buf.check_ptr_mut()? };
     buf.write(FsStat {
-        f_bsize: SECTOR_SIZE as u64,
+        f_bsize: drivers::SECTOR_SIZE as u64,
         f_flags: fs.flags().bits() as u64,
         f_namelen: NAME_MAX as u64,
         ..Default::default()
@@ -938,6 +937,7 @@ pub fn sys_renameat2(
                     curr = parent.parent();
                 }
             }
+            #[expect(clippy::match_same_arms)]
             match new_dentry {
                 Some(_) if flags.contains(Renameat2Flags::RENAME_NOREPLACE) => return Err(errno::EEXIST),
                 Some(DEntry::Dir(_)) => return Err(errno::UNSUPPORTED), // TODO: 检查是否为空目录
@@ -945,7 +945,7 @@ pub fn sys_renameat2(
                 None => {}
             }
 
-            return old_dir.rename(&new_p2i.dir, new_p2i.last_component);
+            old_dir.rename(&new_p2i.dir, new_p2i.last_component)
         }
         DEntry::Bytes(old_bytes) => {
             match new_dentry {
@@ -954,7 +954,7 @@ pub fn sys_renameat2(
                 Some(DEntry::Bytes(_)) | None => {}
             }
 
-            return old_bytes.rename(&new_p2i.dir, new_p2i.last_component);
+            old_bytes.rename(&new_p2i.dir, new_p2i.last_component)
         }
     }
 }

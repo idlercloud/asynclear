@@ -10,16 +10,16 @@ use defines::{
 };
 use ecow::EcoString;
 use event_listener::listener;
-use triomphe::Arc;
-
-use crate::{
-    executor,
+use libkernel::{
     fs::{self, DEntry, InodeMode},
     hart::local_hart,
     memory::UserCheck,
     process::{exit_process, INITPROC_PID, PROCESS_MANAGER},
     signal::Signal,
 };
+use triomphe::Arc;
+
+use crate::integration;
 
 /// 退出当前线程，结束用户线程循环。
 pub fn sys_exit(exit_code: i32) -> KResult {
@@ -124,6 +124,9 @@ pub fn sys_clone(flags: usize, user_stack: usize, _ptid: usize, _tls: usize, _ct
         }
         let user_stack = NonZeroUsize::new(user_stack);
         let new_process = local_hart().curr_thread().process.fork(user_stack, exit_signal);
+        // 主线程可以加入调度队列中了
+        let main_thread = new_process.lock_inner_with(|inner| inner.main_thread());
+        integration::spawn_user_thread(main_thread);
         Ok(new_process.pid())
     }
 }

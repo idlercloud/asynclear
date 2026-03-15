@@ -5,8 +5,8 @@ use defines::{
     error::KResult,
     misc::{TimeSpec, TimeVal, Tms},
 };
-
-use crate::{memory::UserCheck, time};
+use executor::time;
+use libkernel::memory::UserCheck;
 
 /// 获取自 Epoch 以来所过的时间（不过目前实现中似乎是自开机或复位以来时间）
 ///

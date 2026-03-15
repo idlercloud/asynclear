@@ -1,19 +1,15 @@
 use core::panic::PanicInfo;
 
 use atomic::Ordering;
+use libkernel::{hart, uart_console::eprintln};
 use riscv_guard::NoIrqGuard;
 
-use crate::{
-    hart::{local_hart, BOOT_HART},
-    tracer,
-    uart_console::eprintln,
-    SHUTDOWN,
-};
+use crate::{tracer, BOOT_HART};
 
 #[panic_handler]
 fn panic(info: &PanicInfo<'_>) -> ! {
     let _guard = NoIrqGuard::new();
-    let hart = local_hart();
+    let hart = hart::local_hart();
     if !hart.panicked.get() {
         hart.panicked.set(true);
         eprintln!("{info}");
@@ -22,7 +18,7 @@ fn panic(info: &PanicInfo<'_>) -> ! {
         }
     }
 
-    SHUTDOWN.store(true, Ordering::SeqCst);
+    executor::SHUTDOWN.store(true, Ordering::SeqCst);
 
     if hart.hart_id() != BOOT_HART.load(Ordering::SeqCst) {
         eprintln!("hart {} wait boot hart to shutdown", hart.hart_id());

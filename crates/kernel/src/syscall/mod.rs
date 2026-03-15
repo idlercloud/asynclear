@@ -11,14 +11,13 @@ use defines::{
     syscall::*,
 };
 use fs::*;
+use libkernel::{hart::local_hart, memory::UserCheck, process::exit_process};
 use memory::*;
 use misc::*;
 use process::*;
 use signal::*;
 use thread::*;
 use time::*;
-
-use crate::{hart::local_hart, memory::UserCheck, process::exit_process};
 
 pub async fn syscall(id: usize, args: [usize; 6]) -> isize {
     // 读入标准输入、写入标准输出、写入标准错误都不关心

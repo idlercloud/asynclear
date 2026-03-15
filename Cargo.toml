@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/kernel", "crates/arch/*", "crates/utils/*", "crates/fs/*", "xtask", "user"]
+members = ["crates/libkernel", "crates/kernel", "crates/arch/*", "crates/utils/*", "crates/fs/*", "xtask", "user"]
 exclude = ["deps"]
 resolver = "2"
 
@@ -20,6 +20,7 @@ ecow = { git = "https://github.com/idlercloud/ecow.git", branch = "dev", default
 event-listener = { version = "5", default-features = false }
 extend = "1"
 fastrand = { version = "2", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc", "async-await"] }
 hashbrown = { version = "0.15" }
 heapless = { version = "0.8", features = ["mpmc_large"] }
 pin-project = "1"

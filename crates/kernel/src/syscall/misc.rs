@@ -2,8 +2,8 @@ use defines::{
     error::KResult,
     misc::{SysInfo, UtsName},
 };
-
-use crate::{memory::UserCheck, time};
+use executor::time;
+use libkernel::memory::UserCheck;
 
 /// 返回系统信息，返回值为 0
 pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {

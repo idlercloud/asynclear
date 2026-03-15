@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(format_args_nl)]
 #![feature(negative_impls)]
 #![feature(decl_macro)]
 

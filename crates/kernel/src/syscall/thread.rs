@@ -1,6 +1,5 @@
 use defines::error::KResult;
-
-use crate::hart::local_hart;
+use libkernel::hart;
 
 /// 获取线程 tid。永远成功
 ///
@@ -10,5 +9,5 @@ use crate::hart::local_hart;
 ///
 /// <https://man7.org/linux/man-pages/man2/gettid.2.html>
 pub fn sys_gettid() -> KResult {
-    Ok(local_hart().curr_thread().tid())
+    Ok(hart::local_hart().curr_thread().tid())
 }

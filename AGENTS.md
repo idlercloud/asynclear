@@ -13,7 +13,8 @@
 - `EcoString` 是有小字符串优化、写时复制的第三方库字符串实现，合适时尽量用它
 
 ## 项目结构
-- `crates/kernel`：内核主体（入口、调度、内存、虚拟文件系统等）
+- `crates/kernel`：内核二进制 crate，组装其它部分得到最终产物
+- `crates/libkernel`：内核主要逻辑（内存、虚拟文件系统、进程管理等）
 - `crates/fs/*`：文件系统实现
 - `crates/arch/*`：架构相关实现（RISC-V 等）
 - `crates/utils/*`：通用组件（锁、日志、分配器、公共定义）

@@ -2,8 +2,7 @@ use defines::{
     error::{errno, KResult},
     signal::{KSignalAction, SignalActionFlags, SIGSET_SIZE_BYTES},
 };
-
-use crate::{
+use libkernel::{
     hart::local_hart,
     memory::UserCheck,
     process::{exit_process, PROCESS_MANAGER},

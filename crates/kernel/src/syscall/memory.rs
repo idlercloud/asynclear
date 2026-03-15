@@ -6,8 +6,7 @@ use defines::{
     fs::OpenFlags,
     misc::{MmapFlags, MmapProt},
 };
-
-use crate::{
+use libkernel::{
     fs::{File, InodeMode},
     hart::local_hart,
     memory::{BackedInode, MapPermission, VirtAddr, VirtPageNum},

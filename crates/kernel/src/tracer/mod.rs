@@ -1,4 +1,7 @@
 #[cfg(feature = "profiling")]
+extern crate alloc;
+
+#[cfg(feature = "profiling")]
 mod profiling;
 
 use core::{fmt::Write, num::NonZeroU32};
@@ -6,16 +9,15 @@ use core::{fmt::Write, num::NonZeroU32};
 use anstyle::{AnsiColor, Reset};
 use kernel_tracer::{Level, Record, SpanAttr, SpanId, Tracer};
 use klocks::{Lazy, SpinNoIrqMutex};
+use libkernel::{
+    hart,
+    uart_console::{eprint, eprintln, STDOUT},
+};
 #[cfg(feature = "profiling")]
 pub use profiling::report_profiling;
 use slab::Slab;
 #[cfg(feature = "profiling")]
 use {alloc::vec::Vec, profiling::ProfilingEvent};
-
-use crate::{
-    hart::local_hart,
-    uart_console::{eprint, eprintln, STDOUT},
-};
 
 static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImpl {
     slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
@@ -29,7 +31,7 @@ pub fn init() {
 
 /// 其实这个很可能是 ub，但是为了调试还是先这么写着吧
 pub unsafe fn print_span_stack() {
-    let span_stack = unsafe { &*local_hart().span_stack.as_ptr() };
+    let span_stack = unsafe { &*hart::local_hart().span_stack.as_ptr() };
     let slab = KERNEL_TRACER_IMPL.slab.lock();
     eprintln!("span stack:");
     for id in span_stack.iter().rev() {
@@ -70,17 +72,17 @@ impl Tracer for KernelTracerImpl {
 
     #[track_caller]
     fn enter(&self, span_id: &SpanId) {
-        local_hart().span_stack.borrow_mut().push(span_id.clone());
+        hart::local_hart().span_stack.borrow_mut().push(span_id.clone());
         #[cfg(feature = "profiling")]
         self.events.lock().push(ProfilingEvent::Enter {
-            hart_id: local_hart().hart_id() as u32,
+            hart_id: hart::local_hart().hart_id() as u32,
             id: span_id.to_u32(),
             instant: riscv_time::get_time_ns() as u64,
         });
     }
 
     fn exit(&self, span_id: &SpanId) {
-        let _span_id = local_hart().span_stack.borrow_mut().pop();
+        let _span_id = hart::local_hart().span_stack.borrow_mut().pop();
         #[cfg(feature = "profiling")]
         self.events.lock().push(ProfilingEvent::Exit {
             id: span_id.to_u32(),
@@ -128,7 +130,7 @@ impl KernelTracerImpl {
         let mut has_span = false;
         {
             let slab = self.slab.lock();
-            let stack = local_hart().span_stack.borrow();
+            let stack = hart::local_hart().span_stack.borrow();
 
             for id in stack.iter() {
                 let id = span_id_to_slab_index(id);
