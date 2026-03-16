@@ -2,9 +2,13 @@ mod context;
 
 pub use context::TrapContext;
 use defines::{error::errno, signal::SignalActionFlags};
-use riscv::register::sstatus::FS;
+use riscv::register::{
+    sstatus::FS,
+    stvec::{self, Stvec, TrapMode},
+};
 
 use crate::{
+    extern_symbols,
     memory::UserCheck,
     process::exit_process,
     signal::{DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
@@ -95,5 +99,21 @@ pub fn check_signal(thread: &Thread) -> bool {
     } else {
         exit_process(&thread.process, (first_pending as i8).wrapping_add_unsigned(128));
         true
+    }
+}
+
+pub fn set_kernel_trap_entry() {
+    let mut stvec_value = Stvec::from_bits(extern_symbols::__trap_from_kernel as *const () as usize);
+    stvec_value.set_trap_mode(TrapMode::Direct);
+    unsafe {
+        stvec::write(stvec_value);
+    }
+}
+
+pub fn set_user_trap_entry() {
+    let mut stvec_value = Stvec::from_bits(extern_symbols::__trap_from_user as *const () as usize);
+    stvec_value.set_trap_mode(TrapMode::Direct);
+    unsafe {
+        stvec::write(stvec_value);
     }
 }

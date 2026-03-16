@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use bitflags::*;
 use common::config::{PAGE_SIZE, PTE_PER_PAGE};
-use riscv::register::satp;
+use riscv::register::satp::{self, Satp};
 
 use super::KERNEL_SPACE;
 use crate::memory::{frame_allocator::Frame, MapPermission, PhysPageNum, VirtPageNum};
@@ -145,15 +145,17 @@ impl PageTable {
         *pte = PageTableEntry::empty();
     }
 
-    fn token(&self) -> usize {
-        ((satp::Mode::Sv39 as usize) << 60) | self.root_frame.ppn().0
+    fn token(&self) -> Satp {
+        Satp::from_bits(((satp::Mode::Sv39 as usize) << 60) | self.root_frame.ppn().0)
     }
 
     pub fn activate(&self) {
-        let old_root = satp::read().bits();
+        let old_root = satp::read();
         let new_root = self.token();
         if new_root != old_root {
-            satp::write(new_root);
+            unsafe {
+                satp::write(new_root);
+            }
             super::flush_tlb(None);
         }
     }
@@ -162,7 +164,9 @@ impl PageTable {
     ///
     /// 需要保证页表的正确性
     pub unsafe fn activate_no_tlb(&self) {
-        satp::write(self.token());
+        unsafe {
+            satp::write(self.token());
+        }
     }
 }
 

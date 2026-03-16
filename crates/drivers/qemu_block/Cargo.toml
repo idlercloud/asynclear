@@ -12,7 +12,7 @@ libkernel = { path = "../../libkernel" }
 common = { path = "../../utils/common" }
 klocks = { path = "../../utils/klocks" }
 
-virtio-drivers = "0.7"
+virtio-drivers = "0.13"
 
 [lints]
 workspace = true

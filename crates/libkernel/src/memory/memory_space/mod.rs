@@ -473,9 +473,7 @@ impl From<MmapProt> for MapPermission {
 /// 刷新 tlb，可选刷新一部分，或者全部刷新
 pub fn flush_tlb(vaddr: Option<VirtAddr>) {
     if let Some(vaddr) = vaddr {
-        unsafe {
-            riscv::asm::sfence_vma(0, vaddr.0);
-        }
+        riscv::asm::sfence_vma(0, vaddr.0);
     } else {
         riscv::asm::sfence_vma_all();
     }

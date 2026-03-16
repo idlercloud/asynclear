@@ -8,7 +8,6 @@ edition.workspace = true
 ecow.workspace = true
 triomphe.workspace = true
 unsize.workspace = true
-futures.workspace = true
 
 libkernel = { path = "../../libkernel" }
 qemu_uart = { path = "../../drivers/qemu_uart" }

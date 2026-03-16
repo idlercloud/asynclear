@@ -14,7 +14,7 @@ kernel_tracer = { path = "../kernel_tracer" }
 riscv_time = { path = "../../arch/riscv_time" }
 
 async-task = { version = "4.7", default-features = false }
-crossbeam-queue = { version = "0.3.11", default-features = false, features = ["alloc"] }
+crossbeam-queue = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [lints]
 workspace = true

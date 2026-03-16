@@ -10,7 +10,7 @@ heapless.workspace = true
 common = { path = "../../utils/common" }
 klocks = { path = "../../utils/klocks" }
 
-uart_16550 = "0.3"
+uart_16550 = "0.4"
 
 [lints]
 workspace = true

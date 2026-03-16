@@ -152,7 +152,7 @@ pub fn pack() {
                     let mut target_file = target_dir.create_file(name)?;
                     io::copy(&mut source_file, &mut target_file)?;
                 } else {
-                    return Err(anyhow!("Unsupported file type: {:?}", file_type));
+                    return Err(anyhow!("Unsupported file type: {file_type:?}"));
                 }
             }
             Ok(())

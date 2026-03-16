@@ -84,10 +84,12 @@ unsafe impl GlobalAlloc for BrkBasedHeap {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.inner
-            .lock()
-            .buddy_system
-            .dealloc(unsafe { NonNull::new_unchecked(ptr) }, layout);
+        unsafe {
+            self.inner
+                .lock()
+                .buddy_system
+                .dealloc(NonNull::new_unchecked(ptr), layout);
+        }
     }
 }
 

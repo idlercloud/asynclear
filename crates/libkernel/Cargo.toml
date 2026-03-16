@@ -14,21 +14,16 @@ derive_more = { workspace = true, features = ["display"] }
 ecow.workspace = true
 event-listener.workspace = true
 extend.workspace = true
-futures.workspace = true
 hashbrown.workspace = true
-heapless.workspace = true
 riscv = { workspace = true, features = ["s-mode"] }
-sbi-rt.workspace = true
 scopeguard.workspace = true
 smallvec.workspace = true
 triomphe.workspace = true
-unsize.workspace = true
 
 common = { path = "../utils/common" }
 defines = { path = "../utils/defines" }
 elf = { path = "../utils/elf" }
 executor = { path = "../utils/executor" }
-fat32 = { path = "../utils/fat32" }
 idallocator = { path = "../utils/idallocator" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
@@ -37,7 +32,7 @@ riscv_time = { path = "../arch/riscv_time" }
 hal = { path = "../drivers/hal" }
 
 anstyle = { version = "1.0", default-features = false }
-async-channel = { version = "2.3", default-features = false }
+async-channel = { version = "2", default-features = false }
 crossbeam-utils = { version = "0.8", default-features = false }
 
 [lints]

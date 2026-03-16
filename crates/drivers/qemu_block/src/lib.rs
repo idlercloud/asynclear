@@ -7,4 +7,4 @@ use klocks::Lazy;
 
 pub use self::disk_driver::DiskDriver;
 
-pub static BLOCK_DEVICE: Lazy<DiskDriver> = Lazy::new(DiskDriver::init);
+pub static BLOCK_DEVICE: Lazy<DiskDriver<'static>> = Lazy::new(DiskDriver::init);

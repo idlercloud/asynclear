@@ -6,7 +6,6 @@ edition.workspace = true
 
 [dependencies]
 atomic.workspace = true
-derive_more.workspace = true
 ecow.workspace = true
 event-listener.workspace = true
 extend.workspace = true

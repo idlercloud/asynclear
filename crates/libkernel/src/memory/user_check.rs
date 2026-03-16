@@ -9,13 +9,13 @@ use common::config::{LOW_ADDRESS_END, MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BIT
 use defines::error::{errno, KResult};
 use riscv::{
     interrupt::Exception,
-    register::stvec::{self, TrapMode},
+    register::stvec::{self, Stvec, TrapMode},
     ExceptionNumber,
 };
 use riscv_guard::{AccessUserGuard, NoIrqGuard};
 use scopeguard::defer;
 
-use crate::{extern_symbols::__trap_from_kernel, hart::local_hart};
+use crate::{hart::local_hart, trap};
 
 // 内核有时也有读写文件的需求，比如 sendfile 的实现
 
@@ -188,11 +188,9 @@ impl UserCheck<u8> {
         let _access_user_guard = AccessUserGuard::new();
         {
             let _guard = NoIrqGuard::new();
-            unsafe {
-                stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
-            }
+            set_access_user_trap_entry();
             defer! {
-                set_kernel_trap_entry();
+                trap::set_kernel_trap_entry();
             }
             loop {
                 try_read_user_byte(va)?;
@@ -379,9 +377,11 @@ extern "C" fn trap_from_access_user() {
     arch::naked_asm!(".align 2", "csrw sepc, ra", "li a1, 1", "csrr a0, scause", "sret",);
 }
 
-pub fn set_kernel_trap_entry() {
+fn set_access_user_trap_entry() {
+    let mut stvec_value = Stvec::from_bits(trap_from_access_user as *const () as usize);
+    stvec_value.set_trap_mode(TrapMode::Direct);
     unsafe {
-        stvec::write(__trap_from_kernel as *const () as usize, TrapMode::Direct);
+        stvec::write(stvec_value);
     }
 }
 
@@ -412,8 +412,9 @@ fn check_read_impl<T>(user_ptr: *const T, len: usize) -> KResult<AccessUserGuard
         return Err(errno::EFAULT);
     }
     let _guard = NoIrqGuard::new();
-    unsafe {
-        stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
+    set_access_user_trap_entry();
+    defer! {
+        trap::set_kernel_trap_entry();
     }
     let access_user_guard = AccessUserGuard::new();
     let mut va = user_addr_start;
@@ -421,7 +422,6 @@ fn check_read_impl<T>(user_ptr: *const T, len: usize) -> KResult<AccessUserGuard
         try_read_user_byte(va)?;
         va += PAGE_SIZE;
     }
-    set_kernel_trap_entry();
     Ok(access_user_guard)
 }
 
@@ -432,8 +432,9 @@ fn check_write_impl<T>(user_ptr: *mut T, len: usize) -> KResult<AccessUserGuard>
         return Err(errno::EFAULT);
     }
     let _guard = NoIrqGuard::new();
-    unsafe {
-        stvec::write(trap_from_access_user as *const () as usize, TrapMode::Direct);
+    set_access_user_trap_entry();
+    defer! {
+        trap::set_kernel_trap_entry();
     }
     let access_user_guard = AccessUserGuard::new();
     let mut va = user_addr_start;
@@ -441,6 +442,5 @@ fn check_write_impl<T>(user_ptr: *mut T, len: usize) -> KResult<AccessUserGuard>
         try_write_user_byte(va)?;
         va += PAGE_SIZE;
     }
-    set_kernel_trap_entry();
     Ok(access_user_guard)
 }

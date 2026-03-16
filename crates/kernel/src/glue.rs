@@ -24,10 +24,7 @@ use libkernel::{
 use qemu_plic::Plic;
 use riscv::{
     interrupt::{Exception, Interrupt, Trap},
-    register::{
-        scause, sepc, sie, sstatus, stval,
-        stvec::{self, TrapMode},
-    },
+    register::{scause, sepc, sie, sstatus, stval},
 };
 use triomphe::Arc;
 
@@ -132,7 +129,7 @@ impl<UserThreadFuture: Future<Output = ()>> Future for UserThreadWrapperFuture<U
 
 /// 在某些情况下，如调用了 `sys_exit`，会返回 `ControlFlow::Break` 以通知结束用户线程循环
 pub async fn user_trap_handler() -> ControlFlow<(), ()> {
-    set_kernel_trap_entry();
+    trap::set_kernel_trap_entry();
 
     // NOTE: `scause` 和 `stval` 一定要在开中断前读，因为它们会被中断覆盖
     let scause = scause::read();
@@ -237,28 +234,13 @@ pub async fn user_trap_handler() -> ControlFlow<(), ()> {
 }
 
 pub fn init_trap() {
-    set_kernel_trap_entry();
+    trap::set_kernel_trap_entry();
     unsafe {
         sie::set_sext();
         sie::set_stimer();
         sstatus::set_sie();
     }
     riscv_time::set_next_trigger();
-}
-
-fn set_user_trap_entry() {
-    unsafe {
-        stvec::write(extern_symbols::__trap_from_user as *const () as usize, TrapMode::Direct);
-    }
-}
-
-fn set_kernel_trap_entry() {
-    unsafe {
-        stvec::write(
-            extern_symbols::__trap_from_kernel as *const () as usize,
-            TrapMode::Direct,
-        );
-    }
 }
 
 /// Kernel trap handler
@@ -296,7 +278,7 @@ pub fn trap_return(trap_context: NonNull<TrapContext>) {
     unsafe {
         sstatus::clear_sie();
     }
-    set_user_trap_entry();
+    trap::set_user_trap_entry();
 
     unsafe {
         // 对内核来说，调用 __return_to_user 返回内核态就好像一次函数调用

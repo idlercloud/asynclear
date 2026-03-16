@@ -24,7 +24,9 @@ unsafe impl<const ORDER: usize> GlobalAlloc for LockedHeap<ORDER> {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.0.lock().dealloc(unsafe { NonNull::new_unchecked(ptr) }, layout);
+        unsafe {
+            self.0.lock().dealloc(NonNull::new_unchecked(ptr), layout);
+        }
     }
 }
 

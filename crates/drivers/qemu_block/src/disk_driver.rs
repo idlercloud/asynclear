@@ -5,8 +5,8 @@ use virtio_drivers::{device::blk::VirtIOBlk, transport::mmio::MmioTransport};
 
 use super::virtio::{self, HalImpl};
 
-pub struct DiskDriver {
-    device: SpinMutex<VirtIOBlk<HalImpl, MmioTransport>>,
+pub struct DiskDriver<'a> {
+    device: SpinMutex<VirtIOBlk<HalImpl, MmioTransport<'a>>>,
     /// 仅用于读的块缓存
     ///
     /// 这里其实可以考虑实现一个 lru 之类的方式乃至类似于 CMU15445 的 `BufferPoolManager` 的东西
@@ -15,10 +15,10 @@ pub struct DiskDriver {
     caches: RwLock<HashMap<usize, [u8; BLOCK_SIZE]>>,
 }
 
-unsafe impl Send for DiskDriver {}
-unsafe impl Sync for DiskDriver {}
+unsafe impl Send for DiskDriver<'_> {}
+unsafe impl Sync for DiskDriver<'_> {}
 
-impl DiskDriver {
+impl DiskDriver<'_> {
     pub fn init() -> Self {
         Self {
             device: SpinMutex::new(virtio::init()),
@@ -49,7 +49,7 @@ impl DiskDriver {
     // }
 }
 
-impl BlockDevice for DiskDriver {
+impl BlockDevice for DiskDriver<'_> {
     fn read_block(&self, block_id: usize, buf: &mut [u8; BLOCK_SIZE]) {
         self.read_blocks(block_id, buf);
     }
