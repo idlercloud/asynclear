@@ -6,8 +6,8 @@ edition.workspace = true
 
 [features]
 default = ["kernel"]
-kernel = ["dep:klocks"]
-std = []
+kernel = ["hal/kernel", "kernel_tracer/kernel", "klocks/kernel"]
+std = ["hal/std", "kernel_tracer/std", "klocks/std"]
 
 [dependencies]
 bitflags.workspace = true
@@ -16,9 +16,9 @@ ecow.workspace = true
 smallvec.workspace = true
 
 defines = { path = "../../utils/defines" }
-hal = { path = "../../drivers/hal" }
-kernel_tracer = { path = "../../utils/kernel_tracer" }
-klocks = { path = "../../utils/klocks", optional = true }
+hal = { path = "../../drivers/hal", default-features = false }
+kernel_tracer = { path = "../../utils/kernel_tracer", default-features = false }
+klocks = { path = "../../utils/klocks", default-features = false }
 
 [lints]
 workspace = true

@@ -39,7 +39,7 @@ impl<T: ?Sized> SpinMutex<T> {
     #[inline]
     #[track_caller]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, feature = "kernel"))]
         let begin = riscv_time::get_time_ms();
         loop {
             if let Some(guard) = self.try_lock() {
@@ -48,7 +48,7 @@ impl<T: ?Sized> SpinMutex<T> {
 
             while self.is_locked() {
                 core::hint::spin_loop();
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "kernel"))]
                 if riscv_time::get_time_ms() - begin >= 2000 {
                     panic!("deadlock detected");
                 }
@@ -102,6 +102,7 @@ pub struct SpinNoIrqMutex<T: ?Sized> {
 pub struct SpinNoIrqMutexGuard<'a, T: ?Sized> {
     // 要控制一下析构顺序，先释放锁再开中断
     spin_guard: spin::mutex::SpinMutexGuard<'a, T>,
+    #[cfg(feature = "kernel")]
     _no_irq_guard: riscv_guard::NoIrqGuard,
 }
 
@@ -130,7 +131,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     #[inline]
     #[track_caller]
     pub fn lock(&self) -> SpinNoIrqMutexGuard<'_, T> {
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, feature = "kernel"))]
         let begin = riscv_time::get_time_ms();
         loop {
             if let Some(guard) = self.try_lock() {
@@ -139,7 +140,7 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
 
             while self.is_locked() {
                 core::hint::spin_loop();
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "kernel"))]
                 if riscv_time::get_time_ms() - begin >= 2000 {
                     panic!("deadlock detected");
                 }
@@ -163,9 +164,11 @@ impl<T: ?Sized> SpinNoIrqMutex<T> {
     /// Try to lock this [`SpinMutex`], returning a lock guard if successful.
     #[inline(always)]
     fn try_lock(&self) -> Option<SpinNoIrqMutexGuard<'_, T>> {
+        #[cfg(feature = "kernel")]
         let _no_irq_guard = riscv_guard::NoIrqGuard::new();
         self.base.try_lock().map(|spin_guard| SpinNoIrqMutexGuard {
             spin_guard,
+            #[cfg(feature = "kernel")]
             _no_irq_guard,
         })
     }

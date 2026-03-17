@@ -4,8 +4,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+[features]
+default = ["kernel"]
+kernel = ["klocks/kernel"]
+std = ["klocks/std"]
+
 [dependencies]
-klocks = { path = "../../utils/klocks" }
+klocks = { path = "../../utils/klocks", default-features = false }
 
 [lints]
 workspace = true

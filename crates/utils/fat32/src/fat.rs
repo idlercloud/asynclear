@@ -3,8 +3,9 @@ use core::ops::Range;
 
 use defines::error::KResult;
 use hal::block_device::BlockDevice;
+use klocks::{RwLock, SpinMutex};
 
-use crate::{lock, BiosParameterBlock, SECTOR_SIZE};
+use crate::{BiosParameterBlock, SECTOR_SIZE};
 
 const FAT_ENTRY_MASK: u32 = 0x0fff_ffff;
 const RESERVED_FAT_ENTRY_COUNT: u32 = 2;
@@ -19,8 +20,8 @@ pub struct FileAllocTable {
     /// 注意第 0 簇和第 1 簇不对应数据区中的簇，
     /// 所以真正的总簇数应该是这个字段加 2
     data_clusters_count: u32,
-    alloc_meta: lock::SpinMutex<FatAllocMeta>,
-    fat_entries: lock::RwLock<Vec<u32>>,
+    alloc_meta: SpinMutex<FatAllocMeta>,
+    fat_entries: RwLock<Vec<u32>>,
     block_device: &'static dyn BlockDevice,
 }
 
@@ -62,8 +63,8 @@ impl FileAllocTable {
             data_start_sector_id,
             sector_per_cluster: bpb.sector_per_cluster,
             data_clusters_count,
-            alloc_meta: lock::SpinMutex::new(alloc_meta),
-            fat_entries: lock::RwLock::new(fat_entries),
+            alloc_meta: SpinMutex::new(alloc_meta),
+            fat_entries: RwLock::new(fat_entries),
             block_device,
         };
         ret.maintain_alloc_meta();
@@ -72,7 +73,7 @@ impl FileAllocTable {
     }
 
     fn maintain_alloc_meta(&self) {
-        let mut meta = lock::lock_spin(&self.alloc_meta);
+        let mut meta = self.alloc_meta.lock();
         let total_cluster_count = self.data_clusters_count + RESERVED_FAT_ENTRY_COUNT;
         if meta.free_count > self.data_clusters_count
             || (meta.next_free != INVALID_ALLOC_META
@@ -89,7 +90,7 @@ impl FileAllocTable {
         if meta.free_count == INVALID_ALLOC_META || meta.next_free == INVALID_ALLOC_META {
             meta.next_free = INVALID_ALLOC_META;
             meta.free_count = 0;
-            let entries = lock::read_rw(&self.fat_entries);
+            let entries = self.fat_entries.read();
             for (cluster_id, entry) in entries.iter().enumerate().skip(RESERVED_FAT_ENTRY_COUNT as usize) {
                 let entry = entry & FAT_ENTRY_MASK;
                 if entry == 0 {
@@ -106,7 +107,7 @@ impl FileAllocTable {
 
     /// `prev_cluster` 不为 `None` 时，将新分配的簇链接到 `prev_cluster` 的后面。
     pub fn alloc_cluster(&self, prev_cluster: Option<u32>) -> Option<u32> {
-        let mut meta = lock::lock_spin(&self.alloc_meta);
+        let mut meta = self.alloc_meta.lock();
 
         let total_cluster_count = self.data_clusters_count + RESERVED_FAT_ENTRY_COUNT;
         let start_cluster_id = if (RESERVED_FAT_ENTRY_COUNT..total_cluster_count).contains(&meta.next_free) {
@@ -115,7 +116,7 @@ impl FileAllocTable {
             RESERVED_FAT_ENTRY_COUNT
         };
 
-        let mut entries = lock::write_rw(&self.fat_entries);
+        let mut entries = self.fat_entries.write();
 
         let find_free_cluster = |start_cluster_id: u32, end_cluster_id: u32| {
             let mut cluster_id = start_cluster_id;
@@ -157,7 +158,7 @@ impl FileAllocTable {
         if clusters.is_empty() {
             return;
         }
-        let mut entries = lock::write_rw(&self.fat_entries);
+        let mut entries = self.fat_entries.write();
         if let Some(prev_cluster) = prev_cluster {
             assert_eq!(entries[prev_cluster as usize], clusters[0]);
             entries[prev_cluster as usize] = END_OF_CHAIN;
@@ -165,7 +166,7 @@ impl FileAllocTable {
         for &cluster in clusters {
             entries[cluster as usize] = 0;
         }
-        lock::lock_spin(&self.alloc_meta).free_count += clusters.len() as u32;
+        self.alloc_meta.lock().free_count += clusters.len() as u32;
     }
 
     pub fn cluster_chain(&self, first_cluster_id: u32) -> impl Iterator<Item = u32> + '_ {
@@ -175,7 +176,7 @@ impl FileAllocTable {
                 if first_cluster_id < 2 {
                     return;
                 }
-                let entries = lock::read_rw(&self.fat_entries);
+                let entries = self.fat_entries.read();
                 let mut curr_cluster_id = first_cluster_id;
                 while curr_cluster_id < 0x0fff_fff8 {
                     yield curr_cluster_id;

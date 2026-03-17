@@ -33,7 +33,7 @@ ktest $KERNEL_CLOG="NONE" $KERNEL_FLOG="NONE" $KERNEL_SLOG="NONE":
     cargo ktest
 
 cargo_test:
-    cargo test --package fat32 --no-default-features --features std
+    cargo test -p fat32 --no-default-features --features std
 
 gdb:
     riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'

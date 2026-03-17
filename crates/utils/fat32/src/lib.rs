@@ -18,7 +18,7 @@ extern crate alloc;
 extern crate kernel_tracer;
 
 #[cfg(all(feature = "std", feature = "kernel"))]
-compile_error!("Feature `std` 与 `kernel` 互斥，只能开启");
+compile_error!("Feature `std` 与 `kernel` 互斥，只能开启其中之一");
 
 mod bpb;
 mod dir_entry;
@@ -30,37 +30,3 @@ pub use fat::FileAllocTable;
 
 pub const SECTOR_SIZE: usize = 512;
 pub const BOOT_SECTOR_ID: usize = 0;
-
-#[cfg(feature = "std")]
-mod lock {
-    pub use std::sync::{Mutex as SpinMutex, RwLock};
-
-    pub fn lock_spin<T>(lock: &SpinMutex<T>) -> std::sync::MutexGuard<'_, T> {
-        lock.lock().unwrap()
-    }
-
-    pub fn read_rw<T>(lock: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
-        lock.read().unwrap()
-    }
-
-    pub fn write_rw<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
-        lock.write().unwrap()
-    }
-}
-
-#[cfg(feature = "kernel")]
-mod lock {
-    pub use klocks::{RwLock, SpinMutex};
-
-    pub fn lock_spin<T>(lock: &SpinMutex<T>) -> klocks::SpinMutexGuard<'_, T> {
-        lock.lock()
-    }
-
-    pub fn read_rw<T>(lock: &RwLock<T>) -> klocks::RwLockReadGuard<'_, T> {
-        lock.read()
-    }
-
-    pub fn write_rw<T>(lock: &RwLock<T>) -> klocks::RwLockWriteGuard<'_, T> {
-        lock.write()
-    }
-}

@@ -1,4 +1,7 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(all(feature = "std", feature = "kernel"))]
+compile_error!("Feature `std` 与 `kernel` 互斥，只能开启其中之一");
 
 pub mod block_device {
     use klocks::Once;
