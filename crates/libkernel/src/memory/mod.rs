@@ -11,7 +11,7 @@ pub use self::{
     address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},
     frame_allocator::{frame_dealloc, ContinuousFrames, Frame},
     memory_space::{
-        flush_tlb, log_kernel_sections,
+        flush_tlb, flush_tlb_range, log_kernel_sections,
         page_table::{PTEFlags, PageTable},
         vm_area::{BackedInode, FramedVmArea},
         MapPermission, MemorySpace, KERNEL_SPACE,

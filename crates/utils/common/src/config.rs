@@ -43,7 +43,6 @@ pub const TICKS_PER_SEC: usize = 100;
 /// I/O 映射的起始地址和长度
 pub const MMIO: &[(usize, usize)] = &[
     (QEMU_UART_ADDR, 0x1000),   // UART
-    (QEMU_VIRTIO0, 0x1000),     // VIRTIO
     (0x0200_0000, 0x10000),     // CLINT
     (QEMU_PLIC_ADDR, 0x400000), // PLIC
 ];

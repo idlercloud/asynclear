@@ -1,5 +1,5 @@
 [package]
-name = "qemu_block"
+name = "virtio_glue"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

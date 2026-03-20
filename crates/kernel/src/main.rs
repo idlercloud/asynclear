@@ -20,6 +20,7 @@ use core::{
 
 use common::config::{HART_START_ADDR, MAX_HART_NUM};
 use console_output::println;
+use fdt::Fdt;
 use libkernel::{extern_symbols, hart, memory, process};
 use riscv::register::sstatus::{self, FS};
 
@@ -29,7 +30,7 @@ arch::global_asm!(include_str!("trap.S"));
 pub static BOOT_HART: AtomicUsize = AtomicUsize::new(usize::MAX);
 
 #[unsafe(no_mangle)]
-pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
+pub extern "C" fn __hart_entry(hart_id: usize, fdt_ptr: usize) -> ! {
     static INIT_FINISHED: AtomicBool = AtomicBool::new(false);
 
     // 主核启动
@@ -43,8 +44,11 @@ pub extern "C" fn __hart_entry(hart_id: usize) -> ! {
             memory::init();
         }
         memory::KERNEL_SPACE.activate();
+        let fdt_ptr = fdt_ptr + common::config::PA_TO_VA;
+        let fdt_ptr = fdt_ptr as *const u8;
+        let fdt = unsafe { Fdt::from_ptr(fdt_ptr).unwrap() };
         // drivers 依赖于 mmio 映射（其实也许可以放在 boot page table 里？）
-        drivers::init();
+        drivers::init(&fdt);
         // log 实现依赖于 uart 和 virtio_block
         crate::tracer::init();
         enable_float();

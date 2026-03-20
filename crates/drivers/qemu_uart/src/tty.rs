@@ -6,7 +6,7 @@ const TTY_BUFFER_LEN: usize = 128;
 
 pub struct Tty {
     pub(crate) queue: Deque<u8, TTY_BUFFER_LEN>,
-    // 这里似乎可以用 futures::AtomicWaker 代替？
+    // TODO: 这里似乎可以用 futures::AtomicWaker 代替？
     pub(crate) waker: Option<Waker>,
 }
 

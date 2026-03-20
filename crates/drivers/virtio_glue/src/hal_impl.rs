@@ -1,20 +1,13 @@
 use core::ptr::NonNull;
 
-use common::config::{PA_TO_VA, QEMU_VIRTIO0};
+use common::config::PA_TO_VA;
 use libkernel::memory::{self, ContinuousFrames, PhysAddr};
-use virtio_drivers::{
-    device::blk::VirtIOBlk,
-    transport::{
-        mmio::{MmioTransport, VirtIOHeader},
-        DeviceType, Transport,
-    },
-    Hal,
-};
+use virtio_drivers::{BufferDirection, Hal};
 
 pub struct HalImpl;
 
 unsafe impl Hal for HalImpl {
-    fn dma_alloc(pages: usize, _direction: virtio_drivers::BufferDirection) -> (virtio_drivers::PhysAddr, NonNull<u8>) {
+    fn dma_alloc(pages: usize, _direction: BufferDirection) -> (virtio_drivers::PhysAddr, NonNull<u8>) {
         let frames = ContinuousFrames::alloc(pages).unwrap();
         // 这些 frames 交由库管理了，要阻止它调用 drop
         let pa_start = frames.start_ppn().page_start();
@@ -37,25 +30,12 @@ unsafe impl Hal for HalImpl {
     }
 
     // 不知道 share 和 unshare 干嘛的，先这么实现着
-    unsafe fn share(buffer: NonNull<[u8]>, _direction: virtio_drivers::BufferDirection) -> virtio_drivers::PhysAddr {
+    unsafe fn share(buffer: NonNull<[u8]>, _direction: BufferDirection) -> virtio_drivers::PhysAddr {
         let vaddr = buffer.as_ptr() as *const u8 as usize;
         assert!(vaddr >= PA_TO_VA);
         (vaddr - PA_TO_VA) as u64
     }
 
     // 在我们的场景中似乎不需要？
-    unsafe fn unshare(
-        _paddr: virtio_drivers::PhysAddr,
-        _buffer: NonNull<[u8]>,
-        _direction: virtio_drivers::BufferDirection,
-    ) {
-    }
-}
-
-pub fn init<'a>() -> VirtIOBlk<HalImpl, MmioTransport<'a>> {
-    let header = NonNull::new((QEMU_VIRTIO0 + PA_TO_VA) as *mut VirtIOHeader).unwrap();
-    // TODO: MmioTransport::new 的第二个参数 mmio_size 不知道是多少。之后改为从 ftb 中读取
-    let transport = unsafe { MmioTransport::new(header, 0x200).unwrap() };
-    assert!(transport.device_type() == DeviceType::Block);
-    VirtIOBlk::new(transport).unwrap()
+    unsafe fn unshare(_paddr: virtio_drivers::PhysAddr, _buffer: NonNull<[u8]>, _direction: BufferDirection) {}
 }

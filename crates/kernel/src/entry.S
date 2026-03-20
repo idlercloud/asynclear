@@ -2,6 +2,7 @@
     .globl _start
 _start:
     // a0 = hart id(0,1,2,...)
+    // a1 = fdt address
     // pc = 0x80200000（应该是由 qemu 决定的？）
 
     // 设置每个 hart 的 sp

@@ -384,7 +384,7 @@ impl MemorySpace {
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 
-    unsafe fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+    pub unsafe fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
         let start_vpn = start_va.vpn_floor();
         let end_vpn = end_va.vpn_ceil();
         for vpn in start_vpn..end_vpn {
@@ -476,6 +476,19 @@ pub fn flush_tlb(vaddr: Option<VirtAddr>) {
         riscv::asm::sfence_vma(0, vaddr.0);
     } else {
         riscv::asm::sfence_vma_all();
+    }
+}
+
+/// 范围刷新 tlb
+pub fn flush_tlb_range(start: VirtAddr, size: usize) {
+    if size == 0 {
+        return;
+    }
+
+    let start_vpn = start.vpn_floor();
+    let end_vpn = (start + size).vpn_ceil();
+    for vpn in start_vpn..end_vpn {
+        riscv::asm::sfence_vma(0, vpn.page_start().0);
     }
 }
 
