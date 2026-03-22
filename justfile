@@ -37,6 +37,3 @@ cargo_test:
 
 gdb:
     riscv64-unknown-elf-gdb -ex 'file target/riscv64imac-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'
-
-print_home_folder:
-    echo "HOME is: '${HOME}'"

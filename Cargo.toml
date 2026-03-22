@@ -32,6 +32,7 @@ spin = { version = "0.10", default-features = false, features = ["lazy", "spin_m
 tap = "1.0"
 triomphe = { version = "0.1", default-features = false, features = ["unsize"] }
 unsize = "1"
+virtio-drivers = "0.13"
 
 [profile.dev]
 opt-level = 1

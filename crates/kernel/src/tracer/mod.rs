@@ -4,7 +4,11 @@ extern crate alloc;
 #[cfg(feature = "profiling")]
 mod profiling;
 
-use core::{fmt::Write, num::NonZeroU32};
+use core::{
+    fmt::Write,
+    num::NonZeroU32,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use anstyle::{AnsiColor, Reset};
 use console_output::{eprint, eprintln, STDOUT};
@@ -19,6 +23,7 @@ use {alloc::vec::Vec, profiling::ProfilingEvent};
 
 static KERNEL_TRACER_IMPL: Lazy<KernelTracerImpl> = Lazy::new(|| KernelTracerImpl {
     slab: SpinNoIrqMutex::new(Slab::with_capacity(64)),
+    file_log_error_reported: AtomicBool::new(false),
     #[cfg(feature = "profiling")]
     events: SpinNoIrqMutex::new(Vec::with_capacity(128)),
 });
@@ -45,17 +50,28 @@ pub unsafe fn print_span_stack() {
 
 struct KernelTracerImpl {
     pub slab: SpinNoIrqMutex<Slab<SpanAttr>>,
+    file_log_error_reported: AtomicBool,
     #[cfg(feature = "profiling")]
     pub events: SpinNoIrqMutex<Vec<ProfilingEvent>>,
 }
 
 impl Tracer for KernelTracerImpl {
     fn log_to_console(&self, record: &Record<'_>) {
-        self.write_log(&mut *STDOUT.lock(), record);
+        self.write_log(&mut *STDOUT.lock(), record, LogStyle::Color).unwrap();
     }
 
-    fn log_to_file(&self, _record: &Record<'_>) {
-        // self.write_log(&mut *LOG_FS.lock(), record);
+    fn log_to_file(&self, record: &Record<'_>) {
+        let Some(console) = crate::drivers::file_log_console() else {
+            return;
+        };
+
+        if console
+            .write_with(|writer| self.write_log(writer, record, LogStyle::Plain))
+            .is_err()
+            && !self.file_log_error_reported.swap(true, Ordering::AcqRel)
+        {
+            eprintln!("failed to write kernel log to virtio log file, disabling file log");
+        }
     }
 
     fn new_span(&self, span_attr: SpanAttr) -> SpanId {
@@ -100,30 +116,21 @@ const fn span_id_to_slab_index(span_id: &SpanId) -> usize {
 }
 
 impl KernelTracerImpl {
-    fn write_log(&self, mut writer: impl Write, record: &Record<'_>) {
-        #[extend::ext]
-        impl Level {
-            fn output_color(self) -> AnsiColor {
-                match self {
-                    Level::Error => AnsiColor::Red,
-                    Level::Warn => AnsiColor::BrightYellow,
-                    Level::Info => AnsiColor::Blue,
-                    Level::Debug => AnsiColor::Green,
-                    Level::Trace => AnsiColor::BrightBlack,
-                }
-            }
-        }
+    fn write_log(&self, mut writer: impl Write, record: &Record<'_>, style: LogStyle) -> core::fmt::Result {
         // 开头部分，即日志级别，如 `[ INFO]`
-        let log_color = record.level().output_color();
-        write!(
-            writer,
-            "{}[{:>5}]{}",
-            log_color.render_fg(),
-            record.level(),
-            Reset.render()
-        )
-        .unwrap();
-
+        match style {
+            LogStyle::Color => {
+                let log_color = output_color(record.level());
+                write!(
+                    writer,
+                    "{}[{:>5}]{}",
+                    log_color.render_fg(),
+                    record.level(),
+                    Reset.render()
+                )?;
+            }
+            LogStyle::Plain => write!(writer, "[{:>5}]", record.level())?,
+        }
         // Span 栈部分
         let mut has_span = false;
         {
@@ -133,22 +140,43 @@ impl KernelTracerImpl {
             for id in stack.iter() {
                 let id = span_id_to_slab_index(id);
                 let span_attr = slab.get(id).unwrap();
-                let span_style = span_attr.level().output_color().on_default().bold();
                 has_span = true;
 
-                write!(writer, "-{}{}{}", span_style.render(), span_attr.name(), Reset.render()).unwrap();
+                match style {
+                    LogStyle::Color => {
+                        let span_style = output_color(span_attr.level()).on_default().bold();
+                        write!(writer, "-{}{}{}", span_style.render(), span_attr.name(), Reset.render())?;
+                    }
+                    LogStyle::Plain => write!(writer, "-{}", span_attr.name())?,
+                }
                 if let Some(kvs) = span_attr.kvs() {
-                    write!(writer, "{{{kvs}}}").unwrap();
+                    write!(writer, "{{{kvs}}}")?;
                 }
             }
         }
         if has_span {
-            write!(writer, ": ").unwrap();
+            write!(writer, ": ")?;
         } else {
-            write!(writer, " ").unwrap();
+            write!(writer, " ")?;
         }
 
         // 日志信息部分
-        writeln!(writer, "{}", record.args()).unwrap();
+        writeln!(writer, "{}", record.args())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LogStyle {
+    Color,
+    Plain,
+}
+
+fn output_color(level: Level) -> AnsiColor {
+    match level {
+        Level::Error => AnsiColor::Red,
+        Level::Warn => AnsiColor::BrightYellow,
+        Level::Info => AnsiColor::Blue,
+        Level::Debug => AnsiColor::Green,
+        Level::Trace => AnsiColor::BrightBlack,
     }
 }

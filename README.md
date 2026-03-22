@@ -186,6 +186,9 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 
 按优先级排列：
 
+- [ ] 用户指针检查改为 copy_to/from_user 的形式
+- [ ] 改造虚拟文件系统；或许可以看看 try_as_dyn
+- [ ] 基于 frame pointer 的栈回溯以及离线解析符号表
 - [ ] 读取设备树，去除硬件的硬编码
 - [ ] 通过 qemu -append 参数传入内核参数来启动内核测试，并使用 sifive test 设备返回结果；将测试逻辑更多移入到用户程序中
 - [ ] 通过 virtio serial 将日志写入文件

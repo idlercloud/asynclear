@@ -384,6 +384,11 @@ impl MemorySpace {
         self.user_areas.insert(map_area.vpn_range().start, map_area);
     }
 
+    /// 在内核中线性映射
+    ///
+    /// # Safety
+    ///
+    /// 需要保证该虚拟地址区域未被映射
     pub unsafe fn kernel_map(&mut self, start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
         let start_vpn = start_va.vpn_floor();
         let end_vpn = end_va.vpn_ceil();

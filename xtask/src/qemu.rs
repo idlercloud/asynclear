@@ -1,3 +1,8 @@
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
+
 use clap::Parser;
 use const_format::formatcp;
 
@@ -23,6 +28,9 @@ pub struct QemuArgs {
     /// 如果开启，QEMU 会阻塞并等待 GDB 连接
     #[clap(long)]
     debug: bool,
+    /// 将内核文件日志输出到宿主机文件
+    #[clap(long)]
+    virtio_log_file: Option<PathBuf>,
 }
 
 impl QemuArgs {
@@ -36,8 +44,16 @@ impl QemuArgs {
 
         println!("Running qemu...");
 
-        Self::base_qemu()
-            .args(["-smp", &self.smp.to_string()])
+        let mut cmd = Self::base_qemu();
+        let virtio_log_file = self
+            .virtio_log_file
+            .or_else(|| kernel_file_log_enabled().then(|| PathBuf::from(DEFAULT_VIRTIO_LOG_PATH)));
+        if let Some(path) = virtio_log_file.as_deref() {
+            add_virtio_log_file(&mut cmd, path);
+            println!("VirtIO log file: {}", path.display());
+        }
+
+        cmd.args(["-smp", &self.smp.to_string()])
             .optional_args(self.debug.then_some(["-s", "-S"]))
             .invoke();
     }
@@ -50,4 +66,23 @@ impl QemuArgs {
             .args(["-device", "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0"]);
         cmd
     }
+}
+
+const DEFAULT_VIRTIO_LOG_PATH: &str = "logs/kernel.log";
+
+fn kernel_file_log_enabled() -> bool {
+    matches!(
+        env::var("KERNEL_FLOG").ok().as_deref(),
+        Some("TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR")
+    )
+}
+
+fn add_virtio_log_file(cmd: &mut Cmd, path: &Path) {
+    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        fs::create_dir_all(parent).unwrap();
+    }
+
+    cmd.args(["-chardev", &format!("file,id=kernel_log,path={}", path.display())])
+        .args(["-device", "virtio-serial-device,id=logserial,bus=virtio-mmio-bus.1"])
+        .args(["-device", "virtconsole,bus=logserial.0,chardev=kernel_log"]);
 }

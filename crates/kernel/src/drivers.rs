@@ -7,13 +7,13 @@ use klocks::{Lazy, Once};
 use libkernel::memory::{self, MapPermission, VirtAddr, KERNEL_SPACE};
 use qemu_plic::Plic;
 use virtio_drivers::{
-    device::blk::VirtIOBlk,
+    device::{blk::VirtIOBlk, console::VirtIOConsole},
     transport::{
         mmio::{MmioError, MmioTransport},
         DeviceType, DeviceTypeError, Transport,
     },
 };
-use virtio_glue::{DiskDriver, HalImpl};
+use virtio_glue::{ConsoleDriver, DiskDriver, HalImpl};
 
 pub enum InterruptSource {
     VirtIO = 1,
@@ -53,6 +53,12 @@ pub fn init(fdt: &Fdt<'_>) {
 
 static BLOCK_DEVICE: Once<DiskDriver<HalImpl, MmioTransport<'static>>> = Once::new();
 
+static FILE_LOG_CONSOLE: Once<ConsoleDriver<HalImpl, MmioTransport<'static>>> = Once::new();
+
+pub fn file_log_console() -> Option<&'static ConsoleDriver<HalImpl, MmioTransport<'static>>> {
+    FILE_LOG_CONSOLE.get()
+}
+
 fn try_probe_virtio(node: FdtNode<'_, '_>) {
     if !node.compatible().is_some_and(|c| c.all().any(|s| s == "virtio,mmio")) {
         return;
@@ -87,6 +93,7 @@ fn try_probe_virtio(node: FdtNode<'_, '_>) {
             );
             match device_type {
                 DeviceType::Block => probe_virtio_blk(transport),
+                DeviceType::Console => probe_virtio_console(transport),
                 _ => {}
             }
         }
@@ -100,4 +107,10 @@ fn probe_virtio_blk(transport: MmioTransport<'static>) {
     let blk = VirtIOBlk::<HalImpl, MmioTransport<'static>>::new(transport).expect("failed to create blk driver");
     let block_device = DiskDriver::new(blk);
     BLOCK_DEVICE.call_once(|| block_device);
+}
+
+fn probe_virtio_console(transport: MmioTransport<'static>) {
+    let console =
+        VirtIOConsole::<HalImpl, MmioTransport<'static>>::new(transport).expect("failed to create console driver");
+    FILE_LOG_CONSOLE.call_once(|| ConsoleDriver::new(console));
 }

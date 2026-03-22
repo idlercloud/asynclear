@@ -13,15 +13,6 @@ pub struct BuildArgs {
     /// 是否开启 profiling
     #[clap(long)]
     profiling: bool,
-    /// 控制台日志级别
-    #[clap(long, default_value_t = String::from("INFO"))]
-    clog: String,
-    /// 文件日志级别
-    #[clap(long, default_value_t = String::from("NONE"))]
-    flog: String,
-    /// `span` 过滤器级别
-    #[clap(long, default_value_t = String::from("DEBUG"))]
-    slog: String,
 }
 
 impl BuildArgs {

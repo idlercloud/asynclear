@@ -15,6 +15,7 @@ riscv = { workspace = true, features = ["s-mode"] }
 sbi-rt.workspace = true
 smallvec.workspace = true
 triomphe.workspace = true
+virtio-drivers.workspace = true
 
 common = { path = "../utils/common" }
 console_output = { path = "../utils/console_output" }
@@ -37,7 +38,6 @@ fat32_vfs = { path = "../fs/fat32_vfs" }
 anstyle = { version = "1.0", default-features = false }
 slab = { version = "0.4", default-features = false }
 fdt = { version = "0.1", features = ["pretty-printing"] }
-virtio-drivers = "0.13"
 
 [features]
 default = []

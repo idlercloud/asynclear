@@ -6,13 +6,12 @@ edition.workspace = true
 
 [dependencies]
 hashbrown.workspace = true
+virtio-drivers.workspace = true
 
 hal = { path = "../hal" }
 libkernel = { path = "../../libkernel" }
 common = { path = "../../utils/common" }
 klocks = { path = "../../utils/klocks" }
-
-virtio-drivers = "0.13"
 
 [lints]
 workspace = true

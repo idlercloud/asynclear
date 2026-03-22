@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use core::ptr::NonNull;
 
 use common::config::PA_TO_VA;
@@ -30,12 +31,32 @@ unsafe impl Hal for HalImpl {
     }
 
     // 不知道 share 和 unshare 干嘛的，先这么实现着
-    unsafe fn share(buffer: NonNull<[u8]>, _direction: BufferDirection) -> virtio_drivers::PhysAddr {
-        let vaddr = buffer.as_ptr() as *const u8 as usize;
-        assert!(vaddr >= PA_TO_VA);
-        (vaddr - PA_TO_VA) as u64
+    unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> virtio_drivers::PhysAddr {
+        // TODO: 等实现 copy_from_user 后应该不再需要特殊处理
+        let len = buffer.len();
+        let mut shared = Box::<[u8]>::new_uninit_slice(len);
+        if let BufferDirection::DriverToDevice | BufferDirection::Both = direction {
+            unsafe {
+                shared
+                    .as_mut_ptr()
+                    .cast::<u8>()
+                    .copy_from(buffer.as_ptr().cast::<u8>(), len);
+            }
+        }
+        Box::into_raw(shared).cast::<u8>() as u64 - PA_TO_VA as u64
     }
 
-    // 在我们的场景中似乎不需要？
-    unsafe fn unshare(_paddr: virtio_drivers::PhysAddr, _buffer: NonNull<[u8]>, _direction: BufferDirection) {}
+    unsafe fn unshare(paddr: virtio_drivers::PhysAddr, buffer: NonNull<[u8]>, direction: BufferDirection) {
+        let vaddr = paddr + PA_TO_VA as u64;
+        let len = buffer.len();
+        let shared = unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(vaddr as *mut u8, len)) };
+        if let BufferDirection::DeviceToDriver | BufferDirection::Both = direction {
+            unsafe {
+                buffer
+                    .as_ptr()
+                    .cast::<u8>()
+                    .copy_from(shared.as_ptr().cast::<u8>(), len);
+            }
+        }
+    }
 }
