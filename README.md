@@ -17,7 +17,7 @@
 3. 运行 cargo env
 4. 运行 cargo qemu
 
-可以用 `cargo qemu --clog="INFO" --flog="DEBUG" --slog="DEBUG"` 来具体指定日志级别。
+可以通过环境变量 `KERNEL_CLOG`、`KERNEL_FLOG`、`KERNEL_SLOG` 来具体指定日志级别。
 
 ## 开发指南
 

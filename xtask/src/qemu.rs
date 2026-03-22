@@ -50,7 +50,7 @@ impl QemuArgs {
             .or_else(|| kernel_file_log_enabled().then(|| PathBuf::from(DEFAULT_VIRTIO_LOG_PATH)));
         if let Some(path) = virtio_log_file.as_deref() {
             add_virtio_log_file(&mut cmd, path);
-            println!("VirtIO log file: {}", path.display());
+            println!("log file location: {}", path.display());
         }
 
         cmd.args(["-smp", &self.smp.to_string()])
