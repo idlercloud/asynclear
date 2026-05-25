@@ -32,6 +32,7 @@ unsafe impl Hal for HalImpl {
 
     // 不知道 share 和 unshare 干嘛的，先这么实现着
     unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> virtio_drivers::PhysAddr {
+        // 有可能 buffer 是来自用户地址空间的，比如 log 会走到 log_to_file 最终走到这里
         // TODO: 等实现 copy_from_user 后应该不再需要特殊处理
         let len = buffer.len();
         let mut shared = Box::<[u8]>::new_uninit_slice(len);
