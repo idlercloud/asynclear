@@ -21,7 +21,7 @@ use libkernel::{
         pipe, LastComponentType, VirtFileSystem,
     },
     hart::local_hart,
-    memory::{ReadBuffer, UserCheck, WriteBuffer},
+    memory::{ReadBuffer, UserCheckLegacy, WriteBuffer},
 };
 use smallvec::SmallVec;
 use triomphe::Arc;
@@ -47,7 +47,7 @@ pub fn sys_ioctl(fd: usize, request: usize, argp: usize) -> KResult {
 }
 
 /// 创建目录。`mode` 含义同 [`sys_openat()`]
-pub fn sys_mkdirat(dir_fd: usize, path: UserCheck<u8>, _mode: usize) -> KResult {
+pub fn sys_mkdirat(dir_fd: usize, path: UserCheckLegacy<u8>, _mode: usize) -> KResult {
     // TODO: [low] 暂时未支持 mode
     let path = path.check_cstr()?;
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path)?;
@@ -91,7 +91,7 @@ fn prepare_io<const READ: bool>(fd: usize) -> KResult<FileDescriptor> {
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，若无效则返回 `EINVAL`
-pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
+pub async fn sys_read(fd: usize, buf: UserCheckLegacy<[u8]>) -> KResult {
     if fd == 0 {
         trace!("read stdin, len = {}", buf.len());
     } else {
@@ -111,7 +111,7 @@ pub async fn sys_read(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 /// 参数：
 /// - `fd` 指定的文件描述符，若无效则返回 `EBADF`，若是目录则返回 `EISDIR`
 /// - `buf` 指定用户缓冲区，其中存放需要写入的内容，若无效则返回 `EINVAL`
-pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
+pub async fn sys_write(fd: usize, buf: UserCheckLegacy<[u8]>) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("write stdout/stderr, len = {}", buf.len());
     } else {
@@ -131,7 +131,7 @@ pub async fn sys_write(fd: usize, buf: UserCheck<[u8]>) -> KResult {
 /// - `fd` 指定文件描述符
 /// - `io_vec` 指定 `IoVec` 数组起始位置
 /// - `vec_len` 指定 `IoVec` 数组长度
-pub async fn sys_readv(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) -> KResult {
+pub async fn sys_readv(fd: usize, mut io_vec: UserCheckLegacy<IoVec>, vec_len: usize) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("writev stdout/stderr");
     } else {
@@ -143,7 +143,7 @@ pub async fn sys_readv(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) 
     for _ in 0..vec_len {
         let iov = io_vec.check_ptr()?.read();
         if iov.iov_len != 0 {
-            let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
+            let buf = UserCheckLegacy::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
             let nread = file.read(ReadBuffer::User(buf)).await?;
             if nread == 0 {
                 break;
@@ -163,7 +163,7 @@ pub async fn sys_readv(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) 
 /// - `fd` 指定文件描述符
 /// - `io_vec` 指定 `IoVec` 数组起始位置
 /// - `vec_len` 指定 `IoVec` 数组长度
-pub async fn sys_writev(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize) -> KResult {
+pub async fn sys_writev(fd: usize, mut io_vec: UserCheckLegacy<IoVec>, vec_len: usize) -> KResult {
     if fd == 1 || fd == 2 {
         trace!("writev stdout");
     } else {
@@ -175,7 +175,7 @@ pub async fn sys_writev(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize)
     for _ in 0..vec_len {
         let iov = io_vec.check_ptr()?.read();
         if iov.iov_len != 0 {
-            let buf = UserCheck::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
+            let buf = UserCheckLegacy::new_slice(iov.iov_base, iov.iov_len).ok_or(errno::EINVAL)?;
             let nwrite = file.write(WriteBuffer::User(buf)).await?;
             total_write += nwrite;
         }
@@ -196,7 +196,7 @@ pub async fn sys_writev(fd: usize, mut io_vec: UserCheck<IoVec>, vec_len: usize)
 ///     - 状态标志影响后续的 I/O 方式，而且可以动态修改
 /// - `mode` 是用于指定创建新文件时，该文件的 mode。目前应该不会用到
 ///     - 它只会影响未来访问该文件的模式，但这一次打开该文件可以是随意的
-pub fn sys_openat(dir_fd: usize, path: UserCheck<u8>, flags: u32, mut _mode: u32) -> KResult {
+pub fn sys_openat(dir_fd: usize, path: UserCheckLegacy<u8>, flags: u32, mut _mode: u32) -> KResult {
     let path = path.check_cstr()?;
 
     let Some(flags) = OpenFlags::from_bits(flags) else {
@@ -289,7 +289,7 @@ pub fn sys_close(fd: usize) -> KResult {
 /// 参数
 /// - `filedes`: 用于保存 2 个文件描述符。其中，`filedes[0]` 为管道的读出端，`filedes[1]` 为管道的写入端。
 /// - `flags`: 同 [`sys_openat()`] 的 [`OpenFlags`]，只有某些位有用
-pub fn sys_pipe2(pipe_fd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
+pub fn sys_pipe2(pipe_fd: UserCheckLegacy<[i32; 2]>, flags: u32) -> KResult {
     let pipe_fd = unsafe { pipe_fd.check_ptr_mut()? };
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
@@ -308,7 +308,7 @@ pub fn sys_pipe2(pipe_fd: UserCheck<[i32; 2]>, flags: u32) -> KResult {
 }
 
 /// 获取目录项信息
-pub fn sys_getdents64(fd: usize, buf: UserCheck<[u8]>) -> KResult {
+pub fn sys_getdents64(fd: usize, buf: UserCheckLegacy<[u8]>) -> KResult {
     let process = local_hart().curr_process();
     let Some(File::Dir(dir)) = process.lock_inner_with(|inner| inner.fd_table.get(fd).map(Deref::deref).cloned())
     else {
@@ -442,7 +442,12 @@ pub fn sys_dup3(old_fd: usize, new_fd: usize, flags: u32) -> KResult {
 /// - `path` 相对路径或绝对路径
 /// - `stat_buf` 文件信息写入的目的地
 /// - `flags` fstat 的一些 flags
-pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, stat_buf: UserCheck<Stat>, flags: usize) -> KResult {
+pub fn sys_newfstatat(
+    dir_fd: usize,
+    path: UserCheckLegacy<u8>,
+    stat_buf: UserCheckLegacy<Stat>,
+    flags: usize,
+) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
     let path = path.check_cstr()?;
     if dir_fd == AT_FDCWD {
@@ -469,7 +474,7 @@ pub fn sys_newfstatat(dir_fd: usize, path: UserCheck<u8>, stat_buf: UserCheck<St
     Ok(0)
 }
 
-pub fn sys_newfstat(fd: usize, stat_buf: UserCheck<Stat>) -> KResult {
+pub fn sys_newfstat(fd: usize, stat_buf: UserCheckLegacy<Stat>) -> KResult {
     let process = local_hart().curr_process();
     let stat = process.lock_inner_with(|inner| {
         let file = inner.fd_table.get(fd).ok_or(errno::EBADF)?;
@@ -487,7 +492,7 @@ pub fn sys_newfstat(fd: usize, stat_buf: UserCheck<Stat>) -> KResult {
 /// - `dir_fd` 要删除的链接所在的目录
 /// - `path` 要删除的链接的名字
 /// - `flags` 可设置为 0 或 `AT_REMOVEDIR`
-pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
+pub fn sys_unlinkat(dir_fd: usize, path: UserCheckLegacy<u8>, flags: u32) -> KResult {
     let path = path.check_cstr()?;
     let Some(flags) = FstatFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
@@ -538,9 +543,9 @@ pub fn sys_unlinkat(dir_fd: usize, path: UserCheck<u8>, flags: u32) -> KResult {
 #[allow(unused)]
 pub fn sys_linkat(
     old_dir_fd: usize,
-    old_path: UserCheck<u8>,
+    old_path: UserCheckLegacy<u8>,
     new_dir_fd: usize,
-    new_path: UserCheck<u8>,
+    new_path: UserCheckLegacy<u8>,
     flags: u32,
 ) -> KResult {
     // 在 2.6.18 内核之前，应置为 0
@@ -553,7 +558,7 @@ pub fn sys_linkat(
 // TODO: [low] 完善 mount 和 umount
 
 /// 卸载安装在 `target` 上的文件系统
-pub fn sys_umount(target: UserCheck<u8>, flags: u32) -> KResult {
+pub fn sys_umount(target: UserCheckLegacy<u8>, flags: u32) -> KResult {
     let Some(flags) = UnmountFlags::from_bits(flags) else {
         todo!("[low] unsupported MountFlags: {flags:#b}");
     };
@@ -564,11 +569,11 @@ pub fn sys_umount(target: UserCheck<u8>, flags: u32) -> KResult {
 
 /// 将 `source` 指定的文件系统（通常是设备的路径名，但也可以是目录或文件的路径名，或者虚拟字符串）附加到路径名指定的位置（目录或文件）在目标中。
 pub fn sys_mount(
-    source: UserCheck<u8>,
-    target: UserCheck<u8>,
-    fs_type: UserCheck<u8>,
+    source: UserCheckLegacy<u8>,
+    target: UserCheckLegacy<u8>,
+    fs_type: UserCheckLegacy<u8>,
     flags: u32,
-    data: Option<UserCheck<u8>>,
+    data: Option<UserCheckLegacy<u8>>,
 ) -> KResult {
     let source = source.check_cstr()?;
     let target = target.check_cstr()?;
@@ -624,7 +629,7 @@ impl FromStr for FileSystemType {
 }
 
 /// 将调用进程的当前工作目录更改为 `path` 中指定的目录
-pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
+pub fn sys_chdir(path: UserCheckLegacy<u8>) -> KResult {
     let path = path.check_cstr()?;
     let p2i = fs::resolve_path_with_dir_fd(AT_FDCWD, &path)?;
     let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
@@ -639,7 +644,7 @@ pub fn sys_chdir(path: UserCheck<u8>) -> KResult {
 /// 参数：
 /// - `buf` 用于写入路径，以 `\0` 表示字符串结尾
 /// - `size` 如果路径（包括 `\0`）长度大于 `size` 则返回 ERANGE
-pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
+pub fn sys_getcwd(buf: UserCheckLegacy<[u8]>) -> KResult {
     let ret = buf.addr().get();
     let cwd = local_hart()
         .curr_process()
@@ -696,9 +701,9 @@ pub fn sys_getcwd(buf: UserCheck<[u8]>) -> KResult {
 /// - `sig_set_size` 是信号集的大小。似乎没有用
 #[allow(unused)]
 pub fn sys_ppoll(
-    fds: UserCheck<[PollFd]>,
-    timeout: Option<UserCheck<TimeSpec>>,
-    signal_mask: Option<UserCheck<u64>>,
+    fds: UserCheckLegacy<[PollFd]>,
+    timeout: Option<UserCheckLegacy<TimeSpec>>,
+    signal_mask: Option<UserCheckLegacy<u64>>,
     sig_set_size: usize,
 ) -> KResult {
     // TODO: [mid] ppoll 要考虑 `timeout`
@@ -760,7 +765,12 @@ pub fn sys_ppoll(
 ///     - 若不为 None，则将从 `in_fd` 的该偏移量开始读数据，且不会修改起文件偏移量。调用完成后，它将增加读取的字节数
 ///     - 若为 None，则从当前文件偏移量开始读取，并且修改文件偏移量
 /// - `count` 指定复制的字节数
-pub async fn sys_sendfile64(out_fd: usize, in_fd: usize, offset_ptr: Option<UserCheck<u64>>, count: usize) -> KResult {
+pub async fn sys_sendfile64(
+    out_fd: usize,
+    in_fd: usize,
+    offset_ptr: Option<UserCheckLegacy<u64>>,
+    count: usize,
+) -> KResult {
     let source = prepare_io::<true>(in_fd)?;
     let target = prepare_io::<false>(out_fd)?;
 
@@ -788,7 +798,7 @@ pub async fn sys_sendfile64(out_fd: usize, in_fd: usize, offset_ptr: Option<User
 }
 
 /// 获取文件系统统计信息。成功时返回 0
-pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
+pub fn sys_statfs64(path: UserCheckLegacy<u8>, buf: UserCheckLegacy<FsStat>) -> KResult {
     let path = path.check_cstr()?;
     debug!("path {}", &*path);
     let p2i = fs::path_walk(Arc::clone(VirtFileSystem::instance().root_dir()), &path)?;
@@ -817,7 +827,7 @@ pub fn sys_statfs64(path: UserCheck<u8>, buf: UserCheck<FsStat>) -> KResult {
 }
 
 /// 检查用户的权限
-pub fn sys_faccessat(dir_fd: usize, path: UserCheck<u8>, mode: u32) -> KResult {
+pub fn sys_faccessat(dir_fd: usize, path: UserCheckLegacy<u8>, mode: u32) -> KResult {
     // TODO: [low] 未正确实现 `faccessat`。
     let _mode = FaccessatMode::from_bits(mode).ok_or(errno::EINVAL)?;
     let p2i = fs::resolve_path_with_dir_fd(dir_fd, &path.check_cstr()?)?;
@@ -827,8 +837,8 @@ pub fn sys_faccessat(dir_fd: usize, path: UserCheck<u8>, mode: u32) -> KResult {
 
 pub fn sys_utimensat(
     dir_fd: usize,
-    path: UserCheck<u8>,
-    times: Option<UserCheck<[TimeSpec; 2]>>,
+    path: UserCheckLegacy<u8>,
+    times: Option<UserCheckLegacy<[TimeSpec; 2]>>,
     flags: usize,
 ) -> KResult {
     let flags = FstatFlags::from_bits(u32::try_from(flags).map_err(|_e| errno::EINVAL)?).ok_or(errno::EINVAL)?;
@@ -912,9 +922,9 @@ pub fn sys_utimensat(
 /// - `EISDIR`：旧路径为文件，新路径为目录
 pub fn sys_renameat2(
     old_dir_fd: usize,
-    old_path: UserCheck<u8>,
+    old_path: UserCheckLegacy<u8>,
     new_dir_fd: usize,
-    new_path: UserCheck<u8>,
+    new_path: UserCheckLegacy<u8>,
     flags: u32,
 ) -> KResult {
     let flags = Renameat2Flags::from_bits(flags).ok_or(errno::EINVAL)?;

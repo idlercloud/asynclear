@@ -6,14 +6,14 @@ use defines::{
     misc::{TimeSpec, TimeVal, Tms},
 };
 use executor::time;
-use libkernel::memory::UserCheck;
+use libkernel::memory::UserCheckLegacy;
 
 /// 获取自 Epoch 以来所过的时间（不过目前实现中似乎是自开机或复位以来时间）
 ///
 /// 参数：
 /// - `ts` 要设置的时间值
 /// - `tz` 时区结构，但目前已经过时，不考虑
-pub fn sys_get_time_of_day(tv: UserCheck<TimeVal>, _tz: usize) -> KResult {
+pub fn sys_get_time_of_day(tv: UserCheckLegacy<TimeVal>, _tz: usize) -> KResult {
     // 根据 man 所言，时区参数 `tz` 已经过时了，通常应当是 `NULL`。
     assert_eq!(_tz, 0);
     let tv = unsafe { tv.check_ptr_mut()? };
@@ -35,7 +35,7 @@ const CLOCK_REALTIME: usize = 0;
 /// 参数：
 /// - `clock_id` 时钟 id，目前仅为 `CLOCK_READTIME`
 /// - `tp` 指向要设置的用户指针
-pub fn sys_clock_gettime(_clock_id: usize, ts: UserCheck<TimeSpec>) -> KResult {
+pub fn sys_clock_gettime(_clock_id: usize, ts: UserCheckLegacy<TimeSpec>) -> KResult {
     // TODO: 目前只考虑挂钟时间
     assert_eq!(_clock_id, CLOCK_REALTIME);
     let ts = unsafe { ts.check_ptr_mut()? };
@@ -55,7 +55,7 @@ pub fn sys_clock_gettime(_clock_id: usize, ts: UserCheck<TimeSpec>) -> KResult {
 ///
 /// 错误：
 /// - `EFAULT` `tms` 指向非法地址
-pub fn sys_times(tms: UserCheck<Tms>) -> KResult {
+pub fn sys_times(tms: UserCheckLegacy<Tms>) -> KResult {
     let ticks = riscv::register::time::read();
     let tms = unsafe { tms.check_ptr_mut()? };
     tms.write(Tms {
@@ -68,7 +68,7 @@ pub fn sys_times(tms: UserCheck<Tms>) -> KResult {
 }
 
 /// 挂起调用线程的执行，直到至少经过 `req` 中指定的时间。成功后返回 0
-pub async fn sys_nanosleep(req: UserCheck<TimeSpec>) -> KResult {
+pub async fn sys_nanosleep(req: UserCheckLegacy<TimeSpec>) -> KResult {
     let req = req.check_ptr()?.read();
     let req = Duration::try_from(req)?;
     time::sleep(req).await;

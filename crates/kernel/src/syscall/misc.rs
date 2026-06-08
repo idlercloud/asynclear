@@ -3,17 +3,17 @@ use defines::{
     misc::{SysInfo, UtsName},
 };
 use executor::time;
-use libkernel::memory::UserCheck;
+use libkernel::memory::UserCheckLegacy;
 
 /// 返回系统信息，返回值为 0
-pub fn sys_uname(utsname: UserCheck<UtsName>) -> KResult {
+pub fn sys_uname(utsname: UserCheckLegacy<UtsName>) -> KResult {
     let utsname = unsafe { utsname.check_ptr_mut()? };
     utsname.write(UtsName::default());
     Ok(0)
 }
 
 /// 读取与清除内核消息环形缓冲区
-pub fn sys_syslog(log_type: u32, buf: UserCheck<[u8]>) -> KResult {
+pub fn sys_syslog(log_type: u32, buf: UserCheckLegacy<[u8]>) -> KResult {
     unsafe {
         buf.check_slice_mut()?;
     }
@@ -38,7 +38,7 @@ pub fn sys_syslog(log_type: u32, buf: UserCheck<[u8]>) -> KResult {
 }
 
 /// 返回系统信息
-pub fn sys_sysinfo(info: UserCheck<SysInfo>) -> KResult {
+pub fn sys_sysinfo(info: UserCheckLegacy<SysInfo>) -> KResult {
     let info = unsafe { info.check_ptr_mut()? };
     let sysinfo = SysInfo {
         uptime: time::curr_time().as_secs() as i64,

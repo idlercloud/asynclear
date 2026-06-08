@@ -11,6 +11,7 @@
 #![feature(iter_intersperse)]
 #![feature(debug_closure_helpers)]
 #![feature(negative_impls)]
+#![feature(maybe_uninit_as_bytes)]
 
 #[macro_use]
 extern crate kernel_tracer;

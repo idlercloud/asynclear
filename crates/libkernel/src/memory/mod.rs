@@ -3,7 +3,8 @@ mod frame_allocator;
 mod kernel_heap;
 mod memory_space;
 mod page;
-mod user_check;
+mod user_check_legacyy;
+mod user_ptr;
 
 use common::config::{PAGE_SIZE, PA_TO_VA};
 
@@ -17,7 +18,8 @@ pub use self::{
         MapPermission, MemorySpace, KERNEL_SPACE,
     },
     page::Page,
-    user_check::{ReadBuffer, UserCheck, WriteBuffer},
+    user_check_legacyy::{ReadBuffer, UserCheckLegacy, WriteBuffer},
+    user_ptr::UserPtr,
 };
 
 #[inline]

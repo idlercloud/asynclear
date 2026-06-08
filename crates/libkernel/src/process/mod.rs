@@ -137,7 +137,7 @@ impl Process {
             assert_eq!(inner.threads.len(), 1);
             let parent_main_thread = inner.main_thread();
             let signal_mask = parent_main_thread.lock_inner_with(|inner| inner.signal_mask);
-            let mut trap_context = unsafe { parent_main_thread.get_owned().as_mut().trap_context.clone() };
+            let mut trap_context = unsafe { parent_main_thread.get_owned().as_mut().trap_context };
             if let Some(stack) = stack {
                 *trap_context.sp_mut() = stack.get();
             }

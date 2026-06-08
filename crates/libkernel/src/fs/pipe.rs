@@ -6,7 +6,7 @@ use triomphe::Arc;
 use super::inode::InodeMeta;
 use crate::{
     fs::inode::InodeMode,
-    memory::{ReadBuffer, UserCheck, WriteBuffer},
+    memory::{ReadBuffer, UserCheckLegacy, WriteBuffer},
 };
 
 // TODO: [low] pipe 的实现可以优化

@@ -60,4 +60,4 @@ pub const HART_START_ADDR: usize = 0x8020_0000;
 pub const TASK_LIMIT: usize = 256;
 
 /// 用户路径名最大长度
-pub const MAX_PATHNAME_LEN: usize = 4 * PAGE_SIZE;
+pub const MAX_PATH_LEN: usize = PAGE_SIZE;

@@ -4,7 +4,7 @@ use defines::{
 };
 use libkernel::{
     hart::local_hart,
-    memory::UserCheck,
+    memory::UserCheckLegacy,
     process::{exit_process, PROCESS_MANAGER},
     signal::{KSignalSet, SigProcMaskHow, Signal, SignalContext},
 };
@@ -21,8 +21,8 @@ use libkernel::{
 /// - `EINVAL` 如果 signum 不是除了 `SIGKILL` 和 `SIGSTOP` 之外的有效信号
 pub fn sys_rt_sigaction(
     signum: usize,
-    new_act: Option<UserCheck<KSignalAction>>,
-    old_act: Option<UserCheck<KSignalAction>>,
+    new_act: Option<UserCheckLegacy<KSignalAction>>,
+    old_act: Option<UserCheckLegacy<KSignalAction>>,
 ) -> KResult {
     let Some(signal) = Signal::from_user(signum as u8) else {
         warn!("use unsupported signal {signum}");
@@ -69,8 +69,8 @@ pub fn sys_rt_sigaction(
 /// - `EINVAL` 如果 `how` 参数非法或者内核不支持 `set_size`
 pub fn sys_rt_sigprocmask(
     how: usize,
-    new_set: Option<UserCheck<u64>>,
-    old_set: Option<UserCheck<u64>>,
+    new_set: Option<UserCheckLegacy<u64>>,
+    old_set: Option<UserCheckLegacy<u64>>,
     set_size: usize,
 ) -> KResult {
     if set_size > SIGSET_SIZE_BYTES {
@@ -103,7 +103,7 @@ pub fn sys_rt_sigprocmask(
 pub fn sys_rt_sigreturn() -> KResult {
     let thread = local_hart().curr_thread();
     let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
-    let Ok(old_ctx) = UserCheck::new(trap_context.sp() as *mut SignalContext)
+    let Ok(old_ctx) = UserCheckLegacy::new(trap_context.sp() as *mut SignalContext)
         .ok_or(errno::EINVAL)?
         .check_ptr()
     else {
@@ -111,6 +111,7 @@ pub fn sys_rt_sigreturn() -> KResult {
         return Err(errno::BREAK);
     };
     let old_ctx = old_ctx.read();
+    // FIXME: 应当严格校验从用户空间读入的 context
 
     thread.lock_inner_with(|inner| inner.signal_mask = old_ctx.old_mask);
     *trap_context = old_ctx.old_trap_context;

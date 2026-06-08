@@ -5,6 +5,8 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+async-lock.workspace = true
+futures.workspace = true
 heapless.workspace = true
 
 common = { path = "../../utils/common" }

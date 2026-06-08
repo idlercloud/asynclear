@@ -9,11 +9,13 @@ use riscv::register::{
 
 use crate::{
     extern_symbols,
-    memory::UserCheck,
+    memory::UserPtr,
     process::exit_process,
     signal::{DefaultHandler, KSignalActionExt, KSignalSet, SignalContext, SIG_DFL, SIG_ERR, SIG_IGN},
     thread::Thread,
 };
+
+// FIXME: 整个信号处理流程还需要梳理下，包括信号上下文的定义、返回过程等
 
 /// 如果进程因为信号被终止了，则返回 true
 pub fn check_signal(thread: &Thread) -> bool {
@@ -69,16 +71,16 @@ pub fn check_signal(thread: &Thread) -> bool {
 
     let mut signal_context = SignalContext {
         old_mask,
-        old_trap_context: trap_context.clone(),
+        old_trap_context: *trap_context,
     };
 
     // 任何信号处理都可以视作一个新的任务，因此需要单独记录浮点数的使用
-    trap_context.user_float_ctx.valid = false;
+    trap_context.user_float_ctx.valid = 0;
     if trap_context.fs() == FS::Dirty {
         debug!("save float ctx");
         // 进入信号处理前需要保存当前线程的浮点数上下文以便信号处理完成后恢复
         signal_context.old_trap_context.user_float_ctx.save();
-        signal_context.old_trap_context.user_float_ctx.valid = true;
+        signal_context.old_trap_context.user_float_ctx.valid = 1;
         trap_context.set_fs(FS::Clean);
     }
 
@@ -86,20 +88,20 @@ pub fn check_signal(thread: &Thread) -> bool {
     *trap_context.sp_mut() = trap_context.sp() - core::mem::size_of::<SignalContext>();
     *trap_context.ra_mut() = action.restorer;
     *trap_context.a0_mut() = first_pending.to_user() as usize;
+    // FIXME: handler 的参数需要再确认下
 
     let sp = signal_context.old_trap_context.sp() - core::mem::size_of::<SignalContext>();
-    let user_ptr = (|| unsafe {
-        UserCheck::new(sp as *mut SignalContext)
-            .ok_or(errno::EINVAL)?
-            .check_ptr_mut()
-    })();
-    if let Ok(user_ptr) = user_ptr {
-        user_ptr.write(signal_context);
-        false
-    } else {
-        exit_process(&thread.process, (first_pending as i8).wrapping_add_unsigned(128));
-        true
+    if let Ok(user_ptr) = UserPtr::new(sp as *mut SignalContext) {
+        unsafe {
+            match user_ptr.write(signal_context) {
+                Ok(_) => return false,
+                Err(err) => warn!("Failed to save signal context: {}", errno::error_info(err)),
+            }
+        }
     }
+
+    exit_process(&thread.process, (first_pending as i8).wrapping_add_unsigned(128));
+    true
 }
 
 pub fn set_kernel_trap_entry() {

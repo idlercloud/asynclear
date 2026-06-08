@@ -13,7 +13,7 @@ use event_listener::listener;
 use libkernel::{
     fs::{self, dentry::DEntry, inode::InodeMode},
     hart::local_hart,
-    memory::UserCheck,
+    memory::UserCheckLegacy,
     process::{exit_process, INITPROC_PID, PROCESS_MANAGER},
     signal::Signal,
 };
@@ -137,20 +137,24 @@ pub fn sys_clone(flags: usize, user_stack: usize, _ptid: usize, _tls: usize, _ct
 /// - `pathname` 给出了要加载的可执行文件的名字，必须以 `\0` 结尾
 /// - `argv` 给出了参数列表。其最后一个元素必须是 0
 /// - `envp` 给出环境变量列表，其最后一个元素必须是 0
-pub async fn sys_execve(pathname: UserCheck<u8>, argv: UserCheck<usize>, envp: Option<UserCheck<usize>>) -> KResult {
+pub async fn sys_execve(
+    pathname: UserCheckLegacy<u8>,
+    argv: UserCheckLegacy<usize>,
+    envp: Option<UserCheckLegacy<usize>>,
+) -> KResult {
     let (bytes, args, envs) = {
         let pathname = pathname.check_cstr()?;
         let mut pathname = &*pathname;
         debug!("pathname: {}", pathname);
         // 收集参数列表
-        let collect_cstrs = |mut v: Vec<EcoString>, mut ptr_vec: UserCheck<usize>| -> KResult<Vec<EcoString>> {
+        let collect_cstrs = |mut v: Vec<EcoString>, mut ptr_vec: UserCheckLegacy<usize>| -> KResult<Vec<EcoString>> {
             loop {
                 // TODO: [low] 这里其实重复检查了，或许可以优化。要注意对齐要求
                 let arg_str_ptr = ptr_vec.check_ptr()?.read();
                 if arg_str_ptr == 0 {
                     break;
                 }
-                let arg_str = UserCheck::new(arg_str_ptr as *mut u8)
+                let arg_str = UserCheckLegacy::new(arg_str_ptr as *mut u8)
                     .ok_or(errno::EINVAL)?
                     .check_cstr()?;
                 v.push(EcoString::from(&*arg_str));
@@ -204,7 +208,7 @@ pub async fn sys_execve(pathname: UserCheck<u8>, argv: UserCheck<usize>, envp: O
 /// - `wstatus` 若非空则用于表示某些状态，目前而言似乎仅需往里写入子进程的 exit code
 /// - `options` 控制等待方式，详细查看 [`WaitFlags`]，目前只支持 `WNOHANG`
 /// - `rusgae` 用于统计子进程资源使用情况，目前不支持
-pub async fn sys_wait4(pid: isize, wstatus: Option<UserCheck<i32>>, options: usize, rusage: usize) -> KResult {
+pub async fn sys_wait4(pid: isize, wstatus: Option<UserCheckLegacy<i32>>, options: usize, rusage: usize) -> KResult {
     assert!(
         pid == -1 || pid > 0,
         "pid < -1 && pid == 0, i.e. wait process group, not supported yet"

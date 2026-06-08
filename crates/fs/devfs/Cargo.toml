@@ -6,17 +6,19 @@ edition.workspace = true
 
 [dependencies]
 ecow.workspace = true
+heapless.workspace = true
+scopeguard.workspace = true
 triomphe.workspace = true
 unsize.workspace = true
 
-libkernel = { path = "../../libkernel" }
-qemu_uart = { path = "../../drivers/qemu_uart" }
 common = { path = "../../utils/common" }
 console_output = { path = "../../utils/console_output" }
 defines = { path = "../../utils/defines" }
 executor = { path = "../../utils/executor" }
 kernel_tracer = { path = "../../utils/kernel_tracer" }
 klocks = { path = "../../utils/klocks" }
+libkernel = { path = "../../libkernel" }
+qemu_uart = { path = "../../drivers/qemu_uart" }
 tmpfs = { path = "../tmpfs" }
 
 [lints]

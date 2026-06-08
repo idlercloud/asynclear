@@ -88,7 +88,7 @@ impl<UserThreadFuture: Future<Output = ()>> Future for UserThreadWrapperFuture<U
         let tid = self.thread.tid();
         let _enter = info_span!("task", pid = pid, tid = tid).entered();
         let trap_context = unsafe { &mut self.thread.get_owned().as_mut().trap_context };
-        if trap_context.user_float_ctx.valid {
+        if trap_context.user_float_ctx.valid != 0 {
             trap_context.user_float_ctx.restore();
         }
         trace!("User task running");
@@ -110,7 +110,7 @@ impl<UserThreadFuture: Future<Output = ()>> Future for UserThreadWrapperFuture<U
             if trap_context.fs() == sstatus::FS::Dirty {
                 // 进入信号处理前需要保存当前线程的浮点数上下文以便信号处理完成后恢复
                 trap_context.user_float_ctx.save();
-                trap_context.user_float_ctx.valid = true;
+                trap_context.user_float_ctx.valid = 1;
                 trap_context.set_fs(sstatus::FS::Clean);
             }
         }

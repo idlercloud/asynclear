@@ -5,7 +5,7 @@ use core::{
     ptr::NonNull,
 };
 
-use common::config::{LOW_ADDRESS_END, MAX_PATHNAME_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
+use common::config::{LOW_ADDRESS_END, MAX_PATH_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::error::{errno, KResult};
 use riscv::{
     interrupt::Exception,
@@ -21,7 +21,7 @@ use crate::{hart::local_hart, trap};
 
 pub enum ReadBuffer<'a> {
     Kernel(&'a mut [u8]),
-    User(UserCheck<[u8]>),
+    User(UserCheckLegacy<[u8]>),
 }
 
 impl ReadBuffer<'_> {
@@ -42,7 +42,7 @@ impl ReadBuffer<'_> {
 
 pub enum WriteBuffer<'a> {
     Kernel(&'a [u8]),
-    User(UserCheck<[u8]>),
+    User(UserCheckLegacy<[u8]>),
 }
 
 impl WriteBuffer<'_> {
@@ -73,21 +73,21 @@ impl<'a> WriteBuffer<'a> {
     }
 }
 
-pub struct UserCheck<T: ?Sized> {
-    ptr: NonNull<T>,
+pub struct UserCheckLegacy<T: ?Sized> {
+    pub ptr: NonNull<T>,
 }
 
-unsafe impl<T: ?Sized> Send for UserCheck<T> {}
+unsafe impl<T: ?Sized> Send for UserCheckLegacy<T> {}
 
-impl<T> UserCheck<T> {
+impl<T> UserCheckLegacy<T> {
     pub fn new(ptr: *mut T) -> Option<Self> {
         Some(Self {
             ptr: NonNull::new(ptr)?,
         })
     }
 
-    pub fn new_slice(ptr: *mut T, len: usize) -> Option<UserCheck<[T]>> {
-        Some(UserCheck {
+    pub fn new_slice(ptr: *mut T, len: usize) -> Option<UserCheckLegacy<[T]>> {
+        Some(UserCheckLegacy {
             ptr: NonNull::slice_from_raw_parts(NonNull::new(ptr)?, len),
         })
     }
@@ -123,13 +123,13 @@ impl<T> UserCheck<T> {
     }
 }
 
-impl<T: ?Sized> UserCheck<T> {
+impl<T: ?Sized> UserCheckLegacy<T> {
     pub fn addr(&self) -> NonZeroUsize {
         self.ptr.addr()
     }
 }
 
-impl<T> UserCheck<[T]> {
+impl<T> UserCheckLegacy<[T]> {
     pub fn len(&self) -> usize {
         self.ptr.len()
     }
@@ -157,24 +157,24 @@ impl<T> UserCheck<[T]> {
         })
     }
 
-    pub fn as_user_check(&self) -> UserCheck<T> {
-        UserCheck {
+    pub fn as_user_check(&self) -> UserCheckLegacy<T> {
+        UserCheckLegacy {
             ptr: self.ptr.as_non_null_ptr(),
         }
     }
 
-    pub fn slice(&self, range: Range<usize>) -> Option<UserCheck<[T]>> {
+    pub fn slice(&self, range: Range<usize>) -> Option<UserCheckLegacy<[T]>> {
         if range.end > self.len() || range.start > range.end {
             return None;
         }
         let first = self.as_user_check().add(range.start)?;
-        Some(UserCheck {
+        Some(UserCheckLegacy {
             ptr: NonNull::slice_from_raw_parts(first.ptr, range.end - range.start),
         })
     }
 }
 
-impl UserCheck<u8> {
+impl UserCheckLegacy<u8> {
     /// 非 utf8 会返回 EINVAL
     pub fn check_cstr(&self) -> KResult<UserRead<str>> {
         let start = self.ptr.addr().get();
@@ -206,7 +206,7 @@ impl UserCheck<u8> {
                     return Err(errno::EFAULT);
                 }
 
-                if end - start > MAX_PATHNAME_LEN {
+                if end - start > MAX_PATH_LEN {
                     warn!("user cstr too long, from {:p}", self.ptr);
                     return Err(errno::ENAMETOOLONG);
                 }

@@ -16,7 +16,7 @@ use crate::{
         inode::{DynBytesInode, DynDirInode, InodeMeta, InodeMode},
         pipe::Pipe,
     },
-    memory::{ReadBuffer, UserCheck, WriteBuffer},
+    memory::{ReadBuffer, UserCheckLegacy, WriteBuffer},
 };
 
 #[derive(Clone)]
@@ -77,6 +77,7 @@ impl DirFile {
                 break;
             }
             d_reclen = (ptr as usize + d_reclen).next_multiple_of(align_of::<Dirent64>()) - ptr as usize;
+            // FIXME: [high] 这里的对齐总感觉有问题，可能得再看看
             let meta = child.meta();
             // SAFETY:
             // 写入范围不会重叠，且由上面控制不会写出超过 buf 的区域

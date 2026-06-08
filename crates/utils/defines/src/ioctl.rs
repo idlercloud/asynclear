@@ -6,10 +6,12 @@
 // musl 中 NCCS 为 32，且 termios 结构体含有 __c_ispeed 和 __c_ospeed 两个字段
 // linux 中 NCCS 为 19 且不含这两个字段
 
+use bytemuck::{Pod, Zeroable};
+
 pub const NCCS: usize = 19;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Termios {
     /// 输入模式
     pub iflag: u32,
@@ -27,7 +29,7 @@ pub struct Termios {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct WinSize {
     pub ws_row: u16,
     pub ws_col: u16,

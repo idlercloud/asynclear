@@ -15,7 +15,7 @@ use triomphe::Arc;
 use super::{dentry::DEntryDir, page_cache::PageCache};
 use crate::{
     fs::page_cache::PageState,
-    memory::{ReadBuffer, UserCheck, WriteBuffer},
+    memory::{ReadBuffer, UserCheckLegacy, WriteBuffer},
 };
 
 static INODE_NUMBER: AtomicUsize = AtomicUsize::new(0);
@@ -133,6 +133,9 @@ pub trait BytesInodeBackend: Send + Sync + 'static {
 
 impl dyn BytesInodeBackend {
     pub async fn read_at(&self, buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         self.read_at_impl(buf, offset)
             .instrument(debug_span!("read_at", offset = offset))
             .await
@@ -140,13 +143,12 @@ impl dyn BytesInodeBackend {
 
     async fn read_at_impl(&self, mut buf: ReadBuffer<'_>, offset: u64) -> KResult<usize> {
         let meta = self.meta();
-        let data_len = meta.lock_inner_with(|inner| inner.data_len);
-
-        if offset > data_len {
-            return Ok(0);
-        }
-
         if meta.mode() == InodeMode::Regular {
+            let data_len = meta.lock_inner_with(|inner| inner.data_len);
+            if offset >= data_len {
+                return Ok(0);
+            }
+
             let read_end = usize::min(buf.len(), (data_len - offset) as usize);
             let mut nread = 0;
 

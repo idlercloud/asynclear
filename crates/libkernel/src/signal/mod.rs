@@ -9,6 +9,7 @@
 mod handlers;
 
 use bitflags::bitflags;
+use bytemuck::{Pod, Zeroable};
 use defines::signal::KSignalAction;
 use extend::ext;
 pub use handlers::{DefaultHandler, SignalHandlers};
@@ -19,6 +20,8 @@ pub const SIG_ERR: usize = usize::MAX;
 pub const SIG_DFL: usize = 0;
 pub const SIG_IGN: usize = 1;
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
 pub struct SignalContext {
     pub old_mask: KSignalSet,
     pub old_trap_context: TrapContext,
@@ -53,7 +56,8 @@ bitflags! {
     /// 然而实践中比较混乱。比如理论应该区分 sigset_t(1024bits) 和 kernel_sigset_t(64bits?)，但 linux 内核中后者的名字是前者。
     ///
     /// 而在 syscall 边界上，linux 也是直接使用的 64bits 的
-    #[derive(Clone, Copy, Debug)]
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug, Pod, Zeroable)]
     pub struct KSignalSet: u64 {
         const SIGHUP    = 1 << (Signal::SIGHUP as u8);
         const SIGINT    = 1 << (Signal::SIGINT as u8);

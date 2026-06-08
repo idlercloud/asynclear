@@ -19,10 +19,10 @@ pub mod errno {
         ($($name:tt, $errno:literal, $desc:literal,)*) => {
             $(#[doc = $desc]
             pub const $name: super::Error = super::Error($errno);)*
-            pub fn error_info(errno: isize) -> &'static str {
-                match errno {
+            pub fn error_info(errno: super::Error) -> &'static str {
+                match errno.as_isize() {
                     $($errno => ::core::concat!(stringify!($name), ", ", stringify!($desc)),)*
-                    _ => unreachable!("{}", errno),
+                    _ => unreachable!("{}", errno.as_isize()),
                 }
             }
         };

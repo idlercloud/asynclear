@@ -291,6 +291,9 @@ pub async fn read_file(file: &Arc<DynBytesInode>) -> KResult<Vec<u8>> {
     // NOTE: 这里其实可能有 race？读写同时发生时 `data_len` 可能会比较微妙
     let data_len = file.meta().lock_inner_with(|inner| inner.data_len as usize);
     let mut ret = Vec::with_capacity(data_len);
+    if data_len == 0 {
+        return Ok(ret);
+    }
     let buf = unsafe { core::slice::from_raw_parts_mut(ret.as_mut_ptr(), data_len) };
     let len = file.read_at(ReadBuffer::Kernel(buf), 0).await?;
     // SAFETY: `0..len` 在 read_at 中已被初始化
