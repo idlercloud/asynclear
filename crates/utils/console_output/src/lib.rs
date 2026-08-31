@@ -62,6 +62,6 @@ pub macro eprint {
 pub macro eprintln {
     () => (eprint!("\n")),
     ($($arg:tt)*) => {
-        $crate::eprint(core::format_args_nl!($($arg)*));
+        $crate::eprint(core::format_args_nl!($($arg)*))
     }
 }

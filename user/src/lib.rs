@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(linkage)]
 #![feature(alloc_error_handler)]
-#![feature(never_type)]
 
 #[macro_use]
 pub mod console;

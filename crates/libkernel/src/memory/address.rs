@@ -65,6 +65,16 @@ impl Step for PhysPageNum {
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_sub(count).map(PhysPageNum)
     }
+
+    fn forward_overflowing(start: Self, count: usize) -> (Self, bool) {
+        let (ppn, overflow) = start.0.overflowing_add(count);
+        (PhysPageNum(ppn), overflow)
+    }
+
+    fn backward_overflowing(start: Self, count: usize) -> (Self, bool) {
+        let (ppn, overflow) = start.0.overflowing_sub(count);
+        (PhysPageNum(ppn), overflow)
+    }
 }
 
 /// 虚拟地址。在 Sv39 页表机制中，虚拟地址 38~0 有效，39 及高位和 38 位一致，页号 27 位，页内偏移 12 位。
@@ -190,5 +200,15 @@ impl Step for VirtPageNum {
 
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
         start.0.checked_sub(count).map(VirtPageNum)
+    }
+
+    fn forward_overflowing(start: Self, count: usize) -> (Self, bool) {
+        let (vpn, overflow) = start.0.overflowing_add(count);
+        (VirtPageNum(vpn), overflow)
+    }
+
+    fn backward_overflowing(start: Self, count: usize) -> (Self, bool) {
+        let (vpn, overflow) = start.0.overflowing_sub(count);
+        (VirtPageNum(vpn), overflow)
     }
 }
