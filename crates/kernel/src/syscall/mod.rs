@@ -11,7 +11,11 @@ use defines::{
     syscall::*,
 };
 use fs::*;
-use libkernel::{hart::local_hart, memory::UserCheckLegacy, process::exit_process};
+use libkernel::{
+    hart::local_hart,
+    memory::{UserCheckLegacy, UserPtr},
+    process::exit_process,
+};
 use memory::*;
 use misc::*;
 use process::*;
@@ -102,13 +106,8 @@ async fn syscall_impl(id: usize, args: [usize; 6]) -> KResult {
             UserCheckLegacy::new(args[1] as _).ok_or(errno::EINVAL)?,
             args[2] as _,
         ),
-        CHDIR => sys_chdir(UserCheckLegacy::new(args[0] as _).ok_or(errno::EINVAL)?),
-        OPENAT => sys_openat(
-            args[0],
-            UserCheckLegacy::new(args[1] as _).ok_or(errno::EINVAL)?,
-            args[2] as _,
-            args[3] as _,
-        ),
+        CHDIR => sys_chdir(UserPtr::new(args[0] as _)?),
+        OPENAT => sys_openat(args[0], UserPtr::new(args[1] as _)?, args[2] as _, args[3] as _),
         CLOSE => sys_close(args[0]),
         PIPE2 => sys_pipe2(UserCheckLegacy::new(args[0] as _).ok_or(errno::EINVAL)?, args[1] as _),
         GETDENTS64 => sys_getdents64(

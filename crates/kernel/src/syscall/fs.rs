@@ -21,7 +21,7 @@ use libkernel::{
         pipe, LastComponentType, VirtFileSystem,
     },
     hart::local_hart,
-    memory::{ReadBuffer, UserCheckLegacy, WriteBuffer},
+    memory::{ReadBuffer, UserCheckLegacy, UserPtr, WriteBuffer},
 };
 use smallvec::SmallVec;
 use triomphe::Arc;
@@ -196,8 +196,8 @@ pub async fn sys_writev(fd: usize, mut io_vec: UserCheckLegacy<IoVec>, vec_len: 
 ///     - 状态标志影响后续的 I/O 方式，而且可以动态修改
 /// - `mode` 是用于指定创建新文件时，该文件的 mode。目前应该不会用到
 ///     - 它只会影响未来访问该文件的模式，但这一次打开该文件可以是随意的
-pub fn sys_openat(dir_fd: usize, path: UserCheckLegacy<u8>, flags: u32, mut _mode: u32) -> KResult {
-    let path = path.check_cstr()?;
+pub fn sys_openat(dir_fd: usize, path: UserPtr<u8>, flags: u32, mut _mode: u32) -> KResult {
+    let path = unsafe { path.read_path() }?;
 
     let Some(flags) = OpenFlags::from_bits(flags) else {
         todo!("[low] unsupported OpenFlags: {flags:#b}");
@@ -629,8 +629,8 @@ impl FromStr for FileSystemType {
 }
 
 /// 将调用进程的当前工作目录更改为 `path` 中指定的目录
-pub fn sys_chdir(path: UserCheckLegacy<u8>) -> KResult {
-    let path = path.check_cstr()?;
+pub fn sys_chdir(path: UserPtr<u8>) -> KResult {
+    let path = unsafe { path.read_path() }?;
     let p2i = fs::resolve_path_with_dir_fd(AT_FDCWD, &path)?;
     let DEntry::Dir(dir) = p2i.dir.lookup(p2i.last_component).ok_or(errno::ENOENT)? else {
         return Err(errno::ENOTDIR);

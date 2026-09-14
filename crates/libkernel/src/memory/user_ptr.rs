@@ -1,3 +1,5 @@
+//! 参考 Rust For Linux 的 <https://rust.docs.kernel.org/kernel/uaccess/index.html>
+
 use core::{
     arch,
     mem::{self, MaybeUninit},
@@ -7,6 +9,7 @@ use core::{
 use bytemuck::Pod;
 use common::config::{LOW_ADDRESS_END, MAX_PATH_LEN, PAGE_SIZE, PAGE_SIZE_BITS};
 use defines::error::{errno, KResult};
+use ecow::EcoString;
 use riscv::{
     interrupt::Exception,
     register::stvec::{self, Stvec, TrapMode},
@@ -134,6 +137,39 @@ impl UserPtr<[u8]> {
     }
 }
 
+impl UserPtr<u8> {
+    /// 从用户空间读入一个 C 式的 `\0` 结尾字符串，包括末尾的 `\0` 一并写入 `buf`
+    ///
+    /// 返回字符串长度（不包括末尾 `\0`）。
+    /// `buf` 容纳不下（包括末尾的 `\0`）时返回 [`errno::ENAMETOOLONG`]
+    ///
+    /// # Safety
+    /// 需要用户自行确保并发性
+    pub unsafe fn read_cstr(self, buf: &mut [u8]) -> KResult {
+        unsafe { copy_cstr_from_user(self.ptr.as_ptr(), buf.as_mut_ptr(), buf.len()) }
+    }
+
+    /// 从用户空间读入一个路径
+    ///
+    /// 长度超过 [`MAX_PATH_LEN`] 时返回 [`errno::ENAMETOOLONG`]，非 utf8 则返回 [`errno::EINVAL`]
+    ///
+    /// # Safety
+    /// 需要用户自行确保并发性
+    pub unsafe fn read_path(self) -> KResult<EcoString> {
+        let mut buf = [0; MAX_PATH_LEN];
+        let len = unsafe { self.read_cstr(&mut buf) }.inspect_err(|&error| {
+            if error == errno::ENAMETOOLONG {
+                warn!("user path too long, from {:p}", self.ptr);
+            }
+        })?;
+        let path = core::str::from_utf8(&buf[..len]).map_err(|_error| {
+            warn!("Not utf8 path from {:p}", self.ptr);
+            errno::EINVAL
+        })?;
+        Ok(EcoString::from(path))
+    }
+}
+
 /// Safety:
 /// - `src` 是用户缓冲区
 /// - `dst` 是合法的内核缓冲区，长度不小于 `len`
@@ -161,12 +197,17 @@ unsafe fn copy_from_user(src: *const u8, dst: *mut u8, len: usize) -> KResult<()
     Ok(())
 }
 
-/// 返回字符串长度（不包括末尾 `\0`）
+/// 读出的内容包括末尾的 `\0`，返回字符串长度（不包括末尾 `\0`）
+///
+/// `dst` 容纳不下（包括末尾的 `\0`）时返回 [`errno::ENAMETOOLONG`]
 ///
 /// Safety:
-/// - `src` 是用户缓冲区，代表一个 C 式的 `\0` 结尾字符串。最大长度（包括 `\0`）为 [`MAX_PATH_LEN`]
-/// - `dst` 是合法的内核缓冲区，需要大于字符串的长度
-unsafe fn copy_c_path_from_user(mut src: *const u8, mut dst: *mut u8) -> KResult {
+/// - `src` 是用户缓冲区，代表一个 C 式的 `\0` 结尾字符串
+/// - `dst` 是合法的内核缓冲区，长度不小于 `len`
+unsafe fn copy_cstr_from_user(mut src: *const u8, mut dst: *mut u8, len: usize) -> KResult {
+    if len == 0 {
+        return Err(errno::ENAMETOOLONG);
+    }
     let src_start = src as usize;
 
     let _guard = NoIrqGuard::new();
@@ -179,6 +220,9 @@ unsafe fn copy_c_path_from_user(mut src: *const u8, mut dst: *mut u8) -> KResult
     let mut page_end = ((src_start >> PAGE_SIZE_BITS) << PAGE_SIZE_BITS) + PAGE_SIZE;
     // TODO: 这里的实现是有问题的，以后要换成基于异常表的读取
     'ok: loop {
+        if va >= LOW_ADDRESS_END {
+            return Err(errno::EFAULT);
+        }
         try_read_user_byte(va)?;
         while va < page_end {
             unsafe {
@@ -188,7 +232,7 @@ unsafe fn copy_c_path_from_user(mut src: *const u8, mut dst: *mut u8) -> KResult
                     break 'ok;
                 }
                 va += 1;
-                if va - src_start >= MAX_PATH_LEN {
+                if va - src_start >= len {
                     return Err(errno::ENAMETOOLONG);
                 }
                 src = src.add(1);

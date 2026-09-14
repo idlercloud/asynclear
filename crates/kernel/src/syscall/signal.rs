@@ -4,7 +4,7 @@ use defines::{
 };
 use libkernel::{
     hart::local_hart,
-    memory::UserCheckLegacy,
+    memory::{UserCheckLegacy, UserPtr},
     process::{exit_process, PROCESS_MANAGER},
     signal::{KSignalSet, SigProcMaskHow, Signal, SignalContext},
 };
@@ -103,14 +103,11 @@ pub fn sys_rt_sigprocmask(
 pub fn sys_rt_sigreturn() -> KResult {
     let thread = local_hart().curr_thread();
     let trap_context = unsafe { &mut thread.get_owned().as_mut().trap_context };
-    let Ok(old_ctx) = UserCheckLegacy::new(trap_context.sp() as *mut SignalContext)
-        .ok_or(errno::EINVAL)?
-        .check_ptr()
+    let Ok(old_ctx) = UserPtr::new(trap_context.sp() as *mut SignalContext).and_then(|ptr| unsafe { ptr.read() })
     else {
         exit_process(&thread.process, -10);
         return Err(errno::BREAK);
     };
-    let old_ctx = old_ctx.read();
     // FIXME: 应当严格校验从用户空间读入的 context
 
     thread.lock_inner_with(|inner| inner.signal_mask = old_ctx.old_mask);
