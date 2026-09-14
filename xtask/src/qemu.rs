@@ -9,10 +9,10 @@ use const_format::formatcp;
 use crate::{
     build::BuildArgs,
     cmd_util::Cmd,
+    paths,
     timing::TimerSession,
     tool,
     variables::{FS_IMG_PATH, SBI_PATH},
-    KERNEL_BIN_PATH,
 };
 
 /// 使用 QEMU 运行内核
@@ -61,7 +61,9 @@ impl QemuArgs {
     pub fn base_qemu() -> Cmd {
         let mut cmd = Cmd::new("qemu-system-riscv64");
         cmd.args(["-machine", "virt", "-m", "128M", "-nographic"])
-            .args(["-kernel", KERNEL_BIN_PATH, "-bios", SBI_PATH])
+            .arg("-kernel")
+            .arg(paths::kernel_bin())
+            .args(["-bios", SBI_PATH])
             .args(["-drive", formatcp!("file={FS_IMG_PATH},if=none,format=raw,id=x0")])
             .args(["-device", "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0"]);
         cmd

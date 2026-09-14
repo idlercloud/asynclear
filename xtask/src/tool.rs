@@ -2,7 +2,7 @@ use std::{
     fs::{self, File, ReadDir},
     io::{self, Cursor, Write},
     iter,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use anyhow::anyhow;
@@ -14,10 +14,10 @@ use tap::Tap;
 use crate::{
     build::{BuildArgs, USER_BINS},
     cmd_util::Cmd,
+    paths,
     timing::ScopedTimer,
     tool,
     variables::{FS_IMG_PATH, TARGET_ARCH},
-    KERNEL_BIN_PATH, KERNEL_ELF_PATH,
 };
 
 /// 生成内核或指定 ELF 的汇编
@@ -37,7 +37,7 @@ impl AsmArgs {
         if !self.skip_build {
             self.build.build_kernel();
         }
-        let elf_path = self.path.unwrap_or_else(|| PathBuf::from(KERNEL_ELF_PATH));
+        let elf_path = self.path.unwrap_or_else(paths::kernel_elf);
         let output = Cmd::parse("rust-objdump --arch-name=riscv64 --mattr=+d -g")
             .args([
                 "--source",
@@ -166,8 +166,9 @@ pub fn pack() {
 
         {
             let _timer = ScopedTimer::start("pack: copy user bins");
-            let pack_into = |place_in_host: &str, path: &str| {
-                let elf = fs::read(place_in_host).expect(place_in_host);
+            let pack_into = |place_in_host: &Path, path: &str| {
+                let elf = fs::read(place_in_host)
+                    .unwrap_or_else(|e| panic!("Cannot read {}: {e}", place_in_host.display()));
                 let mut dir = root_dir.clone();
                 let components = path.split('/').collect::<Vec<_>>();
                 for &component in &components[0..components.len() - 1] {
@@ -178,7 +179,7 @@ pub fn pack() {
                 file.write_all(&elf).unwrap();
             };
             for elf_name in USER_BINS.iter() {
-                let src_path = format!("target/{TARGET_ARCH}/release/{elf_name}");
+                let src_path = paths::user_bin_dir().join(elf_name);
                 if elf_name.starts_with("test_") {
                     pack_into(&src_path, &format!("ktest/{elf_name}"));
                 } else if elf_name.starts_with("bench_") || elf_name == "_empty" {
@@ -213,8 +214,10 @@ pub fn prepare_os() {
     // Make kernel bin
     println!("Making kernel bin...");
     Cmd::new("rust-objcopy")
-        .arg(KERNEL_ELF_PATH)
-        .args(["-O", "binary", KERNEL_BIN_PATH])
+        .arg(paths::kernel_elf())
+        .arg("-O")
+        .arg("binary")
+        .arg(paths::kernel_bin())
         .invoke();
 
     // Pack filesystem

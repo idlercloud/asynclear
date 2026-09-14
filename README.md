@@ -141,7 +141,7 @@
 命令行调试过程如下：
 
 1. 运行 `cargo qemu` 或 `cargo ktest` 时，多加一个参数 `--debug`
-2. 另外开启一个终端并切换到 asynclear 目录，执行 `riscv64-unknown-elf-gdb -ex 'file target/riscv64gc-unknown-none-elf/kernel' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'`
+2. 另外开启一个终端，执行 `cargo gdb`（等价于 `just gdb`）
 
 vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中，需要在 `.vscode/launch.json` 中配置它的路径。过程如下：
 

@@ -2,7 +2,7 @@ use std::{fs, sync::LazyLock};
 
 use clap::Parser;
 
-use crate::{cmd_util::Cmd, timing::ScopedTimer, variables::TARGET_ARCH};
+use crate::{cmd_util::Cmd, paths, timing::ScopedTimer, variables::TARGET_ARCH};
 
 /// 构建内核和用户程序
 #[derive(Parser)]
@@ -38,11 +38,9 @@ impl BuildArgs {
             .optional_arg(self.release.then_some("--release"))
             .optional_args(self.profiling.then_some(["--features", "profiling"]))
             .invoke();
-        let kernel_path = format!(
-            "target/{TARGET_ARCH}/{}/kernel",
-            if self.release { "release" } else { "debug" }
-        );
-        fs::copy(kernel_path, format!("target/{TARGET_ARCH}/kernel")).unwrap();
+        let profile = if self.release { "release" } else { "debug" };
+        let built_kernel = paths::target_dir().join(TARGET_ARCH).join(profile).join("kernel");
+        fs::copy(built_kernel, paths::kernel_elf()).unwrap();
     }
 }
 

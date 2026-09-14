@@ -57,6 +57,7 @@ pub fn new_fat32_fs(
     })
 }
 
+#[allow(clippy::needless_bool)]
 fn is_valid_fat32_bpb(bpb: &BiosParameterBlock) -> bool {
     // FAT32 基础字段检查：几何参数、计数字段、FAT32 专属字段
     if bpb.sector_size as usize != SECTOR_SIZE

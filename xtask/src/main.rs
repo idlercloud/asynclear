@@ -1,6 +1,8 @@
 mod build;
 mod cmd_util;
+mod gdb;
 mod ktest;
+mod paths;
 mod profiling;
 mod qemu;
 mod timing;
@@ -9,17 +11,13 @@ mod variables;
 
 use build::BuildArgs;
 use clap::{Parser, Subcommand};
-use const_format::formatcp;
+use gdb::GdbArgs;
 use ktest::KtestArgs;
 use profiling::ProfilingArgs;
 use qemu::QemuArgs;
 use tool::{AsmArgs, FatProbeArgs};
-use variables::TARGET_ARCH;
 
 use crate::timing::TimerSession;
-
-const KERNEL_ELF_PATH: &str = formatcp!("target/{TARGET_ARCH}/kernel");
-const KERNEL_BIN_PATH: &str = formatcp!("{KERNEL_ELF_PATH}.bin");
 
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
@@ -36,6 +34,7 @@ enum Commands {
     /// 对项目进行代码检查
     Lint,
     Qemu(QemuArgs),
+    Gdb(GdbArgs),
     FatProbe(FatProbeArgs),
     /// 准备项目的开发环境，运行一次即可
     Env,
@@ -54,6 +53,7 @@ fn main() {
         Ktest(args) => args.run_test(),
         Lint => tool::lint(),
         Qemu(args) => args.run(),
+        Gdb(args) => args.run(),
         FatProbe(args) => args.probe(),
         Env => tool::prepare_env(),
         Profiling(args) => args.analyze(),
