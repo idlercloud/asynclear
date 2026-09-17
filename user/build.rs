@@ -6,6 +6,7 @@ fn main() {
 
     // 指定要列举的目录
     let dir = "src/bin"; // 你可以替换为任何目录
+    println!("cargo::rerun-if-changed={dir}");
 
     // 获取目录下的所有文件名
     let mut codegen_content = String::from("pub const KTESTS: &[&::core::ffi::CStr] = &[\n");
@@ -15,10 +16,11 @@ fn main() {
             continue;
         }
         let path = entry.path();
-        if path.starts_with("test_") {
-            let test_name = path.file_stem().unwrap().to_str().unwrap();
-            writeln!(codegen_content, "    c\"{test_name}\",").unwrap();
+        let test_name = path.file_stem().unwrap().to_str().unwrap();
+        if !test_name.starts_with("test_") {
+            continue;
         }
+        writeln!(codegen_content, "    c\"{test_name}\",").unwrap();
     }
     codegen_content.push_str("];\n");
 
