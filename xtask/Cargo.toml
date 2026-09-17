@@ -8,6 +8,7 @@ edition.workspace = true
 
 [dependencies]
 fastrand = { workspace = true, default-features = true }
+scopeguard.workspace = true
 tap.workspace = true
 
 anyhow = "1"

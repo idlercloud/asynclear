@@ -7,6 +7,7 @@ extern crate alloc;
 pub mod error;
 pub mod fs;
 pub mod ioctl;
+pub mod ktest;
 pub mod misc;
 pub mod resource;
 pub mod signal;

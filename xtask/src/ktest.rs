@@ -1,13 +1,24 @@
 use std::{
     io::{BufRead, BufReader, Write},
     ops::Range,
-    sync::LazyLock,
+    process::ExitCode,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, LazyLock, Mutex,
+    },
+    thread,
+    time::Duration,
 };
 
 use clap::Parser;
 use regex::Regex;
 
 use crate::{build::BuildArgs, qemu::QemuArgs, tool};
+
+/// 有测试没通过
+const EXIT_TESTS_FAILED: u8 = 1;
+/// 测试没跑完或结果不可信（超时、QEMU 异常退出、输出中断等）
+const EXIT_HARNESS_ERROR: u8 = 2;
 
 /// 运行内核集成测试
 #[derive(Parser)]
@@ -22,10 +33,13 @@ pub struct KtestArgs {
     /// 如果开启，QEMU 会阻塞并等待 GDB 连接
     #[clap(long)]
     debug: bool,
+    /// 整轮测试的超时时间（秒），超时后杀掉 QEMU 并以失败结束
+    #[clap(long, default_value_t = 300)]
+    timeout: u64,
 }
 
 impl KtestArgs {
-    pub fn run_test(self) {
+    pub fn run_test(self) -> ExitCode {
         if !self.skip_build {
             self.build.build();
             tool::prepare_os();
@@ -33,17 +47,46 @@ impl KtestArgs {
 
         println!("Running qemu...");
 
-        let mut child = QemuArgs::base_qemu()
+        let mut spawned = QemuArgs::base_qemu()
             .args(["-smp", &self.smp.to_string()])
             .optional_args(self.debug.then_some(["-s", "-S"]))
             .spawn();
-        let stdin = child.stdin.as_mut().unwrap();
-        let mut lines = BufReader::new(child.stdout.as_mut().unwrap()).lines();
-        let output = || -> anyhow::Result<Vec<String>> {
+        let mut stdin = spawned.stdin.take().unwrap();
+        let stdout = spawned.stdout.take().unwrap();
+        let child = Arc::new(Mutex::new(spawned));
+        // 提前返回或 panic 时也不能把仍在运行的 QEMU 留在后台占用文件镜像
+        let _guard = scopeguard::guard(Arc::clone(&child), |child| {
+            let mut child = child.lock().unwrap();
+            if child.try_wait().is_ok_and(|status| status.is_none()) {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        });
+        let timed_out = Arc::new(AtomicBool::new(false));
+
+        {
+            // 挂死的测试只能由宿主机兜底：读循环会一直阻塞，QEMU 也不会自己退出
+            let child = Arc::clone(&child);
+            let timed_out = Arc::clone(&timed_out);
+            let timeout = Duration::from_secs(self.timeout);
+            thread::spawn(move || {
+                thread::sleep(timeout);
+                let mut child = child.lock().unwrap();
+                if child.try_wait().is_ok_and(|status| status.is_none()) {
+                    timed_out.store(true, Ordering::SeqCst);
+                    let _ = child.kill();
+                }
+            });
+        }
+
+        let mut lines = BufReader::new(stdout).lines();
+        let output = (|| -> anyhow::Result<Vec<String>> {
             // 等待 shell 准备完毕
             loop {
-                let line = lines.next().unwrap()?;
-                if line.contains("Rust user shell") {
+                let Some(line) = lines.next() else {
+                    anyhow::bail!("QEMU stopped before the shell was ready");
+                };
+                if line?.contains("Rust user shell") {
                     break;
                 }
             }
@@ -53,7 +96,10 @@ impl KtestArgs {
             let mut output = Vec::new();
 
             loop {
-                let line = lines.next().unwrap()?;
+                let Some(line) = lines.next() else {
+                    anyhow::bail!("QEMU stopped before the end marker");
+                };
+                let line = line?;
                 // 按照约定，testrunner 运行完后会输出这个，作为测试结束的标志
                 if line.contains("==ALL TESTS OK==") {
                     break;
@@ -63,8 +109,16 @@ impl KtestArgs {
             }
             writeln!(stdin, "exit")?;
             Ok(output)
-        }()
-        .unwrap();
+        })();
+
+        let output = match output {
+            // 超时会打断读循环，此时优先报告超时而不是读取错误
+            Err(_) if timed_out.load(Ordering::SeqCst) => {
+                return report_harness_error(format!("timed out after {}s", self.timeout));
+            }
+            Err(e) => return report_harness_error(format!("failed to read QEMU output: {e}")),
+            Ok(output) => output,
+        };
 
         let mut passed = Vec::new();
         let mut failed = Vec::new();
@@ -131,7 +185,7 @@ impl KtestArgs {
             }
         }
         println!("Failed tests:");
-        for part in failed {
+        for part in &failed {
             if part.is_ptest {
                 println!("    ptest {}", part.name);
             } else {
@@ -141,16 +195,42 @@ impl KtestArgs {
 
         let mut shutdown = false;
         for line in lines {
-            if line.unwrap().contains("[initproc] No child process. OS shutdown") {
+            if line.is_ok_and(|line| line.contains("[initproc] No child process. OS shutdown")) {
                 shutdown = true;
                 break;
             }
         }
-        if !shutdown {
-            panic!("ERROR: no shutdown");
+
+        let wait_result = {
+            let mut child = child.lock().unwrap();
+            child.wait()
+        };
+        let status = match wait_result {
+            Ok(status) => status,
+            Err(e) => return report_harness_error(format!("failed to wait for QEMU: {e}")),
+        };
+
+        if timed_out.load(Ordering::SeqCst) {
+            return report_harness_error(format!("timed out after {}s", self.timeout));
         }
-        child.wait().unwrap();
+        if !shutdown {
+            return report_harness_error("QEMU shutdown marker not found");
+        }
+        if !status.success() {
+            return report_harness_error(format!("QEMU exited with {status}"));
+        }
+        if !failed.is_empty() {
+            println!("{} test(s) failed", failed.len());
+            return ExitCode::from(EXIT_TESTS_FAILED);
+        }
+        ExitCode::SUCCESS
     }
+}
+
+/// 打印测试没有跑完的原因，QEMU 由作用域守卫在返回时回收
+fn report_harness_error(message: impl std::fmt::Display) -> ExitCode {
+    println!("ERROR: {message}");
+    ExitCode::from(EXIT_HARNESS_ERROR)
 }
 
 fn ptest_checker(name: &str, content: &[String]) -> bool {

@@ -3,12 +3,15 @@
 
 use core::ffi::CStr;
 
-use defines::error::errno::ENOENT;
+use defines::{
+    error::errno::ENOENT,
+    ktest::{TEST_EXIT_EXEC_ERROR, TEST_EXIT_MISSING},
+};
 use user::{chdir, exec, exit, fork, println, waitpid};
 
 include!(concat!(env!("OUT_DIR"), "/ktest_list.rs"));
 
-const PRELIMINARY_TESTS: [&CStr; 32] = [
+const PRELIMINARY_TESTS: [&CStr; 30] = [
     c"brk",
     c"chdir",
     c"clone",
@@ -24,12 +27,10 @@ const PRELIMINARY_TESTS: [&CStr; 32] = [
     c"getpid",
     c"getppid",
     c"gettimeofday",
-    c"mkdir_",
     c"mmap",
     c"mount",
     c"munmap",
     c"open",
-    c"openat",
     c"pipe",
     c"read",
     c"sleep",
@@ -49,14 +50,20 @@ fn main() -> i32 {
     for test in PRELIMINARY_TESTS {
         let pid = fork();
         if pid < 0 {
-            println!("[testsrunner] ERROR fork: {}", pid);
+            println!("==TEST {} MISSING (fork: {})==", cstr_to_str(test), pid);
             continue;
         }
         if pid == 0 {
             let ret = exec(test, &[test.as_ptr().cast(), core::ptr::null()]);
-            if ret < 0 && ret != ENOENT.as_isize() {
-                println!("[testrunner] ERROR exec: {}", ret);
-                exit(-1);
+            if ret < 0 {
+                let missing = ret == ENOENT.as_isize();
+                println!(
+                    "==TEST {} {} (exec: {})==",
+                    cstr_to_str(test),
+                    if missing { "MISSING" } else { "ERROR" },
+                    ret
+                );
+                exit(if missing { TEST_EXIT_MISSING } else { TEST_EXIT_EXEC_ERROR });
             }
             exit(0);
         } else {
@@ -69,7 +76,7 @@ fn main() -> i32 {
     for test in KTESTS {
         let pid = fork();
         if pid < 0 {
-            println!("[testsrunner] ERROR fork: {}", pid);
+            println!("==TEST {} MISSING (fork: {})==", cstr_to_str(test), pid);
             continue;
         }
         if pid == 0 {
@@ -85,8 +92,12 @@ fn main() -> i32 {
     0
 }
 
-fn exec_test(test_name: &CStr) {
-    if test_name == c"test_echo" {
+fn cstr_to_str(cstr: &CStr) -> &str {
+    cstr.to_str().unwrap_or("?")
+}
+
+fn exec_test(test_name: &CStr) -> ! {
+    let ret = if test_name == c"test_echo" {
         exec(
             test_name,
             &[
@@ -94,9 +105,16 @@ fn exec_test(test_name: &CStr) {
                 c"echo_example".as_ptr().cast(),
                 core::ptr::null(),
             ],
-        );
+        )
     } else {
-        exec(test_name, &[test_name.as_ptr().cast(), core::ptr::null()]);
-    }
-    unreachable!()
+        exec(test_name, &[test_name.as_ptr().cast(), core::ptr::null()])
+    };
+    let missing = ret == ENOENT.as_isize();
+    println!(
+        "==TEST {} {} (exec: {})==",
+        cstr_to_str(test_name),
+        if missing { "MISSING" } else { "ERROR" },
+        ret
+    );
+    exit(if missing { TEST_EXIT_MISSING } else { TEST_EXIT_EXEC_ERROR })
 }

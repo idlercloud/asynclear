@@ -1462,6 +1462,7 @@ dependencies = [
  "fastrand",
  "fatfs",
  "regex",
+ "scopeguard",
  "serde_json",
  "tap",
 ]

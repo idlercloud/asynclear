@@ -15,6 +15,7 @@ use gdb::GdbArgs;
 use ktest::KtestArgs;
 use profiling::ProfilingArgs;
 use qemu::QemuArgs;
+use std::process::ExitCode;
 use tool::{AsmArgs, FatProbeArgs};
 
 use crate::timing::TimerSession;
@@ -41,7 +42,7 @@ enum Commands {
     Profiling(ProfilingArgs),
 }
 
-fn main() {
+fn main() -> ExitCode {
     #[allow(clippy::enum_glob_use)]
     use Commands::*;
     match Cli::parse().command {
@@ -50,7 +51,7 @@ fn main() {
             args.build();
         }
         Asm(args) => args.dump(),
-        Ktest(args) => args.run_test(),
+        Ktest(args) => return args.run_test(),
         Lint => tool::lint(),
         Qemu(args) => args.run(),
         Gdb(args) => args.run(),
@@ -58,4 +59,5 @@ fn main() {
         Env => tool::prepare_env(),
         Profiling(args) => args.analyze(),
     }
+    ExitCode::SUCCESS
 }
