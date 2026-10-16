@@ -3,7 +3,7 @@
 
 use user::exit;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     exit(0);
 }

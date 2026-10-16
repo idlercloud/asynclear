@@ -49,7 +49,7 @@ const PRELIMINARY_TESTS: [&CStr; 30] = [
 /// 结果上报通道：往它写一个字节，内核就以该值结束整个模拟。只有 ktest 模式的镜像里有这个节点
 const KTEST_DEVICE: &CStr = c"/dev/ktest";
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     let mut summary = Summary::default();
 

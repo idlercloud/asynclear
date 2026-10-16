@@ -3,7 +3,7 @@
 
 use user::{exit, fork, getpid, getppid, println, test_main, waitpid};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     test_main("test_pid", || {
         let parent_pid = getpid();

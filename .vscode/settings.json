@@ -1,0 +1,22 @@
+{
+    "rust-analyzer.cargo.features": [
+        "profiling"
+    ],
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "check",
+        "--message-format=json",
+        /* for kernel and user apps */
+        "--target",
+        "riscv64gc-unknown-none-elf",
+        "--package",
+        "kernel",
+        "--features",
+        "profiling",
+        "--package",
+        "user",
+        /* for xtask */
+        // "--package",
+        // "xtask",
+    ],
+}

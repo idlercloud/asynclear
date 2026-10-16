@@ -185,7 +185,7 @@ bitflags! {
         const MAP_EXECUTABLE    = 1 << 12;
     }
 
-    /// 用于 sys_clone 的选项
+    /// 用于 `sys_clone` 的选项
     #[derive(Clone, Copy, Debug)]
     pub struct CloneFlags: u32 {
         /// 共享地址空间
@@ -204,11 +204,11 @@ bitflags! {
         // const CLONE_VFORK = 1 << 14;
         // /// 指定子任务的 ppid 为当前任务的 ppid，相当于创建“兄弟”而不是“子女”
         // const CLONE_PARENT = 1 << 15;
-        /// 作为一个“线程”被创建。具体来说，它同 CLONE_PARENT 一样设置 ppid，且不可被 wait
+        /// 作为一个“线程”被创建。具体来说，它同 `CLONE_PARENT` 一样设置 ppid，且不可被 wait
         const CLONE_THREAD = 1 << 16;
         // /// 子任务使用新的命名空间。目前还未用到
         // const CLONE_NEWNS = 1 << 17;
-        /// 子任务共享同一组信号量。用于 sys_semop
+        /// 子任务共享同一组信号量。用于 `sys_semop`
         const CLONE_SYSVSEM = 1 << 18;
         /// 要求设置 tls
         const CLONE_SETTLS = 1 << 19;

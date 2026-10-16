@@ -4,7 +4,7 @@
 use defines::misc::{MmapFlags, MmapProt};
 use user::{bench_main, println, sys_mmap, sys_munmap};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     bench_main(
         "bench_mmap",

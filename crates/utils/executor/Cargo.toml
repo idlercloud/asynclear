@@ -9,8 +9,8 @@ futures.workspace = true
 
 common = { path = "../common" }
 defines = { path = "../defines" }
-klocks = { path = "../klocks" }
 kernel_tracer = { path = "../kernel_tracer" }
+klocks = { path = "../klocks" }
 riscv_time = { path = "../../arch/riscv_time" }
 
 async-task = { version = "4.7", default-features = false }

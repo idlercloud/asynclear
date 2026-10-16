@@ -5,7 +5,7 @@ use defines::fs::{OpenFlags, SEEK_SET};
 use fastrand::Rng;
 use user::{bench_main, lseek, open, println, read};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let fd = open(c"_playground", OpenFlags::RDONLY) as i32;
     if fd < 0 {

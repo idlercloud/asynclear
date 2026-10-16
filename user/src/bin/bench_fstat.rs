@@ -4,7 +4,7 @@
 use defines::fs::{OpenFlags, Stat};
 use user::{bench_main, open, println, sys_newfstat};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let fd = open(c"_playground", OpenFlags::RDONLY);
     if fd < 0 {

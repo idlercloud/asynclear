@@ -4,16 +4,16 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[features]
-default = ["kernel"]
-kernel = ["dep:riscv_guard", "dep:riscv_time"]
-std = ["spin/std"]
-
 [dependencies]
 spin = { workspace = true, features = ["rwlock"] }
 
 riscv_guard = { path = "../../arch/riscv_guard", optional = true }
 riscv_time = { path = "../../arch/riscv_time", optional = true }
+
+[features]
+default = ["kernel"]
+kernel = ["dep:riscv_guard", "dep:riscv_time"]
+std = ["spin/std"]
 
 [lints]
 workspace = true

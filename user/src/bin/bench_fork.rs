@@ -3,7 +3,7 @@
 
 use user::{bench_main, exit, fork, println, waitpid};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     bench_main(
         "bench_fork",

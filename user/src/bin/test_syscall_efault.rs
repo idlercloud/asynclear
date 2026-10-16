@@ -4,7 +4,7 @@
 use defines::error::errno;
 use user::{sys_execve, sys_uname, sys_write, test_main, STDOUT};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     test_main("test_syscall_efault", || {
         // 测试 `check_cstr()`

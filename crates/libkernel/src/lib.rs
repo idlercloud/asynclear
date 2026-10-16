@@ -9,7 +9,6 @@
 #![feature(sync_unsafe_cell)]
 #![feature(slice_ptr_get)]
 #![feature(iter_intersperse)]
-#![feature(debug_closure_helpers)]
 #![feature(negative_impls)]
 #![feature(maybe_uninit_as_bytes)]
 

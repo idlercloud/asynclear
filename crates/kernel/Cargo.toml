@@ -20,25 +20,25 @@ virtio-drivers.workspace = true
 common = { path = "../utils/common" }
 console_output = { path = "../utils/console_output" }
 defines = { path = "../utils/defines" }
+devfs = { path = "../fs/devfs" }
+executor = { path = "../utils/executor" }
+fat32_vfs = { path = "../fs/fat32_vfs" }
+hal = { path = "../drivers/hal" }
 kernel_tracer = { path = "../utils/kernel_tracer" }
 klocks = { path = "../utils/klocks" }
-executor = { path = "../utils/executor" }
-riscv_guard = { path = "../arch/riscv_guard" }
-riscv_time = { path = "../arch/riscv_time" }
-hal = { path = "../drivers/hal" }
-virtio_glue = { path = "../drivers/virtio_glue" }
+libkernel = { path = "../libkernel" }
+procfs = { path = "../fs/procfs" }
 qemu_plic = { path = "../drivers/qemu_plic" }
 qemu_test = { path = "../drivers/qemu_test" }
 qemu_uart = { path = "../drivers/qemu_uart" }
-libkernel = { path = "../libkernel" }
-devfs = { path = "../fs/devfs" }
+riscv_guard = { path = "../arch/riscv_guard" }
+riscv_time = { path = "../arch/riscv_time" }
 tmpfs = { path = "../fs/tmpfs" }
-procfs = { path = "../fs/procfs" }
-fat32_vfs = { path = "../fs/fat32_vfs" }
+virtio_glue = { path = "../drivers/virtio_glue" }
 
 anstyle = { version = "1.0", default-features = false }
-slab = { version = "0.4", default-features = false }
 fdt = { version = "0.1", features = ["pretty-printing"] }
+slab = { version = "0.4", default-features = false }
 
 [features]
 default = []

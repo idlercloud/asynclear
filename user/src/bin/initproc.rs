@@ -7,7 +7,7 @@ extern crate user;
 use defines::wait::wexitstatus;
 use user::{exec, fork, wait};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     if fork() == 0 {
         exec(c"shell", &[c"shell".as_ptr().cast(), core::ptr::null()]);

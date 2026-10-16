@@ -1,20 +1,20 @@
 [workspace]
+resolver = "2"
 members = [
-  "crates/libkernel",
-  "crates/kernel",
   "crates/arch/*",
-  "crates/utils/*",
-  "crates/fs/*",
   "crates/drivers/*",
-  "xtask",
+  "crates/fs/*",
+  "crates/kernel",
+  "crates/libkernel",
+  "crates/utils/*",
   "user",
+  "xtask",
 ]
 exclude = ["deps"]
-resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-authors = ["cxz888 <idlercloud@gmail.com>"]
+authors = ["idlercloud <idlercloud@gmail.com>"]
 edition = "2024"
 
 [workspace.dependencies]
@@ -42,17 +42,6 @@ tap = "1.0"
 triomphe = { version = "0.1", default-features = false, features = ["unsize"] }
 unsize = "1"
 virtio-drivers = "0.13"
-
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
-debug = "limited"
-
-[profile.release]
-codegen-units = 1
-lto = "fat"
 
 [workspace.lints.clippy]
 explicit_counter_loop = { level = "allow" }
@@ -134,3 +123,14 @@ unexpected_cfgs = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 
 unreachable_patterns = "deny"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = "limited"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

@@ -53,7 +53,7 @@ impl SigProcMaskHow {
 bitflags! {
     /// 其实 posix 规定 64 位平台上应该有 1024bits。[Why is sigset_t in glibc/musl 128 bytes large on 64-bit Linux?](https://unix.stackexchange.com/questions/399342/why-is-sigset-t-in-glibc-musl-128-bytes-large-on-64-bit-linux)
     ///
-    /// 然而实践中比较混乱。比如理论应该区分 sigset_t(1024bits) 和 kernel_sigset_t(64bits?)，但 linux 内核中后者的名字是前者。
+    /// 然而实践中比较混乱。比如理论应该区分 `sigset_t`(1024bits) 和 `kernel_sigset_t`(64bits?)，但 linux 内核中后者的名字是前者。
     ///
     /// 而在 syscall 边界上，linux 也是直接使用的 64bits 的
     #[repr(C)]

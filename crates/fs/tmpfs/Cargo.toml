@@ -9,9 +9,9 @@ ecow.workspace = true
 triomphe.workspace = true
 unsize.workspace = true
 
-libkernel = { path = "../../libkernel" }
 defines = { path = "../../utils/defines" }
 executor = { path = "../../utils/executor" }
+libkernel = { path = "../../libkernel" }
 
 [lints]
 workspace = true

@@ -6,7 +6,7 @@ use user::{exit, fork, println, test_main, waitpid, yield_};
 const WIDTH: usize = 8;
 const HEIGHT: usize = 4;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     test_main("test_yield", || {
         let pid = fork();

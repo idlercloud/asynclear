@@ -9,11 +9,11 @@ ecow.workspace = true
 triomphe.workspace = true
 unsize.workspace = true
 
-libkernel = { path = "../../libkernel" }
 common = { path = "../../utils/common" }
 defines = { path = "../../utils/defines" }
 executor = { path = "../../utils/executor" }
 kernel_tracer = { path = "../../utils/kernel_tracer" }
+libkernel = { path = "../../libkernel" }
 
 tmpfs = { path = "../tmpfs" }
 

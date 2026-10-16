@@ -5,7 +5,7 @@ use core::hint::black_box;
 
 use user::{check_syscall_ret, close, exit, fork, pipe, println, read, test_main, wait, write_all, yield_};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     test_main("test_float_ctx", || {
         // 用 `pipe()` 做同步

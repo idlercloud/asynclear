@@ -8,7 +8,7 @@ use user::{exit, fork, test_main, wait};
 
 const MAX_CHILD: usize = 8;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     test_main("test_fork", || {
         for i in 0..MAX_CHILD {

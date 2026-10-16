@@ -16,7 +16,7 @@ use core::ffi::CStr;
 
 use user::{chdir, console::getchar, exec, exit, flush, fork, waitpid};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     println!("Rust user shell");
     let mut line = String::new();

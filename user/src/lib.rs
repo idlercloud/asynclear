@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(linkage)]
-#![feature(alloc_error_handler)]
 
 #[macro_use]
 pub mod console;
@@ -97,11 +96,6 @@ struct HeapInner {
     buddy_system: Heap<32>,
 }
 
-#[alloc_error_handler]
-pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
-    panic!("Heap allocation error, layout = {layout:?}");
-}
-
 fn clear_bss() {
     use extern_symbols::{end_bss, start_bss};
     unsafe {
@@ -113,8 +107,8 @@ fn clear_bss() {
     }
 }
 
-#[no_mangle]
-#[link_section = ".text.entry"]
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text.entry")]
 pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     clear_bss();
     HEAP.init();
@@ -130,7 +124,7 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
 }
 
 #[linkage = "weak"]
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }

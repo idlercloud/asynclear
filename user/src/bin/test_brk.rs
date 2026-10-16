@@ -3,7 +3,7 @@
 
 use user::{println, sys_brk, test_main};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     test_main("test_brk", || {
         let orig = sys_brk(0) as usize;

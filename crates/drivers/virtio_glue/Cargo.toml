@@ -8,10 +8,10 @@ edition.workspace = true
 hashbrown.workspace = true
 virtio-drivers.workspace = true
 
-hal = { path = "../hal" }
-libkernel = { path = "../../libkernel" }
 common = { path = "../../utils/common" }
+hal = { path = "../hal" }
 klocks = { path = "../../utils/klocks" }
+libkernel = { path = "../../libkernel" }
 
 [lints]
 workspace = true

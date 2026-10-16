@@ -4,7 +4,7 @@
 use defines::fs::OpenFlags;
 use user::{bench_main, open, println, sys_getdents64};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main() -> i32 {
     let mut buf = [0; 4096];
     bench_main(

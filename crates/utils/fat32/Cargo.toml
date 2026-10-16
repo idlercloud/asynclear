@@ -4,10 +4,9 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[features]
-default = ["kernel"]
-kernel = ["hal/kernel", "kernel_tracer/kernel", "klocks/kernel"]
-std = ["hal/std", "kernel_tracer/std", "klocks/std"]
+[[test]]
+name = "regression"
+required-features = ["std"]
 
 [dependencies]
 bitflags.workspace = true
@@ -20,9 +19,10 @@ hal = { path = "../../drivers/hal", default-features = false }
 kernel_tracer = { path = "../../utils/kernel_tracer", default-features = false }
 klocks = { path = "../../utils/klocks", default-features = false }
 
+[features]
+default = ["kernel"]
+kernel = ["hal/kernel", "kernel_tracer/kernel", "klocks/kernel"]
+std = ["hal/std", "kernel_tracer/std", "klocks/std"]
+
 [lints]
 workspace = true
-
-[[test]]
-name = "regression"
-required-features = ["std"]

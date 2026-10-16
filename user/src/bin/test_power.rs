@@ -5,7 +5,7 @@ use user::{println, test_main};
 
 const LEN: usize = 100;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     test_main("test_power", || {
         let p = 7u64;

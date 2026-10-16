@@ -3,7 +3,7 @@
 
 use user::{println, test_main};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn main(argc: usize, argv: &[&str]) -> i32 {
     test_main("test_echo", || {
         assert_eq!(argc, 2);
