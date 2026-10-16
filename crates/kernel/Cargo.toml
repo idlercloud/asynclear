@@ -28,6 +28,7 @@ riscv_time = { path = "../arch/riscv_time" }
 hal = { path = "../drivers/hal" }
 virtio_glue = { path = "../drivers/virtio_glue" }
 qemu_plic = { path = "../drivers/qemu_plic" }
+qemu_test = { path = "../drivers/qemu_test" }
 qemu_uart = { path = "../drivers/qemu_uart" }
 libkernel = { path = "../libkernel" }
 devfs = { path = "../fs/devfs" }

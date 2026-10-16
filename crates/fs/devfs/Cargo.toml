@@ -18,6 +18,7 @@ executor = { path = "../../utils/executor" }
 kernel_tracer = { path = "../../utils/kernel_tracer" }
 klocks = { path = "../../utils/klocks" }
 libkernel = { path = "../../libkernel" }
+qemu_test = { path = "../../drivers/qemu_test" }
 qemu_uart = { path = "../../drivers/qemu_uart" }
 tmpfs = { path = "../tmpfs" }
 

@@ -28,8 +28,8 @@ use crate::{
 pub static PROCESS_MANAGER: ProcessManager = ProcessManager::new();
 pub const INITPROC_PID: usize = 1;
 
-pub async fn init() {
-    let init_proc = Process::from_path("/initproc", vec![EcoString::from("/initproc")])
+pub async fn init(init_path: &str) {
+    let init_proc = Process::from_path(init_path, vec![EcoString::from(init_path)])
         .await
         .expect("INITPROC Failed.");
     PROCESS_MANAGER.add(INITPROC_PID, init_proc);

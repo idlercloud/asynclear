@@ -190,7 +190,6 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 - [ ] 改造虚拟文件系统；或许可以看看 try_as_dyn
 - [ ] 基于 frame pointer 的栈回溯以及离线解析符号表
 - [ ] 读取设备树，去除硬件的硬编码
-- [ ] 通过 qemu -append 参数传入内核参数来启动内核测试，并使用 sifive test 设备返回结果；将测试逻辑更多移入到用户程序中
 - [ ] 通过 virtio serial 将日志写入文件
 - [ ] 考虑 target-specific 依赖
 - [ ] 添加文件系统的测试，包括且不限于：
@@ -203,6 +202,7 @@ vscode 调试需要注意，如果 `riscv64-unknown-elf-gdb` 不在 `PATH` 中�
 - [ ] mmap 和用户栈以及共享映射的区域划分要重新考虑
 - [ ] 内核线程
 - [ ] kernel 内容能否放入 huge page？
+- [x] 通过 qemu -append 参数传入内核参数来启动内核测试，并使用 sifive test 设备返回结果；将测试逻辑更多移入到用户程序中
 
 ## 参考资料
 

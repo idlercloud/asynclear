@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate user;
 
+use defines::wait::wexitstatus;
 use user::{exec, fork, wait};
 
 #[no_mangle]
@@ -25,7 +26,7 @@ fn main() -> i32 {
             println!(
                 "[initproc] Released a zombie process, pid={}, exit_code={}",
                 pid,
-                exit_code >> 8,
+                wexitstatus(exit_code),
             );
         }
     }

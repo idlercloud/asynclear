@@ -56,6 +56,25 @@ impl Cmd {
         self
     }
 
+    pub fn stdin(&mut self, cfg: Stdio) -> &mut Self {
+        self.0.stdin(cfg);
+        self
+    }
+
+    /// 用 `Stdio::piped()` 捕获 stdout 时，必须把 `Child::stdout` 读走，
+    /// 否则子进程写满管道缓冲后会一直阻塞
+    #[expect(unused)]
+    pub fn stdout(&mut self, cfg: Stdio) -> &mut Self {
+        self.0.stdout(cfg);
+        self
+    }
+
+    #[expect(unused)]
+    pub fn stderr(&mut self, cfg: Stdio) -> &mut Self {
+        self.0.stderr(cfg);
+        self
+    }
+
     #[track_caller]
     pub fn status(&mut self) -> process::ExitStatus {
         match self.0.status() {
@@ -109,7 +128,14 @@ impl Cmd {
         output
     }
 
+    /// 启动子进程，stdio 由上面几个方法配置，未配置的继承当前进程
+    #[track_caller]
     pub fn spawn(&mut self) -> Child {
-        self.0.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap()
+        match self.0.spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                panic!("Failed calling {:?}: {e}", self.info());
+            }
+        }
     }
 }

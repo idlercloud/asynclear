@@ -11,11 +11,12 @@ fastrand = { workspace = true, default-features = true }
 scopeguard.workspace = true
 tap.workspace = true
 
+defines = { path = "../crates/utils/defines" }
+
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 const_format = "0.2"
 fatfs = "0.3"
-regex = "1"
 serde_json = "1.0"
 
 [lints]

@@ -7,6 +7,7 @@
 extern crate kernel_tracer;
 extern crate alloc;
 
+mod boot_args;
 mod drivers;
 mod glue;
 mod lang_items;
@@ -47,6 +48,11 @@ pub extern "C" fn __hart_entry(hart_id: usize, fdt_ptr: usize) -> ! {
         let fdt_ptr = fdt_ptr + common::config::PA_TO_VA;
         let fdt_ptr = fdt_ptr as *const u8;
         let fdt = unsafe { Fdt::from_ptr(fdt_ptr).unwrap() };
+        boot_args::init(&fdt);
+        if boot_args::ktest_mode() {
+            // 只有 ktest 模式才注册 /dev/ktest，正常启动时这个节点不存在
+            devfs::enable_ktest_device();
+        }
         // drivers 依赖于 mmio 映射（其实也许可以放在 boot page table 里？）
         drivers::init(&fdt);
         // log 实现依赖于 uart 和 virtio_block
@@ -56,7 +62,7 @@ pub extern "C" fn __hart_entry(hart_id: usize, fdt_ptr: usize) -> ! {
 
         glue::init_vfs();
 
-        executor::block_on(process::init());
+        executor::block_on(process::init(boot_args::init_path()));
         glue::spawn_user_thread(
             process::PROCESS_MANAGER
                 .init_proc()
@@ -107,6 +113,11 @@ pub fn kernel_loop() -> ! {
         loop {
             core::hint::spin_loop();
         }
+    }
+    // ktest 模式下走到这里，说明 PID 1 退出了却没人写过 `/dev/ktest`，判成为运行器错误
+    if boot_args::ktest_mode() {
+        warn!("ktest: no result was reported, ending with KTEST_RUNNER_ERROR");
+        qemu_test::exit_with(defines::ktest::KTEST_RUNNER_ERROR);
     }
     sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::NoReason);
     unreachable!()

@@ -143,16 +143,15 @@ impl Thread {
 
             // 如果进程已标记为退出（即已调用 `exit_process()`），则标记为僵尸并使用已有的退出码
             // 否则使用线程的退出码
-            let exit_code = self.exit_code.load(Ordering::SeqCst);
-            let new_status;
-            if let Some(override_exit_code) = process.exit_code() {
-                new_status = ProcessStatus::zombie(override_exit_code);
-            } else {
-                new_status = ProcessStatus::zombie(exit_code);
-            }
-            process.status.store(new_status, Ordering::SeqCst);
+            let exit_code = process
+                .exit_code()
+                .unwrap_or_else(|| self.exit_code.load(Ordering::SeqCst));
+            process.status.store(ProcessStatus::zombie(exit_code), Ordering::SeqCst);
 
             // 子进程交由 INITPROC 来处理。如果退出的就是 INITPROC，那么系统退出
+            //
+            // TODO: 这里和 Linux 不一致，需要重新设计。Linux 中 PID 1 退出会被当作致命错误
+            // （panic "Attempted to kill init"），系统是靠 PID 1 自己调 `reboot(2)` 结束的
             if process.pid() == process::INITPROC_PID {
                 assert_eq!(children.len(), 0);
                 executor::SHUTDOWN.store(true, Ordering::SeqCst);

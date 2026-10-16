@@ -234,12 +234,6 @@ pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
                 sys_yield();
             }
             n => {
-                if n > 0 {
-                    *exit_code = (*exit_code & 0xff00) >> 8;
-                    if *exit_code & 0b10000000 != 0 {
-                        *exit_code |= 0xffffff00u32 as i32;
-                    }
-                }
                 return n;
             }
         }

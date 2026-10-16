@@ -12,3 +12,4 @@ pub mod misc;
 pub mod resource;
 pub mod signal;
 pub mod syscall;
+pub mod wait;

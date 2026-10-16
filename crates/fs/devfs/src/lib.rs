@@ -4,11 +4,15 @@
 extern crate kernel_tracer;
 extern crate alloc;
 
+mod ktest;
 mod rtc;
 mod tty;
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use defines::{error::KResult, fs::StatFsFlags};
 use ecow::EcoString;
+use ktest::KtestInode;
 use libkernel::fs::{
     dentry::{DEntry, DEntryBytes, DEntryDir},
     inode::{DynBytesInode, DynBytesInodeCoercion},
@@ -21,6 +25,13 @@ use unsize::CoerceUnsize;
 use self::tty::TtyInode;
 
 pub const FS_TYPE: &str = "devtmpfs";
+
+static KTEST_DEVICE_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// 让之后挂载的 devfs 都注册 `/dev/ktest`（只有 ktest 模式会调用）
+pub fn enable_ktest_device() {
+    KTEST_DEVICE_ENABLED.store(true, Ordering::SeqCst);
+}
 
 pub fn new_dev_fs(
     parent: Arc<DEntryDir>,
@@ -44,6 +55,9 @@ pub fn new_dev_fs(
 
         add_child("tty", Arc::new(TtyInode::new()).unsize(DynBytesInodeCoercion!()));
         add_child("rtc", Arc::new(RtcInode::new()).unsize(DynBytesInodeCoercion!()));
+        if KTEST_DEVICE_ENABLED.load(Ordering::SeqCst) {
+            add_child("ktest", Arc::new(KtestInode::new()).unsize(DynBytesInodeCoercion!()));
+        }
     }
     Ok(fs)
 }
